@@ -1,0 +1,5 @@
+*.o
+.sconsign*
+
+# build product
+bonsai
