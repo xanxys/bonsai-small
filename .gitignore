@@ -3,3 +3,6 @@
 
 # build product
 bonsai
+
+# run product
+*.png
