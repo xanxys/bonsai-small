@@ -6,6 +6,7 @@
 #include <iostream>
 #include <memory>
 #include <opencv2/opencv.hpp>
+#include <random>
 #include <string>
 #include <tuple>
 
@@ -92,7 +93,15 @@ class LightGrid {
 public:
 	LightGrid() {
 		size = 0.01;
-		cells[std::make_tuple(0,0,5)] = std::unique_ptr<LGVoxel>(new LGVoxel());
+
+		std::mt19937 gen;
+		std::uniform_int_distribution<> dist(-20, 20);
+
+		
+		for(int i=0; i<100; i++) {
+			auto loc = std::make_tuple(dist(gen), dist(gen), dist(gen));
+			cells[loc] = std::unique_ptr<LGVoxel>(new LGVoxel());
+		}
 	}
 
 	RadianceSphere trace(Position pos) {
@@ -141,8 +150,11 @@ public:
 private:
 	bool intersectCube(Position p0, Position p1, Position org, Position dir, double& t_intersect) {
 		// Project 3 slabs to ray and take intersection.
-		Eigen::Vector3d t0 = (p0 - org).cwiseQuotient(dir);
-		Eigen::Vector3d t1 = (p1 - org).cwiseQuotient(dir);
+		Eigen::Vector3d pre_t0 = (p0 - org).cwiseQuotient(dir);
+		Eigen::Vector3d pre_t1 = (p1 - org).cwiseQuotient(dir);
+
+		Eigen::Vector3d t0 = pre_t0.cwiseMin(pre_t1);
+		Eigen::Vector3d t1 = pre_t0.cwiseMax(pre_t1);
 
 		const double t_begin = std::max({t0[0], t0[1], t0[2], 0.0});  // 0 is for ray beginning
 		const double t_end = std::min({t1[0], t1[1], t1[2]});
