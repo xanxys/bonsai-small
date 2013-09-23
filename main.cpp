@@ -1,7 +1,5 @@
 #include <algorithm>
 #include <boost/math/constants/constants.hpp>
-#include <boost/math/special_functions/spherical_harmonic.hpp>
-#include <boost/multi_array.hpp>
 #include <eigen3/Eigen/Dense>
 #include <iostream>
 #include <memory>
@@ -21,39 +19,6 @@ using Position = Eigen::Vector3d;  // in meter
 using Direction = Eigen::Vector3d;  // no unit, norm must be 1.
 
 const double pi =  boost::math::constants::pi<double>();
-
-/*
-// Angular radiance distribution.
-class AngularRadiance {
-public:
-	Radiance get(Direction dir) const;
-};
-
-// Angular radiance distribution approximated by spherica harmonics.
-class SHAngularRadiance : public AngularRadiance {
-	SHAngularRadiance(Radiance v00) : v00(v00) {
-	}
-
-	SHAngularRadiance(Radiance v00, Radiance v1m1, Radiance v10, Radiance v1p1) :
-		v00(v00), v1m1(v1m1), v10(v10), v1p1(v1p1) {
-	}
-
-	Radiance get(Direction dir) const {
-		double rxy = sqrt(dir[0] * dir[0] + dir[1] * dir[1]);
-		
-		double theta = 0.5 * boost::math::constants::pi<double>() - atan2(dir[2], rxy);
-		double phi = atan2(dir[1], dir[0]);
-
-		return
-			boost::math::detail::spherical_harmonic_r(0, 0, theta, phi, default_policy()) * v00 +
-			boost::math::detail::spherical_harmonic_r(1, -1, theta, phi, default_policy()) * v1m1 +
-			boost::math::detail::spherical_harmonic_r(1, 0, theta, phi, default_policy()) * v10 +
-			boost::math::detail::spherical_harmonic_r(1, 1, theta, phi, default_policy()) * v1p1;
-	}
-private:
-	Radiance v00, v1m1, v10, v1p1;
-};
-*/
 
 // Class to store radiance distribution on sphere.
 // Sampling density can be assumed to constant.
@@ -340,11 +305,8 @@ private:
 	std::unique_ptr<PlantNode> plant;  // should be root of shoot system or nullptr.
 };
 
+
 int main(int argc, char** argv) {
-	/*
-	auto lg = LightGrid();
-	lg.trace(Position(0, 0, 0)).dump("hoge.png");
-	*/
 	Bonsai bonsai;
 	for(int i=0; i<100; i++) {
 		bonsai.step();
