@@ -151,23 +151,25 @@ template <typename VoxelType>
 using SparseVoxel = std::map<std::tuple<int, int, int>, VoxelType>;
 
 // A node of dynamic L system.
+// TODO: constructors are becoming messy. Refactor it after all modification operations
+// are implemented.
 class PlantNode {
 public:
 	// Create shoot system root along with root system pointer set, assuming up is Z+.
 	PlantNode(Position pos) :
 		pos(pos),
 		shoot(false),
-		parent(*new PlantNode(pos-Position(0, 0, 0.0001), *this, false)),
+		parent(new PlantNode(pos - Position(0, 0, 0.0001), this, false)),
 		radius(0.0001),
 		can_replicate(false)  {
 		// Attach shoot apical meristem.
-		children.push_back(std::unique_ptr<PlantNode>(new PlantNode(*this)));
+		children.push_back(std::unique_ptr<PlantNode>(new PlantNode(this)));
 	}
 
 	// Attach new child 0.1mm away from parent.
-	PlantNode(PlantNode& parent) :
-		pos(parent.pos + parent.normal() * 0.0001),
-		shoot(parent.shoot),
+	PlantNode(PlantNode* parent) :
+		pos(parent->pos + parent->normal() * 0.0001),
+		shoot(parent->shoot),
 		parent(parent),
 		radius(0.0001),
 		can_replicate(true) {
@@ -176,7 +178,7 @@ public:
 private:
 	// Unsafe constructor that can specify shoot/root flag. Should only needed
 	// for creating first pair of nodes of a plant.
-	PlantNode(Position pos, PlantNode& parent, bool shoot) :
+	PlantNode(Position pos, PlantNode* parent, bool shoot) :
 		pos(pos), parent(parent), shoot(shoot), radius(0.0001),
 		can_replicate(true)  {
 	}
@@ -187,7 +189,7 @@ public:
 	}
 
 	Direction normal() const {
-		return (parent.pos - pos).normalized();
+		return (parent->pos - pos).normalized();
 	}
 
 	void move(Position displacement) {
@@ -200,7 +202,7 @@ public:
 	void step(double dt) {
 		// all edges grows at constant speed until they become 10mm.
 		grow(dt);
-
+		trigger_replicate();
 	}
 
 	void grow(double dt) {
@@ -222,25 +224,60 @@ public:
 		}
 	}
 
-	// TODO: make this protected.
+	// Execute replication depending on condition.
+	// This function is idempotent (i.e. more than one call results in same state to calling just once).
+	void trigger_replicate() {
+		const double length_min_split = 3e-3; // edge longer than 3mm splits immediately.
+
+		for(auto it = children.begin(); it != children.end(); it++) {
+			auto& child = *it;
+
+			if((child->pos - pos).norm() > length_min_split &&
+				child->can_replicate) {
+				split_half(it);
+			}
+		}
+
+	}
+
+	// TODO: make this protected by creating accessor method. (what about ext. modify?)
 	std::vector<std::unique_ptr<PlantNode>> children;
+private:
+	// Insert new node between this and specified child.
+	void split_half(std::vector<std::unique_ptr<PlantNode>>::iterator it_child) {
+		std::cout << "SPLITTED" << std::endl;
+
+		std::unique_ptr<PlantNode> grandchild = std::move(*it_child);
+
+		std::unique_ptr<PlantNode> mid_node(new PlantNode(this));
+		mid_node->pos = (pos + grandchild->pos) / 2;
+		mid_node->radius = (radius + grandchild->radius) / 2;
+
+		// Fix backward link.
+		grandchild->parent = mid_node.get();
+
+		// Fix forward links.
+		mid_node->children.push_back(std::move(grandchild));
+		*it_child = std::move(mid_node);
+	}
 protected:
 	// physical structure
 	Position pos;
 	double radius;
 
 	// topology and biological network
-	PlantNode& parent;  // always exists
+	PlantNode* parent;  // always exists. This is not a reference because split operation needs to change it.
 	
 	bool can_replicate;  // roughly corresponds to apical meristems in real plants.
 	bool shoot;  // shoot system (above ground) or root system (below ground).
 };
 
+// Whole world containing a plant and fixed environment.
 class Bonsai {
 public:
 	Bonsai() {
 		plant.reset(new PlantNode(Position(0,0,0)));
-		plant->children.push_back(std::unique_ptr<PlantNode>(new PlantNode(*plant)));
+		plant->children.push_back(std::unique_ptr<PlantNode>(new PlantNode(plant.get())));
 		timestamp = 0;
 	}
 
