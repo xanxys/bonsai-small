@@ -57,10 +57,12 @@ private:
 
 // Class to store radiance distribution on sphere.
 // Sampling density can be assumed to constant.
+// Radiance distribution on sphere is enough to derive any kind of perspective or
+// panoramic images.
 class RadianceSphere {
 public:
 	RadianceSphere() {
-		image = cv::Mat(480, 960, CV_8UC3);
+		image = cv::Mat(480, 960, CV_64FC3);
 	}
 
 	RadianceSphere(cv::Mat image_source) {
@@ -74,6 +76,7 @@ public:
 private:
 	cv::Mat image;  // y:theta [0,pi] x:phi [0,2pi]
 };
+
 
 class LGVoxel {
 public:
@@ -91,21 +94,26 @@ private:
 
 class LightGrid {
 public:
-	LightGrid() {
-		size = 0.01;
+	LightGrid(bool gen_random=true) {
+		size = 0.001;
 
-		std::mt19937 gen;
-		std::uniform_int_distribution<> dist(-20, 20);
-
-		
-		for(int i=0; i<100; i++) {
-			auto loc = std::make_tuple(dist(gen), dist(gen), dist(gen));
-			cells[loc] = std::unique_ptr<LGVoxel>(new LGVoxel());
+		if(gen_random) {
+			std::mt19937 gen;
+			std::uniform_int_distribution<> dist(-50, 50);
+			
+			for(int i=0; i<100; i++) {
+				auto loc = std::make_tuple(dist(gen), dist(gen), dist(gen));
+				cells[loc] = std::unique_ptr<LGVoxel>(new LGVoxel());
+			}
 		}
 	}
 
+	void add(std::tuple<int, int, int> pos, std::unique_ptr<LGVoxel> vx) {
+		cells[pos] = std::move(vx);
+	}
+
 	RadianceSphere trace(Position pos) {
-		const int px_base = 500;
+		const int px_base = 250;
 		cv::Mat image(px_base, px_base * 2, CV_64FC3);
 
 		for(int it=0; it<px_base; it++) {
@@ -174,9 +182,173 @@ protected:
 };
 
 
+template <typename VoxelType>
+using SparseVoxel = std::map<std::tuple<int, int, int>, VoxelType>;
+
+// A node of dynamic L system.
+class PlantNode {
+public:
+	// Create shoot system root along with root system pointer set, assuming up is Z+.
+	PlantNode(Position pos) :
+		pos(pos),
+		shoot(false),
+		parent(*new PlantNode(pos-Position(0, 0, 0.0001), *this, false)),
+		radius(0.0001),
+		can_replicate(false)  {
+		// Attach shoot apical meristem.
+		children.push_back(std::unique_ptr<PlantNode>(new PlantNode(*this)));
+	}
+
+	// Attach new child 0.1mm away from parent.
+	PlantNode(PlantNode& parent) :
+		pos(parent.pos + parent.normal() * 0.0001),
+		shoot(parent.shoot),
+		parent(parent),
+		radius(0.0001),
+		can_replicate(true) {
+	}
+
+private:
+	// Unsafe constructor that can specify shoot/root flag. Should only needed
+	// for creating first pair of nodes of a plant.
+	PlantNode(Position pos, PlantNode& parent, bool shoot) :
+		pos(pos), parent(parent), shoot(shoot), radius(0.0001),
+		can_replicate(true)  {
+	}
+
+public:
+	Position getPos() const {
+		return pos;
+	}
+
+	Direction normal() const {
+		return (parent.pos - pos).normalized();
+	}
+
+	void move(Position displacement) {
+		pos += displacement;
+		for(auto& child : children) {
+			child->move(displacement);
+		}
+	}
+
+	void step(double dt) {
+		// all edges grows at constant speed until they become 10mm.
+		grow(dt);
+
+	}
+
+	void grow(double dt) {
+		const double length_saturated= 0.01;
+		const double speed = 0.1e-3 / 60;  // 1 mm / min
+
+		for(auto& child : children) {
+			Position delta = child->pos - pos;
+			const double length_current = delta.norm();
+
+
+			if(length_current < length_saturated) {
+				const double length_new = length_current + speed * dt;
+				std::cout << length_current << "->" << length_new << std::endl;
+
+				auto displacement = delta * (length_new / length_current - 1);
+				child->move(displacement);
+			}
+		}
+	}
+
+	// TODO: make this protected.
+	std::vector<std::unique_ptr<PlantNode>> children;
+protected:
+	// physical structure
+	Position pos;
+	double radius;
+
+	// topology and biological network
+	PlantNode& parent;  // always exists
+	
+	bool can_replicate;  // roughly corresponds to apical meristems in real plants.
+	bool shoot;  // shoot system (above ground) or root system (below ground).
+};
+
+class Bonsai {
+public:
+	Bonsai() {
+		plant.reset(new PlantNode(Position(0,0,0)));
+		plant->children.push_back(std::unique_ptr<PlantNode>(new PlantNode(*plant)));
+		timestamp = 0;
+	}
+
+	// Increase time by less than 1min.
+	// Steps larger than that are not allowed.
+	void step(double dt = 60) {
+		plant->step(dt);
+
+		auto vx_occ = rasterizePlant();
+		auto vx_lg = convertVoxels(vx_occ);
+
+		std::cout << "plant # of voxels:" << vx_occ.size() << std::endl;
+		vx_lg.trace(Position(0.03, 0.03, 0.03)).dump("photo.png");
+
+		timestamp += dt;
+	}
+
+	SparseVoxel<bool> rasterizePlant() {
+		SparseVoxel<bool> retv;
+		rasterizePlantStem(*plant, retv);
+		return retv;
+	}
+
+	LightGrid convertVoxels(SparseVoxel<bool> vx) {
+		LightGrid lg(false);
+
+		for(const auto kv : vx) {
+			lg.add(kv.first, std::unique_ptr<LGVoxel>(new LGVoxel()));
+		}
+
+		return lg;
+	}
+
+	// DFS
+	void rasterizePlantStem(const PlantNode& node, SparseVoxel<bool>& result) {
+		std::cout << "Rasterizing plant stem" << std::endl;
+
+		const double vx_size = 0.001;
+
+		for(const auto& child : node.children) {
+			// Write edge.
+			Position edge_vect = child->getPos() - node.getPos();
+			for(int i=0; i<1+edge_vect.norm()/vx_size; i++) {
+				Position pos_on_edge = node.getPos() + edge_vect.normalized() * (i * vx_size);
+				Eigen::Vector3d pos_i = pos_on_edge / vx_size;
+
+				auto p = std::make_tuple(
+					static_cast<int>(pos_i[0]),
+					static_cast<int>(pos_i[1]),
+					static_cast<int>(pos_i[2]));
+
+				result[p] = true;
+			}
+
+			// Trace further.
+			rasterizePlantStem(*child, result);
+		}
+	}
+private:
+	double timestamp = 0;  // second
+	SparseVoxel<bool> env;  // true means occupied by block.
+	std::unique_ptr<PlantNode> plant;  // should be root of shoot system or nullptr.
+};
+
 int main(int argc, char** argv) {
+	/*
 	auto lg = LightGrid();
 	lg.trace(Position(0, 0, 0)).dump("hoge.png");
+	*/
+	Bonsai bonsai;
+	for(int i=0; i<100; i++) {
+		bonsai.step();
+	}
 
 	return 0;
 }
