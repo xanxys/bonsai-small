@@ -1,0 +1,23 @@
+#base_timestamp {
+	position: absolute;
+	left: 50%;
+	top: 0px;
+}
+
+#side_info {
+	width: 200px;
+	height: 400px;
+	background-color: rgba(0,0,0,0.7);
+	color: #eee;
+	padding: 1em;
+	border-radius: 2px;
+
+	position: absolute;
+	left: 0px;
+	top: 0px;
+
+}
+
+#side_info > h1 {
+	border-bottom: 1px dotted white;
+}
