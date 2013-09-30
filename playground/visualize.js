@@ -22,11 +22,16 @@ var Bonsai = function(scene) {
 	this.scene = scene;
 
 	// add pot
+	var tex = THREE.ImageUtils.loadTexture("./texture_dirt.jpg");
+
 	this.pot = new THREE.Mesh(
 		new THREE.CubeGeometry(0.3, 0.3, 0.3),
-		new THREE.MeshLambertMaterial({color: 'orange'}));
+		new THREE.MeshLambertMaterial({
+			color: 'orange',
+			map: tex}));
 	this.pot.position.z = -0.15;
 	this.scene.add(this.pot);
+
 };
 
 // shoot_base :: THREE.Object3D
