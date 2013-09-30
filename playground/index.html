@@ -4,6 +4,7 @@
 		<title>Bonsai Visualizer</title>
 
 		<link href="./common.css" rel="stylesheet" type="text/css"/>
+		<link rel="icon" href="./favicon.png" type="image/png"/>
 
 		<script src="./underscore.min.js"></script>
 		<script src="./underscore.string.min.js"></script>
@@ -14,6 +15,10 @@
 		<script src="./spin.min.js"></script>
 	</head>
 	<body>
+		<div style="width: 200px; height: 400px; position:absolute; background-color:rgba(0,0,0,0.3); padding: 1em; border-radius: 0.5em">
+			<button onclick="regrow()">Re-Grow</button>
+		</div>
+
 		<span id="base_timestamp">0</span>
 
 		<script src="./TrackballControls.js"></script>

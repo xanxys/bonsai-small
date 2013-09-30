@@ -16,6 +16,67 @@ var new_fetch_param = null;
 var last_fetched_param = null;
 var spinner;
 
+// Bonsai world class. There's no interaction between bonsai instances,
+// and Bonsai just borrows scene, not owns it.
+var Bonsai = function(scene) {
+	this.scene = scene;
+
+	// add pot
+	this.pot = new THREE.Mesh(
+		new THREE.CubeGeometry(0.3, 0.3, 0.3),
+		new THREE.MeshLambertMaterial({color: 'orange'}));
+	this.pot.position.z = -0.15;
+	this.scene.add(this.pot);
+};
+
+// shoot_base :: THREE.Object3D
+// side :: boolean
+// return :: ()
+Bonsai.prototype.add_shoot_to = function(shoot_base, side) {
+	var shoot = new THREE.Mesh(
+	new THREE.CubeGeometry(5e-3, 5e-3, 30e-3),
+	new THREE.MeshLambertMaterial({color: 'green'}));
+
+	var cone_angle = side ? 1.0 : 0.5;
+	shoot.rotation.x = (Math.random() - 0.5) * cone_angle;
+	shoot.rotation.y = (Math.random() - 0.5) * cone_angle;
+	shoot.position = new THREE.Vector3(0, 0, 15e-3).add(
+		new THREE.Vector3(0, 0, 15e-3).applyEuler(shoot.rotation));
+	shoot_base.add(shoot);
+
+	if(Math.random() < 0.5) {
+		if(Math.random() < 0.4) {
+			this.add_shoot_to(shoot, true);
+		}
+		this.add_shoot_to(shoot, false);
+	}
+};
+
+// return :: THREE.Object3D
+Bonsai.prototype.add_plant = function() {
+	var shoot = new THREE.Mesh(
+		new THREE.CubeGeometry(5e-3, 5e-3, 30e-3),
+		new THREE.MeshLambertMaterial({color: 'green'}));
+	shoot.position.z = 0.15 + 15e-3;
+	shoot.rotation.x = 0.1;
+	this.pot.add(shoot);
+
+	this.add_shoot_to(shoot, false);
+	return shoot;
+};
+
+// plant :: THREE.Object3D, must be returned by add_plant
+// return :: ()
+Bonsai.prototype.remove_plant = function(plant) {
+	this.pot.remove(plant);
+};
+
+// bonsai instance
+var bonsai;
+var current_plant = null;
+
+
+
 add_stats();
 init();
 animate();
@@ -36,6 +97,7 @@ function add_stats() {
 function init() {
 	camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.005, 10 );
 	camera.position.z = 0.2;
+	camera.quaternion = new THREE.Quaternion(1, 1, 0, 0);
 
 	scene = new THREE.Scene();
 
@@ -51,47 +113,9 @@ function init() {
 	sunlight.position.set(0.1, 0.2, 1).normalize();
 	scene.add(sunlight);
 
-	// add pot
-	var pot = new THREE.Mesh(
-		new THREE.CubeGeometry(0.3, 0.3, 0.3),
-		new THREE.MeshLambertMaterial({color: 'orange'}));
-	pot.position.z = -0.15;
-	scene.add(pot);
 
-	// add plant
-	function add_plant() {
-		var shoot = new THREE.Mesh(
-			new THREE.CubeGeometry(5e-3, 5e-3, 30e-3),
-			new THREE.MeshLambertMaterial({color: 'green'}));
-		shoot.position.z = 0.15 + 15e-3;
-		shoot.rotation.x = 0.1;
-		pot.add(shoot);
-
-		add_to(shoot, false);
-		return shoot;
-	}
-
-	function add_to(shoot_base, side) {
-		var shoot = new THREE.Mesh(
-		new THREE.CubeGeometry(5e-3, 5e-3, 30e-3),
-		new THREE.MeshLambertMaterial({color: 'green'}));
-
-		var cone_angle = side ? 1.0 : 0.5;
-		shoot.rotation.x = (Math.random() - 0.5) * cone_angle;
-		shoot.rotation.y = (Math.random() - 0.5) * cone_angle;
-		shoot.position = new THREE.Vector3(0, 0, 15e-3).add(
-			new THREE.Vector3(0, 0, 15e-3).applyEuler(shoot.rotation));
-		shoot_base.add(shoot);
-
-		if(Math.random() < 0.5) {
-			if(Math.random() < 0.4) {
-				add_to(shoot, true);
-			}
-			add_to(shoot, false);
-		}
-	}
-
-	add_plant();
+	bonsai = new Bonsai(scene);
+	current_plant = bonsai.add_plant();
 
 	// add cursor
 	cursor = new THREE.Mesh(
@@ -134,6 +158,15 @@ function init() {
 	var target = document.getElementById('side_info');
 	spinner = new Spinner(opts);
 	window.setInterval(update_frameinfo, 1000);
+}
+
+function regrow() {
+	if(current_plant === null ) {
+		return;
+	}
+
+	bonsai.remove_plant(current_plant);
+	current_plant = bonsai.add_plant();
 }
 
 function animate() {
