@@ -7,12 +7,17 @@ _.mixin(_.str.exports());
 // scene, mesh, geometry etc. Instead, Plant is capable of generating Object3D instance
 // given scene.
 // Single plant instance corresponds roughly to Object3D.
-// TODO: make it more plant-like.
+//
+// TODO: position should be node endpoints, and not center point.
+// The goal of this class is to hide rigid body transforms and all public operations
+// results in physically possible plant.
 var Plant = function() {
 	this.children = [];
 	// Relative position / rotation in parent's frame.
 	this.position = new THREE.Vector3();
 	this.rotation = new THREE.Euler(); // Euler angles. TODO: make it quaternion
+
+	this.stem_length = 30e-3;
 };
 
 // sub_plant :: Plant
@@ -21,10 +26,20 @@ Plant.prototype.add = function(sub_plant) {
 	this.children.push(sub_plant);
 };
 
+// return :: ()
+Plant.prototype.elongate = function() {
+	this.stem_length += 0.01;
+	this.position.z += 0.005;
+
+	_.each(this.children, function(sub_plant) {
+		sub_plant.elongate();
+	});
+};
+
 // return :: THREE.Object3D
 Plant.prototype.materialize = function() {
 	var three_plant = new THREE.Mesh(
-		new THREE.CubeGeometry(5e-3, 5e-3, 30e-3),
+		new THREE.CubeGeometry(5e-3, 5e-3, this.stem_length),
 		new THREE.MeshLambertMaterial({color: 'green'}));
 
 	three_plant.rotation.copy(this.rotation);
@@ -70,8 +85,8 @@ Bonsai.prototype.add_shoot_to = function(shoot_base, side) {
 		(Math.random() - 0.5) * cone_angle,
 		(Math.random() - 0.5) * cone_angle,
 		0);
-	shoot.position = new THREE.Vector3(0, 0, 15e-3).add(
-		new THREE.Vector3(0, 0, 15e-3).applyEuler(shoot.rotation));
+	shoot.position = new THREE.Vector3(0, 0, shoot.stem_length/2).add(
+		new THREE.Vector3(0, 0, shoot.stem_length/2).applyEuler(shoot.rotation));
 	shoot_base.add(shoot);
 
 	if(Math.random() < 0.5) {
@@ -97,6 +112,12 @@ Bonsai.prototype.add_plant = function() {
 // return :: ()
 Bonsai.prototype.remove_plant = function(plant) {
 	this.children = _.without(this.children, plant);
+};
+
+// plant :: Plant, must be returned by add_plant
+// return :: ()
+Bonsai.prototype.elongate_plant = function(plant) {
+	plant.elongate();
 };
 
 // return :: ()
