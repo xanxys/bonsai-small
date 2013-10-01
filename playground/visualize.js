@@ -3,8 +3,44 @@
 // package imports for underscore
 _.mixin(_.str.exports());
 
+// Bonsai plant. This class uses THREE.Vector3 or Quaternion, but doesn't depend on
+// scene, mesh, geometry etc. Instead, Plant is capable of generating Object3D instance
+// given scene.
+// Single plant instance corresponds roughly to Object3D.
+// TODO: make it more plant-like.
+var Plant = function() {
+	this.children = [];
+	// Relative position / rotation in parent's frame.
+	this.position = new THREE.Vector3();
+	this.rotation = new THREE.Euler(); // Euler angles. TODO: make it quaternion
+};
+
+// sub_plant :: Plant
+// return :: ()
+Plant.prototype.add = function(sub_plant) {
+	this.children.push(sub_plant);
+};
+
+// return :: THREE.Object3D
+Plant.prototype.materialize = function() {
+	var three_plant = new THREE.Mesh(
+		new THREE.CubeGeometry(5e-3, 5e-3, 30e-3),
+		new THREE.MeshLambertMaterial({color: 'green'}));
+
+	three_plant.rotation.copy(this.rotation);
+	three_plant.position.copy(this.position);
+
+	_.each(this.children, function(child) {
+		three_plant.add(child.materialize());
+	});
+
+	return three_plant;
+};
+
 // Bonsai world class. There's no interaction between bonsai instances,
 // and Bonsai just borrows scene, not owns it.
+// Plants changes doesn't show up until you call re_materialize.
+// re_materialize is idempotent from visual perspective.
 var Bonsai = function(scene) {
 	this.scene = scene;
 
@@ -19,19 +55,21 @@ var Bonsai = function(scene) {
 	this.pot.position.z = -0.15;
 	this.scene.add(this.pot);
 
+	// Plants
+	this.children = [];
 };
 
-// shoot_base :: THREE.Object3D
+// shoot_base :: Plant
 // side :: boolean
 // return :: ()
 Bonsai.prototype.add_shoot_to = function(shoot_base, side) {
-	var shoot = new THREE.Mesh(
-	new THREE.CubeGeometry(5e-3, 5e-3, 30e-3),
-	new THREE.MeshLambertMaterial({color: 'green'}));
+	var shoot = new Plant();
 
 	var cone_angle = side ? 1.0 : 0.5;
-	shoot.rotation.x = (Math.random() - 0.5) * cone_angle;
-	shoot.rotation.y = (Math.random() - 0.5) * cone_angle;
+	shoot.rotation = new THREE.Euler(
+		(Math.random() - 0.5) * cone_angle,
+		(Math.random() - 0.5) * cone_angle,
+		0);
 	shoot.position = new THREE.Vector3(0, 0, 15e-3).add(
 		new THREE.Vector3(0, 0, 15e-3).applyEuler(shoot.rotation));
 	shoot_base.add(shoot);
@@ -44,24 +82,39 @@ Bonsai.prototype.add_shoot_to = function(shoot_base, side) {
 	}
 };
 
-// return :: THREE.Object3D
+// return :: Plant
 Bonsai.prototype.add_plant = function() {
-	var shoot = new THREE.Mesh(
-		new THREE.CubeGeometry(5e-3, 5e-3, 30e-3),
-		new THREE.MeshLambertMaterial({color: 'green'}));
+	var shoot = new Plant();
 	shoot.position.z = 0.15 + 15e-3;
 	shoot.rotation.x = 0.1;
-	this.pot.add(shoot);
 
 	this.add_shoot_to(shoot, false);
+	this.children.push(shoot);
 	return shoot;
 };
 
-// plant :: THREE.Object3D, must be returned by add_plant
+// plant :: Plant, must be returned by add_plant
 // return :: ()
 Bonsai.prototype.remove_plant = function(plant) {
-	this.pot.remove(plant);
+	this.children = _.without(this.children, plant);
 };
+
+// return :: ()
+Bonsai.prototype.re_materialize = function() {
+	var pot = this.pot;
+
+	// Throw away all children of pot.
+	_.each(this.pot.children, function(three_plant) {
+		pot.remove(three_plant);
+	})
+
+	// Materialize all plants.
+	_.each(this.children, function(plant) {
+		pot.add(plant.materialize());
+	});
+};
+
+
 
 
 /* Global variables */
@@ -125,6 +178,7 @@ function init() {
 
 	bonsai = new Bonsai(scene);
 	current_plant = bonsai.add_plant();
+	bonsai.re_materialize();
 
 	// start canvas
 	renderer = new THREE.WebGLRenderer();
@@ -157,6 +211,7 @@ function init() {
 	spinner = new Spinner(opts);
 }
 
+/* UI Handlers */
 function regrow() {
 	if(current_plant === null ) {
 		return;
@@ -164,7 +219,17 @@ function regrow() {
 
 	bonsai.remove_plant(current_plant);
 	current_plant = bonsai.add_plant();
+	bonsai.re_materialize();
 }
+
+function step() {
+	if(current_plant === null) {
+		return;
+	}
+	bonsai.elongate_plant(current_plant);
+	bonsai.re_materialize();
+}
+
 
 function animate() {
 	stats.begin();
