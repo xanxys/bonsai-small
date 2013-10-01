@@ -3,19 +3,6 @@
 // package imports for underscore
 _.mixin(_.str.exports());
 
-var stats;
-var camera, scene, renderer;
-var controls;
-var base_timestamp = 0;
-
-var cursor, rot_box;
-
-var g_frames;
-
-var new_fetch_param = null;
-var last_fetched_param = null;
-var spinner;
-
 // Bonsai world class. There's no interaction between bonsai instances,
 // and Bonsai just borrows scene, not owns it.
 var Bonsai = function(scene) {
@@ -76,10 +63,19 @@ Bonsai.prototype.remove_plant = function(plant) {
 	this.pot.remove(plant);
 };
 
-// bonsai instance
+
+/* Global variables */
+var stats;
+var camera, scene, renderer;
+var controls;
+
+// bonsai related
 var bonsai;
 var current_plant = null;
 
+// remnant of old code
+var rot_box;
+var spinner;
 
 
 add_stats();
@@ -106,6 +102,14 @@ function init() {
 
 	scene = new THREE.Scene();
 
+	var debug_plate = new THREE.Mesh(
+		new THREE.PlaneGeometry(0.5, 0.5),
+		new THREE.MeshBasicMaterial({
+			transparent: true,
+			map: THREE.ImageUtils.loadTexture('./xy_plate_debug.png')}));
+	debug_plate.position.z = 0.01;
+	scene.add(debug_plate);
+
 	// add whatever box
 	rot_box = new THREE.Mesh(
 		new THREE.CubeGeometry(0.3, 0.3, 0.3),
@@ -122,12 +126,6 @@ function init() {
 	bonsai = new Bonsai(scene);
 	current_plant = bonsai.add_plant();
 
-	// add cursor
-	cursor = new THREE.Mesh(
-		new THREE.CubeGeometry(0.1, 0.1, 0.1),
-		new THREE.MeshBasicMaterial({color: 'red'}));
-//	scene.add(cursor);
-
 	// start canvas
 	renderer = new THREE.WebGLRenderer();
 	renderer.setSize(window.innerWidth, window.innerHeight);
@@ -135,11 +133,6 @@ function init() {
 
 	// add mouse control (do this after canvas insertion)
 	controls = new THREE.TrackballControls(camera, renderer.domElement);
-
-	// add UI hooks
-	$('#timestamp_slider').change(function(ev){
-		set_timestamp(parseFloat(ev.target.value));
-	});
 
 	// register frame info update hook
 	var opts = {
@@ -162,7 +155,6 @@ function init() {
 	};
 	var target = document.getElementById('side_info');
 	spinner = new Spinner(opts);
-	window.setInterval(update_frameinfo, 1000);
 }
 
 function regrow() {
@@ -178,50 +170,21 @@ function animate() {
 	stats.begin();
 
 	// note: three.js includes requestAnimationFrame shim
-	requestAnimationFrame( animate );
+	requestAnimationFrame(animate);
 
 	rot_box.rotation.x += 0.01;
 	rot_box.rotation.y += 0.02;
 	rot_box.position.z = 0.5;
 
 
-	renderer.render( scene, camera );
+	renderer.render(scene, camera);
 	controls.update();
 
 	stats.end();
 }
 
-
-function update_timestamp(ev) {
-	console.log(ev);
-}
-
 function dict_to_v3(d) {
 	return new THREE.Vector3(d['x'], d['y'], d['z']);
-}
-
-function set_base_timestamp(ts) {
-	base_timestamp = ts;
-	$('#base_timestamp').text('+' + _.numberFormat(ts, 3) + 's');
-}
-
-function set_timestamp(t) {
-	if(g_frames === undefined)
-		return;
-
-	var ix = _.sortedIndex(g_frames, {timestamp: t+base_timestamp}, 'timestamp');
-	cursor.position = dict_to_v3(g_frames[Math.min(ix, g_frames.length-1)]['pos']);
-
-	var t_start = (ix > 0)? g_frames[ix-1]['timestamp'] : null;
-	var t_end = (ix < g_frames.length) ? g_frames[ix]['timestamp'] : null;
-
-	new_fetch_param = {
-		start: t_start,
-		end: t_end,
-		interval: 0.01
-	};
-
-	spinner.spin($('#side_info')[0]);
 }
 
 // Generate human-readable block element from given json object.
@@ -229,76 +192,6 @@ function json_to_dom(obj) {
 	return $('<div/>').text(JSON.stringify(obj));
 }
 
-function update_frameinfo() {
-	// Skip update if not changed.
-	if(new_fetch_param === last_fetched_param || new_fetch_param === null)
-		return;
-
-	// Refresh otherwise.
-	var dataset_name = 'rgbd_dataset_freiburg1_room';
-	$.getJSON('/a/trajectory/' + dataset_name, new_fetch_param, function(data) {
-		last_fetched_param = new_fetch_param;
-		spinner.stop();
-
-		$('#frame_info').text(
-			_.numberFormat(new_fetch_param['start'] - base_timestamp, 3));
-		$('#frame_info').append(json_to_dom(data['frames'][0]));
-	});
-}
-
-
 function get_ms(){
 	return new Date().getTime();
-}
-
-function add_frames(frames) {
-	g_frames = frames;
-
-	// apply UI
-	set_base_timestamp(frames[0]['timestamp']);
-	$('#timestamp_slider').attr('min', 0);
-	$('#timestamp_slider').attr('max', _.last(frames)['timestamp'] - base_timestamp);
-	$('#timestamp_slider').attr('step', 0.01);
-
-	// add objects
-	var pt_mat = new THREE.MeshBasicMaterial({color: 'green'});
-	var pt_array = [];
-	var xgeom = new THREE.Geometry();
-
-	_.each(frames, function(frame) {
-		var geom = new THREE.IcosahedronGeometry(0.05);
-		var obj = new THREE.Mesh(geom, pt_mat);
-		obj.position = dict_to_v3(frame['pos']);
-		scene.add(obj);
-
-		pt_array.push([frame['pos']['x'], frame['pos']['y'], frame['pos']['z']])
-	});
-
-
-	var spline = new THREE.Spline();
-	spline.initFromArray(pt_array);
-
-	spline.reparametrizeByArcLength(200);
-	xgeom.vertices = spline.points;
-
-	var sp_mat = new THREE.LineBasicMaterial({color: 'black', linewidth:2});
-
-
-	scene.add(new THREE.Line(xgeom, sp_mat, THREE.LineStrip));
-
-	// add initial & last timestamps
-	_.each([_.first, _.last], function(selector) {
-		var frame = selector(frames);
-
-		var mat = new THREE.MeshBasicMaterial({color: 'skyblue'});
-		var text = _.numberFormat(frame['timestamp'] - base_timestamp, 3);
-		var tgeom = new THREE.TextGeometry(text, {
-			font: 'optimer',
-			size: 0.15,
-			height: 0.01
-		});
-		var ts_obj = new THREE.Mesh(tgeom, mat);
-		ts_obj.position = dict_to_v3(frame['pos']);
-		scene.add(ts_obj);
-	});
 }
