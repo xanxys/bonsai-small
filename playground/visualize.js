@@ -8,13 +8,10 @@ _.mixin(_.str.exports());
 // given scene.
 // Single plant instance corresponds roughly to Object3D.
 //
-// TODO: position should be node endpoints, and not center point.
-// The goal of this class is to hide rigid body transforms and all public operations
-// results in physically possible plant.
+// Plant grows Z+ direction when rotation is identity.
 var Plant = function() {
 	this.children = [];
-	// Relative position / rotation in parent's frame.
-	this.position = new THREE.Vector3();
+	// Relative rotation in parent's frame.
 	this.rotation = new THREE.Euler(); // Euler angles. TODO: make it quaternion
 
 	this.stem_length = 30e-3;
@@ -29,7 +26,6 @@ Plant.prototype.add = function(sub_plant) {
 // return :: ()
 Plant.prototype.elongate = function() {
 	this.stem_length += 0.01;
-	this.position.z += 0.005;
 
 	_.each(this.children, function(sub_plant) {
 		sub_plant.elongate();
@@ -42,8 +38,11 @@ Plant.prototype.materialize = function() {
 		new THREE.CubeGeometry(5e-3, 5e-3, this.stem_length),
 		new THREE.MeshLambertMaterial({color: 'green'}));
 
+	var position = new THREE.Vector3(0, 0, this.stem_length/2).add(
+		new THREE.Vector3(0, 0, this.stem_length/2).applyEuler(this.rotation));
+
 	three_plant.rotation.copy(this.rotation);
-	three_plant.position.copy(this.position);
+	three_plant.position.copy(position);
 
 	_.each(this.children, function(child) {
 		three_plant.add(child.materialize());
@@ -85,8 +84,8 @@ Bonsai.prototype.add_shoot_to = function(shoot_base, side) {
 		(Math.random() - 0.5) * cone_angle,
 		(Math.random() - 0.5) * cone_angle,
 		0);
-	shoot.position = new THREE.Vector3(0, 0, shoot.stem_length/2).add(
-		new THREE.Vector3(0, 0, shoot.stem_length/2).applyEuler(shoot.rotation));
+	shoot.stem_length = 30e-3;
+
 	shoot_base.add(shoot);
 
 	if(Math.random() < 0.5) {
@@ -100,7 +99,6 @@ Bonsai.prototype.add_shoot_to = function(shoot_base, side) {
 // return :: Plant
 Bonsai.prototype.add_plant = function() {
 	var shoot = new Plant();
-	shoot.position.z = 0.15 + 15e-3;
 	shoot.rotation.x = 0.1;
 
 	this.add_shoot_to(shoot, false);
@@ -131,7 +129,9 @@ Bonsai.prototype.re_materialize = function() {
 
 	// Materialize all plants.
 	_.each(this.children, function(plant) {
-		pot.add(plant.materialize());
+		var three_plant = plant.materialize();
+		pot.add(three_plant);
+		three_plant.position.z += 0.15;
 	});
 };
 
