@@ -35,11 +35,16 @@ Plant.prototype.elongate = function() {
 
 // return :: THREE.Object3D
 Plant.prototype.materialize = function() {
-	var color = this.is_leaf ? 'green' : 'brown';
+	var color_diffuse = new THREE.Color(this.is_leaf ? 'green' : 'brown');
+	var color_ambient = color_diffuse; // .offsetHSL(0, 0, -0.3);
+
+
 	var width = this.is_leaf ? 20e-3 : 5e-3;
 	var three_plant = new THREE.Mesh(
 		new THREE.CubeGeometry(width, width, this.stem_length),
-		new THREE.MeshLambertMaterial({color: color}));
+		new THREE.MeshLambertMaterial({
+			color: color_diffuse,
+			ambient: color_ambient}));
 
 	var position = new THREE.Vector3(0, 0, this.stem_length/2).add(
 		new THREE.Vector3(0, 0, this.stem_length/2).applyEuler(this.rotation));
@@ -163,7 +168,6 @@ var bonsai;
 var current_plant = null;
 
 // remnant of old code
-var rot_box;
 var spinner;
 
 
@@ -199,17 +203,11 @@ function init() {
 	debug_plate.position.z = 0.01;
 	scene.add(debug_plate);
 
-	// add whatever box
-	rot_box = new THREE.Mesh(
-		new THREE.CubeGeometry(0.3, 0.3, 0.3),
-		new THREE.MeshBasicMaterial({
-			color: 0xff0000,
-			wireframe: true}));
-	scene.add( rot_box );
-
 	var sunlight = new THREE.DirectionalLight(0xffffff);
 	sunlight.position.set(0.1, 0.2, 1).normalize();
 	scene.add(sunlight);
+
+	scene.add(new THREE.AmbientLight(0x333333));
 
 
 	bonsai = new Bonsai(scene);
@@ -272,11 +270,6 @@ function animate() {
 
 	// note: three.js includes requestAnimationFrame shim
 	requestAnimationFrame(animate);
-
-	rot_box.rotation.x += 0.01;
-	rot_box.rotation.y += 0.02;
-	rot_box.position.z = 0.5;
-
 
 	renderer.render(scene, camera);
 	controls.update();
