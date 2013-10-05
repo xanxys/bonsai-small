@@ -15,6 +15,7 @@ var Plant = function() {
 	this.rotation = new THREE.Euler(); // Euler angles. TODO: make it quaternion
 
 	this.stem_length = 30e-3;
+	this.is_leaf = false;
 };
 
 // sub_plant :: Plant
@@ -34,9 +35,11 @@ Plant.prototype.elongate = function() {
 
 // return :: THREE.Object3D
 Plant.prototype.materialize = function() {
+	var color = this.is_leaf ? 'green' : 'brown';
+	var width = this.is_leaf ? 20e-3 : 5e-3;
 	var three_plant = new THREE.Mesh(
-		new THREE.CubeGeometry(5e-3, 5e-3, this.stem_length),
-		new THREE.MeshLambertMaterial({color: 'green'}));
+		new THREE.CubeGeometry(width, width, this.stem_length),
+		new THREE.MeshLambertMaterial({color: color}));
 
 	var position = new THREE.Vector3(0, 0, this.stem_length/2).add(
 		new THREE.Vector3(0, 0, this.stem_length/2).applyEuler(this.rotation));
@@ -89,11 +92,23 @@ Bonsai.prototype.add_shoot_to = function(shoot_base, side) {
 	shoot_base.add(shoot);
 
 	if(Math.random() < 0.5) {
-		if(Math.random() < 0.4) {
+		var z = Math.random();
+		if(z < 0.4) {
 			this.add_shoot_to(shoot, true);
+		} else if(z < 0.7) {
+			this.add_leaf_to(shoot);
 		}
 		this.add_shoot_to(shoot, false);
 	}
+};
+
+// shoot_base :: Plant
+// return :: ()
+Bonsai.prototype.add_leaf_to = function(shoot_base) {
+	var leaf = new Plant();
+	leaf.stem_length = 15e-3;
+	leaf.is_leaf = true;
+	shoot_base.add(leaf);
 };
 
 // return :: Plant
