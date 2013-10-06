@@ -9,6 +9,7 @@ _.mixin(_.str.exports());
 // Single plant instance corresponds roughly to Object3D.
 //
 // Plant grows Z+ direction when rotation is identity.
+// When the Plant is a leaf,  photosynthetic plane is Y+.
 var Plant = function() {
 	this.children = [];
 	// Relative rotation in parent's frame.
@@ -38,10 +39,15 @@ Plant.prototype.materialize = function() {
 	var color_diffuse = new THREE.Color(this.is_leaf ? 'green' : 'brown');
 	var color_ambient = color_diffuse; // .offsetHSL(0, 0, -0.3);
 
+	var geom;
+	if (this.is_leaf) {
+		geom = new THREE.CubeGeometry(20e-3, 3e-3, this.stem_length);
+	} else {
+		geom = new THREE.CubeGeometry(5e-3, 5e-3, this.stem_length);
+	}
 
-	var width = this.is_leaf ? 20e-3 : 5e-3;
 	var three_plant = new THREE.Mesh(
-		new THREE.CubeGeometry(width, width, this.stem_length),
+		geom,
 		new THREE.MeshLambertMaterial({
 			color: color_diffuse,
 			ambient: color_ambient}));
@@ -111,6 +117,7 @@ Bonsai.prototype.add_shoot_to = function(shoot_base, side) {
 // return :: ()
 Bonsai.prototype.add_leaf_to = function(shoot_base) {
 	var leaf = new Plant();
+	leaf.rotation = new THREE.Euler(- Math.PI * 0.5, 0, 0);
 	leaf.stem_length = 15e-3;
 	leaf.is_leaf = true;
 	shoot_base.add(leaf);
