@@ -120,6 +120,23 @@ Plant.prototype.count_type = function(counter) {
 	return counter;
 };
 
+// Get spherically approximated occuluders.
+// return :: array((THREE.Vector3, float))
+Plant.prototype.occluders = function(parent_top, parent_rot) {
+	var this_rot = parent_rot.clone().multiply(new THREE.Quaternion().setFromEuler(this.rotation));
+	var this_top = parent_top.clone().add(new THREE.Vector3(0, 0, this.stem_length).applyQuaternion(this_rot));
+	var this_center = parent_top.clone().add(new THREE.Vector3(0, 0, 0.5 * this.stem_length).applyQuaternion(this_rot));
+
+	var radius = (this.stem_length + this.stem_diameter) / 2;
+	var occl = [this_center, radius];
+
+	var occs = _.flatten(_.map(this.children, function(child) {
+		return child.occluders(this_top, this_rot);
+	}), true);
+	occs.push(occl);
+	return occs;
+};
+
 // Infinitesimal version of add_shoot.
 // side :: boolean
 // return :: ()
@@ -188,20 +205,36 @@ Bonsai.prototype.step = function(plant) {
 	plant.step();
 };
 
+// show_occluder :: bool
 // return :: ()
-Bonsai.prototype.re_materialize = function() {
+Bonsai.prototype.re_materialize = function(show_occluder) {
 	var pot = this.pot;
 
 	// Throw away all children of pot.
-	_.each(this.pot.children, function(three_plant) {
-		pot.remove(three_plant);
+	_.each(_.clone(this.pot.children), function(three_plant_or_debug) {
+		pot.remove(three_plant_or_debug);
 	})
 
 	// Materialize all plants.
 	_.each(this.children, function(plant) {
+		// Plant itself.
 		var three_plant = plant.materialize();
 		pot.add(three_plant);
 		three_plant.position.z += 0.15 - plant.stem_length / 2;  // hack hack
+
+		// Occluders.
+		if(show_occluder) {
+			var occs = plant.occluders(new THREE.Vector3(0, 0, 0.15 - plant.stem_length / 2), new THREE.Quaternion(0, 0, 0, 1));
+			_.each(occs, function(occ) {
+				var three_occ = new THREE.Mesh(
+					new THREE.IcosahedronGeometry(occ[1]),
+					new THREE.MeshLambertMaterial({
+						color: 'red'
+					}));
+				three_occ.position = occ[0];
+				pot.add(three_occ);
+			});
+		}
 	});
 };
 
@@ -263,7 +296,7 @@ function init() {
 
 	bonsai = new Bonsai(scene);
 	current_plant = bonsai.add_plant();
-	bonsai.re_materialize();
+	bonsai.re_materialize(false);
 
 	ui_update_stats();
 
@@ -315,7 +348,7 @@ function handle_reset() {
 
 	bonsai.remove_plant(current_plant);
 	current_plant = bonsai.add_plant();
-	bonsai.re_materialize();
+	bonsai.re_materialize($('#debug_occluder').prop('checked'));
 
 	ui_update_stats();
 }
@@ -327,9 +360,13 @@ function handle_step(n) {
 	_.each(_.range(n), function(i) {
 		bonsai.step(current_plant);
 	})
-	bonsai.re_materialize();
+	bonsai.re_materialize($('#debug_occluder').prop('checked'));
 
 	ui_update_stats();
+}
+
+function handle_update_debug_occluder() {
+	bonsai.re_materialize($('#debug_occluder').prop('checked'));
 }
 
 function animate() {
