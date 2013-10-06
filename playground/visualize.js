@@ -205,9 +205,9 @@ Bonsai.prototype.step = function(plant) {
 	plant.step();
 };
 
-// show_occluder :: bool
+// options :: dict(string, bool)
 // return :: ()
-Bonsai.prototype.re_materialize = function(show_occluder) {
+Bonsai.prototype.re_materialize = function(options) {
 	var pot = this.pot;
 
 	// Throw away all children of pot.
@@ -223,7 +223,7 @@ Bonsai.prototype.re_materialize = function(show_occluder) {
 		three_plant.position.z += 0.15 - plant.stem_length / 2;  // hack hack
 
 		// Occluders.
-		if(show_occluder) {
+		if(options['show_occluder']) {
 			var occs = plant.occluders(new THREE.Vector3(0, 0, 0.15 - plant.stem_length / 2), new THREE.Quaternion(0, 0, 0, 1));
 			_.each(occs, function(occ) {
 				var three_occ = new THREE.Mesh(
@@ -235,6 +235,8 @@ Bonsai.prototype.re_materialize = function(show_occluder) {
 				pot.add(three_occ);
 			});
 		}
+
+		//if(options['show_'])
 	});
 };
 
@@ -296,7 +298,7 @@ function init() {
 
 	bonsai = new Bonsai(scene);
 	current_plant = bonsai.add_plant();
-	bonsai.re_materialize(false);
+	bonsai.re_materialize({});
 
 	ui_update_stats();
 
@@ -348,7 +350,7 @@ function handle_reset() {
 
 	bonsai.remove_plant(current_plant);
 	current_plant = bonsai.add_plant();
-	bonsai.re_materialize($('#debug_occluder').prop('checked'));
+	bonsai.re_materialize(ui_get_debug_option());
 
 	ui_update_stats();
 }
@@ -360,13 +362,19 @@ function handle_step(n) {
 	_.each(_.range(n), function(i) {
 		bonsai.step(current_plant);
 	})
-	bonsai.re_materialize($('#debug_occluder').prop('checked'));
+	bonsai.re_materialize(ui_get_debug_option());
 
 	ui_update_stats();
 }
 
-function handle_update_debug_occluder() {
-	bonsai.re_materialize($('#debug_occluder').prop('checked'));
+function handle_update_debug_options() {
+	bonsai.re_materialize(ui_get_debug_option());
+}
+
+function ui_get_debug_option() {
+	return {
+		'show_occluder': $('#debug_occluder').prop('checked'),
+		'show_light_volume': $('#debug_light_volume').prop('checked')};
 }
 
 function animate() {
