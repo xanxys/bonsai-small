@@ -322,7 +322,7 @@ function init() {
 	scene.add(debug_plate);
 
 	var sunlight = new THREE.DirectionalLight(0xffffff);
-	sunlight.position.set(0.1, 0.2, 1).normalize();
+	sunlight.position.set(0, 0, 1).normalize();
 	scene.add(sunlight);
 
 	scene.add(new THREE.AmbientLight(0x333333));
