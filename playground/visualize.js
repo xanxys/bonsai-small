@@ -262,6 +262,8 @@ function init() {
 	current_plant = bonsai.add_plant();
 	bonsai.re_materialize();
 
+	ui_update_stats();
+
 	// start canvas
 	renderer = new THREE.WebGLRenderer();
 	renderer.setSize(window.innerWidth, window.innerHeight);
@@ -294,8 +296,13 @@ function init() {
 	spinner = new Spinner(opts);
 }
 
+/* UI Utils */
+function ui_update_stats() {
+	$('#info').text(JSON.stringify(current_plant.count_type({})));
+}
+
 /* UI Handlers */
-function regrow() {
+function handle_regrow() {
 	if(current_plant === null ) {
 		return;
 	}
@@ -303,25 +310,19 @@ function regrow() {
 	bonsai.remove_plant(current_plant);
 	current_plant = bonsai.add_plant();
 	bonsai.re_materialize();
+
+	ui_update_stats();
 }
 
-function step() {
+function handle_step() {
 	if(current_plant === null) {
 		return;
 	}
 	bonsai.step(current_plant);
 	bonsai.re_materialize();
+
+	ui_update_stats();
 }
-
-function plant_stats() {
-	if(current_plant === null) {
-		return;
-	}
-
-	var stat = current_plant.count_type({});
-	$('#info').text(JSON.stringify(stat));
-}
-
 
 function animate() {
 	stats.begin();
