@@ -35,9 +35,12 @@ Plant.prototype.step = function() {
 	this.stem_length += 3e-3;
 
 	if (this.is_end()) {
-		if (Math.random() < 0.1) {
+		var z = Math.random();
+		if (z < 0.1) {
 			this.add_shoot_cont(false);
 			this.add_leaf();
+		} else if(z < 0.2) {
+			this.add_shoot_cont(true);
 		}
 	}
 
