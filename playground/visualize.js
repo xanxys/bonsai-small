@@ -65,6 +65,19 @@ Plant.prototype.materialize = function() {
 	return three_plant;
 };
 
+// counter :: dict(string, int)
+// return :: dict(string, int)
+Plant.prototype.count_type = function(counter) {
+	var key = this.is_leaf ? "leaf" : "shoot";
+	counter[key] = 1 + (_.has(counter, key) ? counter[key] : 0);
+
+	_.each(this.children, function(child) {
+		child.count_type(counter);
+	});
+
+	return counter;
+};
+
 // Bonsai world class. There's no interaction between bonsai instances,
 // and Bonsai just borrows scene, not owns it.
 // Plants changes doesn't show up until you call re_materialize.
@@ -126,7 +139,6 @@ Bonsai.prototype.add_leaf_to = function(shoot_base) {
 // return :: Plant
 Bonsai.prototype.add_plant = function() {
 	var shoot = new Plant();
-	shoot.rotation.x = 0.1;
 
 	this.add_shoot_to(shoot, false);
 	this.children.push(shoot);
@@ -269,6 +281,15 @@ function step() {
 	}
 	bonsai.elongate_plant(current_plant);
 	bonsai.re_materialize();
+}
+
+function plant_stats() {
+	if(current_plant === null) {
+		return;
+	}
+
+	var stat = current_plant.count_type({});
+	$('#info').text(JSON.stringify(stat));
 }
 
 

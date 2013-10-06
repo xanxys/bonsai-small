@@ -6,7 +6,7 @@
 		<link href="./common.css" rel="stylesheet" type="text/css"/>
 		<link rel="icon" href="./favicon.png" type="image/png"/>
 
-		<script src="./underscore.min.js"></script>
+		<script src="./underscore-min.js"></script>
 		<script src="./underscore.string.min.js"></script>
 		<script src="./jquery-2.0.3.min.js"></script>
 		<script src="./three.min.js"></script>
@@ -18,6 +18,10 @@
 		<div style="width: 200px; height: 400px; position:absolute; background-color:rgba(0,0,0,0.3); padding: 1em; border-radius: 0.5em">
 			<button onclick="regrow()">Re-Grow</button>
 			<button onclick="step()">Step</button>
+			<button onclick="plant_stats()">Stats</button>
+
+			<div id="info">
+			</div>
 		</div>
 
 		<script src="./TrackballControls.js"></script>
