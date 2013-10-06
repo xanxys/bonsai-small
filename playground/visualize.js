@@ -198,7 +198,7 @@ Bonsai.prototype.re_materialize = function() {
 	_.each(this.children, function(plant) {
 		var three_plant = plant.materialize();
 		pot.add(three_plant);
-		three_plant.position.z += 0.15;
+		three_plant.position.z += 0.15 - plant.stem_length / 2;  // hack hack
 	});
 };
 
