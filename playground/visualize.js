@@ -16,6 +16,7 @@ var Plant = function() {
 	this.rotation = new THREE.Euler(); // Euler angles. TODO: make it quaternion
 
 	this.stem_length = 30e-3;
+	this.stem_diameter = 1e-3;
 	this.is_leaf = false;
 };
 
@@ -38,6 +39,11 @@ Plant.prototype.step = function() {
 
 	this.stem_length += 3e-3;
 
+	// Monocot stems do not replicate, so there's a limit to diameter.
+	// On the other hands, most dicots stem cells do replicate, so they can grow
+	// indefinitely (especially trees).
+	this.stem_diameter = Math.min(5e-3, this.stem_diameter + 0.1e-3);
+
 	if (this.is_end()) {
 		var z = Math.random();
 		if (z < 0.1) {
@@ -59,7 +65,7 @@ Plant.prototype.materialize = function() {
 	if (this.is_leaf) {
 		geom = new THREE.CubeGeometry(20e-3, 3e-3, this.stem_length);
 	} else {
-		geom = new THREE.CubeGeometry(5e-3, 5e-3, this.stem_length);
+		geom = new THREE.CubeGeometry(this.stem_diameter, this.stem_diameter, this.stem_length);
 	}
 
 	var three_plant = new THREE.Mesh(
@@ -79,6 +85,26 @@ Plant.prototype.materialize = function() {
 	});
 
 	return three_plant;
+};
+
+// Get total mass of this and children.
+// return :: float (kg)
+Plant.prototype.mass = function() {
+	var density = 1000; // kg/m^3
+
+	var volume;
+	if(this.is_leaf) {
+		volume = 20e-3 * 3e-3 * this.stem_length;
+	} else {
+		volume = Math.pow(this.stem_diameter, 2) * this.stem_length;
+	}
+
+	var children_mass = _.map(this.children, function(child) {
+		return child.mass();
+	});
+
+	var this_mass = volume * density;
+	return  this_mass + _.reduce(children_mass, function(x, y) { return x + y; }, 0);
 };
 
 // counter :: dict(string, int)
@@ -275,7 +301,10 @@ function init() {
 
 /* UI Utils */
 function ui_update_stats() {
-	$('#info').text(JSON.stringify(current_plant.count_type({})));
+	var dict = current_plant.count_type({});
+	dict['mass/g'] = current_plant.mass() * 1e3;
+
+	$('#info').text(JSON.stringify(dict, null, 2));
 }
 
 /* UI Handlers */
