@@ -209,6 +209,7 @@ Bonsai.prototype.step = function(plant) {
 // return :: ()
 Bonsai.prototype.re_materialize = function(options) {
 	var pot = this.pot;
+	var bonsai = this;
 
 	// Throw away all children of pot.
 	_.each(_.clone(this.pot.children), function(three_plant_or_debug) {
@@ -236,9 +237,40 @@ Bonsai.prototype.re_materialize = function(options) {
 			});
 		}
 
-		//if(options['show_'])
+		if(options['show_light_volume']) {
+			_.each(_.range(5), function(ix) {
+				var slice = new THREE.Mesh(
+					new THREE.PlaneGeometry(0.5, 0.5),
+					new THREE.MeshBasicMaterial({
+						transparent: true,
+						map: bonsai.generate_light_volume_slice_texture()}));
+				slice.position.z = 0.3 + 0.1 * ix;
+				pot.add(slice);
+			});
+		}
 	});
 };
+
+Bonsai.prototype.generate_light_volume_slice_texture = function() {
+	var canvas = document.createElement('canvas');
+	canvas.width = 256;
+	canvas.height = 256;
+
+	var context = canvas.getContext('2d');
+	context.save();
+	context.translate(30, 30);
+	context.fillStyle = 'black';
+	context.fillText('Light Volume', 0, 0);
+	context.restore();
+
+	context.rect(10, 10, 256-20, 256-20);
+	context.stroke();
+
+	var tex = new THREE.Texture(canvas);
+	tex.needsUpdate = true;
+
+	return tex;
+}
 
 
 
