@@ -19,6 +19,11 @@ var Plant = function() {
 	this.is_leaf = false;
 };
 
+// return :: bool
+Plant.prototype.is_end = function() {
+	return this.children.length == 0 && !this.is_leaf;
+}
+
 // sub_plant :: Plant
 // return :: ()
 Plant.prototype.add = function(sub_plant) {
@@ -26,11 +31,18 @@ Plant.prototype.add = function(sub_plant) {
 };
 
 // return :: ()
-Plant.prototype.elongate = function() {
-	this.stem_length += 0.01;
+Plant.prototype.step = function() {
+	this.stem_length += 3e-3;
+
+	if (this.is_end()) {
+		if (Math.random() < 0.1) {
+			this.add_shoot_cont(false);
+			this.add_leaf();
+		}
+	}
 
 	_.each(this.children, function(sub_plant) {
-		sub_plant.elongate();
+		sub_plant.step();
 	});
 };
 
@@ -78,6 +90,57 @@ Plant.prototype.count_type = function(counter) {
 	return counter;
 };
 
+// Infinitesimal version of add_shoot.
+// side :: boolean
+// return :: ()
+Plant.prototype.add_shoot_cont = function(side) {
+	var shoot = new Plant();
+
+	var cone_angle = side ? 1.0 : 0.5;
+	shoot.rotation = new THREE.Euler(
+		(Math.random() - 0.5) * cone_angle,
+		(Math.random() - 0.5) * cone_angle,
+		0);
+	shoot.stem_length = 1e-3;
+
+	this.add(shoot);
+};
+
+// side :: boolean
+// return :: ()
+Plant.prototype.add_shoot = function(side) {
+	var shoot = new Plant();
+
+	var cone_angle = side ? 1.0 : 0.5;
+	shoot.rotation = new THREE.Euler(
+		(Math.random() - 0.5) * cone_angle,
+		(Math.random() - 0.5) * cone_angle,
+		0);
+	shoot.stem_length = 30e-3;
+
+	this.add(shoot);
+
+	if(Math.random() < 0.5) {
+		var z = Math.random();
+		if(z < 0.4) {
+			shoot.add_shoot(true);
+		} else if(z < 0.7) {
+			shoot.add_leaf();
+		}
+		shoot.add_shoot(false);
+	}
+};
+
+// shoot_base :: Plant
+// return :: ()
+Plant.prototype.add_leaf = function() {
+	var leaf = new Plant();
+	leaf.rotation = new THREE.Euler(- Math.PI * 0.5, 0, 0);
+	leaf.stem_length = 15e-3;
+	leaf.is_leaf = true;
+	this.add(leaf);
+};
+
 // Bonsai world class. There's no interaction between bonsai instances,
 // and Bonsai just borrows scene, not owns it.
 // Plants changes doesn't show up until you call re_materialize.
@@ -100,47 +163,12 @@ var Bonsai = function(scene) {
 	this.children = [];
 };
 
-// shoot_base :: Plant
-// side :: boolean
-// return :: ()
-Bonsai.prototype.add_shoot_to = function(shoot_base, side) {
-	var shoot = new Plant();
-
-	var cone_angle = side ? 1.0 : 0.5;
-	shoot.rotation = new THREE.Euler(
-		(Math.random() - 0.5) * cone_angle,
-		(Math.random() - 0.5) * cone_angle,
-		0);
-	shoot.stem_length = 30e-3;
-
-	shoot_base.add(shoot);
-
-	if(Math.random() < 0.5) {
-		var z = Math.random();
-		if(z < 0.4) {
-			this.add_shoot_to(shoot, true);
-		} else if(z < 0.7) {
-			this.add_leaf_to(shoot);
-		}
-		this.add_shoot_to(shoot, false);
-	}
-};
-
-// shoot_base :: Plant
-// return :: ()
-Bonsai.prototype.add_leaf_to = function(shoot_base) {
-	var leaf = new Plant();
-	leaf.rotation = new THREE.Euler(- Math.PI * 0.5, 0, 0);
-	leaf.stem_length = 15e-3;
-	leaf.is_leaf = true;
-	shoot_base.add(leaf);
-};
 
 // return :: Plant
 Bonsai.prototype.add_plant = function() {
 	var shoot = new Plant();
 
-	this.add_shoot_to(shoot, false);
+	shoot.add_shoot(false);
 	this.children.push(shoot);
 	return shoot;
 };
@@ -153,8 +181,8 @@ Bonsai.prototype.remove_plant = function(plant) {
 
 // plant :: Plant, must be returned by add_plant
 // return :: ()
-Bonsai.prototype.elongate_plant = function(plant) {
-	plant.elongate();
+Bonsai.prototype.step = function(plant) {
+	plant.step();
 };
 
 // return :: ()
@@ -281,7 +309,7 @@ function step() {
 	if(current_plant === null) {
 		return;
 	}
-	bonsai.elongate_plant(current_plant);
+	bonsai.step(current_plant);
 	bonsai.re_materialize();
 }
 
