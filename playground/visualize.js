@@ -208,9 +208,10 @@ function add_stats() {
 
 
 function init() {
-	camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.005, 10 );
-	camera.position.z = 0.2;
-	camera.quaternion = new THREE.Quaternion(1, 1, 0, 0);
+	camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.005, 10);
+	camera.up = new THREE.Vector3(0, 0, 1);
+	camera.position = new THREE.Vector3(0.3, 0.3, 0.4);
+	camera.lookAt(new THREE.Vector3(0, 0, 0));
 
 	scene = new THREE.Scene();
 
@@ -240,6 +241,7 @@ function init() {
 
 	// add mouse control (do this after canvas insertion)
 	controls = new THREE.TrackballControls(camera, renderer.domElement);
+	controls.maxDistance = 5;
 
 	// register frame info update hook
 	var opts = {
