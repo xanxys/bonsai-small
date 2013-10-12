@@ -35,7 +35,7 @@ Plant.prototype.add = function(sub_plant) {
 Plant.prototype.step = function() {
 	_.each(this.children, function(sub_plant) {
 		sub_plant.step();
-	});
+	}, this);
 
 	this.stem_length += 3e-3;
 
@@ -82,7 +82,7 @@ Plant.prototype.materialize = function() {
 
 	_.each(this.children, function(child) {
 		three_plant.add(child.materialize());
-	});
+	}, this);
 
 	return three_plant;
 };
@@ -115,7 +115,7 @@ Plant.prototype.count_type = function(counter) {
 
 	_.each(this.children, function(child) {
 		child.count_type(counter);
-	});
+	}, this);
 
 	return counter;
 };
@@ -178,7 +178,7 @@ var LightVolume = function() {
 	var flat_array = new Float32Array(this.buffer);
 	_.each(_.range(this.n * this.n * this.h), function(i) {
 		flat_array[i] = Math.random();
-	});
+	}, this);
 };
 
 // z :: int [0, this.h)
@@ -193,18 +193,17 @@ LightVolume.prototype.slice = function(z) {
 
 LightVolume.prototype.step = function() {
 	// step
-	var lv = this;
 	_.each(_.range(this.h-1), function(z) {
 		// TODO: occluders
-		lv.slice(z).set(lv.slice(z+1));
-	});
+		this.slice(z).set(this.slice(z+1));
+	}, this);
 
 	// emit
 	var light_strength = 1.0;
 	var top_slice = this.slice(this.h - 1);
 	_.each(_.range(this.n * this.n), function(i) {
 		top_slice[i] += light_strength;
-	});
+	}, this);
 };
 
 
@@ -251,7 +250,7 @@ Bonsai.prototype.remove_plant = function(plant) {
 Bonsai.prototype.step = function() {
 	_.each(this.children, function(plant) {
 		plant.step();
-	});
+	}, this);
 
 	this.light_volume.step();
 };
@@ -259,19 +258,16 @@ Bonsai.prototype.step = function() {
 // options :: dict(string, bool)
 // return :: ()
 Bonsai.prototype.re_materialize = function(options) {
-	var pot = this.pot;
-	var bonsai = this;
-
 	// Throw away all children of pot.
 	_.each(_.clone(this.pot.children), function(three_plant_or_debug) {
-		pot.remove(three_plant_or_debug);
-	})
+		this.pot.remove(three_plant_or_debug);
+	}, this);
 
 	// Materialize all plants.
 	_.each(this.children, function(plant) {
 		// Plant itself.
 		var three_plant = plant.materialize();
-		pot.add(three_plant);
+		this.pot.add(three_plant);
 		three_plant.position.z += 0.15 - plant.stem_length / 2;  // hack hack
 
 		// Occluders.
@@ -284,22 +280,23 @@ Bonsai.prototype.re_materialize = function(options) {
 						color: 'red'
 					}));
 				three_occ.position = occ[0];
-				pot.add(three_occ);
-			});
+				this.pot.add(three_occ);
+			}, this);
 		}
+	}, this);
 
-		if(options['show_light_volume']) {
-			_.each(_.range(bonsai.light_volume.h), function(ix) {
-				var slice = new THREE.Mesh(
-					new THREE.PlaneGeometry(0.5, 0.5),
-					new THREE.MeshBasicMaterial({
-						transparent: true,
-						map: bonsai.generate_light_volume_slice_texture(bonsai.light_volume, ix)}));
-				slice.position.z = 0.3 + 0.1 * ix;
-				pot.add(slice);
-			});
-		}
-	});
+	// Visualization common for all plants.
+	if(options['show_light_volume']) {
+		_.each(_.range(this.light_volume.h), function(ix) {
+			var slice = new THREE.Mesh(
+				new THREE.PlaneGeometry(0.5, 0.5),
+				new THREE.MeshBasicMaterial({
+					transparent: true,
+					map: this.generate_light_volume_slice_texture(this.light_volume, ix)}));
+			slice.position.z = 0.3 + 0.1 * ix;
+			this.pot.add(slice);
+		}, this);
+	}
 };
 
 // v :: float [0,1]
@@ -325,11 +322,10 @@ Bonsai.prototype.generate_light_volume_slice_texture = function(light_volume, z)
 	context.fillText('z=' + z, 0, 0);
 	context.restore();
 
-	var bonsai = this;
 	_.each(_.range(n), function(y) {
 		_.each(_.range(n), function(x) {
 			var v = slice[n * y + x];
-			var c = bonsai.value_to_color(v);
+			var c = this.value_to_color(v);
 
 			// TODO: make coordinte saner
 			var step = (256-20) / (n-1);
@@ -337,8 +333,8 @@ Bonsai.prototype.generate_light_volume_slice_texture = function(light_volume, z)
 			context.rect(10 + x * step, 10 + y * step, 3, 3);
 			context.fill();
 			context.fillStyle = c.getStyle();
-		})
-	});
+		}, this);
+	}, this);
 
 	context.beginPath();
 	context.rect(10, 10, 256-20, 256-20);
@@ -453,7 +449,7 @@ function ui_update_stats() {
 }
 
 /* UI Handlers */
-function handle_reset() {
+function handle_replant() {
 	if(current_plant === null ) {
 		return;
 	}
@@ -471,7 +467,7 @@ function handle_step(n) {
 	}
 	_.each(_.range(n), function(i) {
 		bonsai.step();
-	})
+	});
 	bonsai.re_materialize(ui_get_debug_option());
 
 	ui_update_stats();
