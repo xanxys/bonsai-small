@@ -11,6 +11,7 @@ body {
 .pane-top-left {
 	background-color: rgba(0,0,0,0.3);
 	padding: 1em;
+	padding-left: 0;
 	margin-left: 0;
 	margin-top: 0;
 	border-radius: 0 0 0.5em 0;
@@ -29,4 +30,11 @@ body {
 
 .pane-top-left label {
 	display: block;
+}
+
+.pane-panel {
+	background-color: rgba(255,255,255,0.2);
+	border-left: 1em solid rgba(173, 127, 168, 0.8);
+	margin-bottom: 0.5em;
+	padding-left: 0.25em;
 }

@@ -17,17 +17,22 @@
 	<body>
 		<div class="pane-top-left" style="width: 200px; height: 400px; position:absolute">
 			<div>
+				<img src="favicon.png" width="50px" height="50px"/>
+				<span style="font-size: 25px; position: relative; bottom: 4px; font-weight: bold">Bonsai</span>
+			</div>
+
+			<div class="pane-panel">
 				<button onclick="handle_replant()">Replant</button>
 				<button onclick="handle_step(1)">Step(1)</button>
 				<button onclick="handle_step(10)">Step(10)</button>
 			</div>
 
-			<div>
+			<div class="pane-panel">
 				<div>Plant Stats</div>
 				<pre id="info"></pre>
 			</div>
 
-			<div>
+			<div class="pane-panel">
 				<div>Debug Layers</div>
 				<label>
 					<input type="checkbox" id="debug_occluder" onclick="handle_update_debug_options()">
