@@ -171,6 +171,7 @@ var LightVolume = function() {
 	this.n = 10;
 	this.h = 5;  // height
 
+	// TODO: use Float32Array.subarray for safer operations.
 	this.buffer = new ArrayBuffer(4 * this.n * this.n * this.h);
 
 	// For debugging: initialize by [0,1] random values.
@@ -190,6 +191,22 @@ LightVolume.prototype.slice = function(z) {
 	return new Float32Array(this.buffer, 4 * this.n * this.n * z, this.n * this.n);
 };
 
+LightVolume.prototype.step = function() {
+	// step
+	var lv = this;
+	_.each(_.range(this.h-1), function(z) {
+		// TODO: occluders
+		lv.slice(z).set(lv.slice(z+1));
+	});
+
+	// emit
+	var light_strength = 1.0;
+	var top_slice = this.slice(this.h - 1);
+	_.each(_.range(this.n * this.n), function(i) {
+		top_slice[i] += light_strength;
+	});
+};
+
 
 // Bonsai world class. There's no interaction between bonsai instances,
 // and Bonsai just borrows scene, not owns it.
@@ -198,7 +215,7 @@ LightVolume.prototype.slice = function(z) {
 var Bonsai = function(scene) {
 	this.scene = scene;
 
-	// add pot
+	// add pot (three.js scene)
 	var tex = THREE.ImageUtils.loadTexture("./texture_dirt.jpg");
 
 	this.pot = new THREE.Mesh(
@@ -209,7 +226,10 @@ var Bonsai = function(scene) {
 	this.pot.position.z = -0.15;
 	this.scene.add(this.pot);
 
-	// Plants
+	// Light (plant sim)
+	this.light_volume = new LightVolume();
+
+	// Plants (plant sim)
 	this.children = [];
 };
 
@@ -227,10 +247,13 @@ Bonsai.prototype.remove_plant = function(plant) {
 	this.children = _.without(this.children, plant);
 };
 
-// plant :: Plant, must be returned by add_plant
 // return :: ()
-Bonsai.prototype.step = function(plant) {
-	plant.step();
+Bonsai.prototype.step = function() {
+	_.each(this.children, function(plant) {
+		plant.step();
+	});
+
+	this.light_volume.step();
 };
 
 // options :: dict(string, bool)
@@ -266,14 +289,12 @@ Bonsai.prototype.re_materialize = function(options) {
 		}
 
 		if(options['show_light_volume']) {
-			var light_volume = new LightVolume();
-
-			_.each(_.range(light_volume.h), function(ix) {
+			_.each(_.range(bonsai.light_volume.h), function(ix) {
 				var slice = new THREE.Mesh(
 					new THREE.PlaneGeometry(0.5, 0.5),
 					new THREE.MeshBasicMaterial({
 						transparent: true,
-						map: bonsai.generate_light_volume_slice_texture(light_volume, ix)}));
+						map: bonsai.generate_light_volume_slice_texture(bonsai.light_volume, ix)}));
 				slice.position.z = 0.3 + 0.1 * ix;
 				pot.add(slice);
 			});
@@ -449,7 +470,7 @@ function handle_step(n) {
 		return;
 	}
 	_.each(_.range(n), function(i) {
-		bonsai.step(current_plant);
+		bonsai.step();
 	})
 	bonsai.re_materialize(ui_get_debug_option());
 
