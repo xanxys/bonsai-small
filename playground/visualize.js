@@ -312,12 +312,14 @@ Bonsai.prototype.generate_light_volume_slice_texture = function(light_volume, z)
 
 			// TODO: make coordinte saner
 			var step = (256-20) / (n-1);
-			context.fillStyle = c.getStyle();
+			context.beginPath();
 			context.rect(10 + x * step, 10 + y * step, 3, 3);
 			context.fill();
+			context.fillStyle = c.getStyle();
 		})
 	});
 
+	context.beginPath();
 	context.rect(10, 10, 256-20, 256-20);
 	context.stroke();
 
