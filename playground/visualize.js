@@ -243,7 +243,7 @@ Bonsai.prototype.re_materialize = function(options) {
 					new THREE.PlaneGeometry(0.5, 0.5),
 					new THREE.MeshBasicMaterial({
 						transparent: true,
-						map: bonsai.generate_light_volume_slice_texture()}));
+						map: bonsai.generate_light_volume_slice_texture(ix)}));
 				slice.position.z = 0.3 + 0.1 * ix;
 				pot.add(slice);
 			});
@@ -251,7 +251,24 @@ Bonsai.prototype.re_materialize = function(options) {
 	});
 };
 
-Bonsai.prototype.generate_light_volume_slice_texture = function() {
+// v :: float [0,1]
+// return :: THREE.Color
+Bonsai.prototype.value_to_color = function(v) {
+	return new THREE.Color(v*255, 255-v*255, 100);
+};
+
+Bonsai.prototype.generate_light_volume_slice_texture = function(z) {
+	// TODO: get slices from somewhere else. (Refactor into a class)
+	var n = 10;
+	var lv_prop = new THREE.Vector3(0, 0, -1);
+	var buffer = new ArrayBuffer(4 * n * n);  // float array
+	var slice = new Float32Array(buffer);
+	_.each(_.range(n), function(y) {
+		_.each(_.range(n), function(x) {
+			slice[n * y + x] = Math.random();
+		})
+	});
+
 	var canvas = document.createElement('canvas');
 	canvas.width = 256;
 	canvas.height = 256;
@@ -260,8 +277,22 @@ Bonsai.prototype.generate_light_volume_slice_texture = function() {
 	context.save();
 	context.translate(30, 30);
 	context.fillStyle = 'black';
-	context.fillText('Light Volume', 0, 0);
+	context.fillText('z=' + z, 0, 0);
 	context.restore();
+
+	var bonsai = this;
+	_.each(_.range(n), function(y) {
+		_.each(_.range(n), function(x) {
+			var v = slice[n * y + x];
+			var c = bonsai.value_to_color(v);
+
+			// TODO: make coordinte saner
+			var step = (256-20) / (n-1);
+			context.fillStyle = c.getStyle();
+			context.rect(10 + x * step, 10 + y * step, 3, 3);
+			context.fill();
+		})
+	});
 
 	context.rect(10, 10, 256-20, 256-20);
 	context.stroke();
