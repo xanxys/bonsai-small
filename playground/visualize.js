@@ -163,6 +163,34 @@ Plant.prototype.add_leaf_cont = function() {
 	this.add(leaf);
 };
 
+
+// Light Volume class suitable for simulating one directional light.
+var LightVolume = function() {
+	this.direction = new THREE.Vector3(0, 0, -1);
+
+	this.n = 10;
+	this.h = 5;  // height
+
+	this.buffer = new ArrayBuffer(4 * this.n * this.n * this.h);
+
+	// For debugging: initialize by [0,1] random values.
+	var flat_array = new Float32Array(this.buffer);
+	_.each(_.range(this.n * this.n * this.h), function(i) {
+		flat_array[i] = Math.random();
+	});
+};
+
+// z :: int [0, this.h)
+// return :: Float32Array[this.n^2] in Y-X order (e.g. (0,0,z), (1,0,z), ...)
+LightVolume.prototype.slice = function(z) {
+	if(z < 0 || z >= this.h) {
+		throw "Given height is out of range.";
+	}
+
+	return new Float32Array(this.buffer, 4 * this.n * this.n * z, this.n * this.n);
+};
+
+
 // Bonsai world class. There's no interaction between bonsai instances,
 // and Bonsai just borrows scene, not owns it.
 // Plants changes doesn't show up until you call re_materialize.
@@ -238,12 +266,14 @@ Bonsai.prototype.re_materialize = function(options) {
 		}
 
 		if(options['show_light_volume']) {
-			_.each(_.range(5), function(ix) {
+			var light_volume = new LightVolume();
+
+			_.each(_.range(light_volume.h), function(ix) {
 				var slice = new THREE.Mesh(
 					new THREE.PlaneGeometry(0.5, 0.5),
 					new THREE.MeshBasicMaterial({
 						transparent: true,
-						map: bonsai.generate_light_volume_slice_texture(ix)}));
+						map: bonsai.generate_light_volume_slice_texture(light_volume, ix)}));
 				slice.position.z = 0.3 + 0.1 * ix;
 				pot.add(slice);
 			});
@@ -254,20 +284,14 @@ Bonsai.prototype.re_materialize = function(options) {
 // v :: float [0,1]
 // return :: THREE.Color
 Bonsai.prototype.value_to_color = function(v) {
-	return new THREE.Color(v*255, 255-v*255, 100);
+	return new THREE.Color().setRGB(v, v, v);
 };
 
-Bonsai.prototype.generate_light_volume_slice_texture = function(z) {
-	// TODO: get slices from somewhere else. (Refactor into a class)
-	var n = 10;
-	var lv_prop = new THREE.Vector3(0, 0, -1);
-	var buffer = new ArrayBuffer(4 * n * n);  // float array
-	var slice = new Float32Array(buffer);
-	_.each(_.range(n), function(y) {
-		_.each(_.range(n), function(x) {
-			slice[n * y + x] = Math.random();
-		})
-	});
+// light_volume :: LightVolume
+// z :: int
+Bonsai.prototype.generate_light_volume_slice_texture = function(light_volume, z) {
+	var n = light_volume.n;
+	var slice = light_volume.slice(z);
 
 	var canvas = document.createElement('canvas');
 	canvas.width = 256;
