@@ -10,7 +10,9 @@ _.mixin(_.str.exports());
 //
 // Plant grows Z+ direction when rotation is identity.
 // When the Plant is a leaf,  photosynthetic plane is Y+.
-var Plant = function() {
+// parent :: Bonsai
+var Plant = function(parent) {
+	this.parent = parent;
 	this.children = [];
 	// Relative rotation in parent's frame.
 	this.rotation = new THREE.Euler(); // Euler angles. TODO: make it quaternion
@@ -141,7 +143,7 @@ Plant.prototype.occluders = function(parent_top, parent_rot) {
 // side :: boolean
 // return :: ()
 Plant.prototype.add_shoot_cont = function(side) {
-	var shoot = new Plant();
+	var shoot = new Plant(this.parent);
 
 	var cone_angle = side ? 1.0 : 0.5;
 	shoot.rotation = new THREE.Euler(
@@ -156,7 +158,7 @@ Plant.prototype.add_shoot_cont = function(side) {
 // shoot_base :: Plant
 // return :: ()
 Plant.prototype.add_leaf_cont = function() {
-	var leaf = new Plant();
+	var leaf = new Plant(this.parent);
 	leaf.rotation = new THREE.Euler(- Math.PI * 0.5, 0, 0);
 	leaf.stem_length = 1e-3;
 	leaf.is_leaf = true;
@@ -165,7 +167,10 @@ Plant.prototype.add_leaf_cont = function() {
 
 
 // Light Volume class suitable for simulating one directional light.
-var LightVolume = function() {
+// parent :: Bonsai
+var LightVolume = function(parent) {
+	this.parent = parent;
+
 	// three.js world metrics
 	this.z0 = 0.3;
 	this.zstep = 0.1;
@@ -250,35 +255,102 @@ LightVolume.prototype.step_layer = function(occs) {
 };
 
 
+// Get downwards lighting at given position.
+// pos :: THREE.Vector3
+// return :: float
+LightVolume.prototype.get_down_lighting_at = function(pos) {
+	var ix = Math.floor((pos.x / this.aperture + 0.5) * this.n);
+	var iy = Math.floor((pos.y / this.aperture + 0.5) * this.n);
+	var iz = Math.floor((pos.z - this.z0) / this.zstep);
+	iz = Math.max(0, iz);  // assume empty space after LightVolume ends.
+
+	if(ix < 0 || this.n <= ix || iy < 0 || this.n <= iy || iz < 0 || this.h <= iz) {
+		return 0;
+	} else {
+		return this.slice(iz)[ix + this.n * iy];
+	}
+};
+
+
+// Represents soil surface state by a grid.
+// parent :: Bonsai
+var Soil = function(parent) {
+	this.parent = parent;
+
+	this.n = 4;
+	this.size = 0.3;
+};
+
+// return :: THREE.Object3D
+Soil.prototype.materialize = function() {
+	var soil_base = new THREE.Mesh(
+		new THREE.CubeGeometry(this.size, this.size, 0.01),
+		new THREE.MeshLambertMaterial({
+			color: 'black'}));
+
+	// Attach tiles to the base.
+	var tex = THREE.ImageUtils.loadTexture("./texture_dirt.jpg");
+
+	_.each(_.range(this.n), function(y) {
+		_.each(_.range(this.n), function(x) {
+			var p = new THREE.Vector3(
+				-(x - this.n / 2 + 0.5) * this.size / this.n,
+				-(y - this.n / 2 + 0.5) * this.size / this.n,
+				0.01);
+
+			var v = this.parent.light_volume.get_down_lighting_at(p);
+			var lighting = new THREE.Color().setRGB(v, v, v);
+
+			var soil_tile = new THREE.Mesh(
+				new THREE.CubeGeometry(this.size / this.n, this.size / this.n, 0.01),
+				new THREE.MeshLambertMaterial({
+					color: lighting,
+					map: tex}));
+			soil_base.add(soil_tile);
+			soil_tile.position = p;
+		}, this);
+	}, this);
+
+	return soil_base;
+};
+
+
 // Bonsai world class. There's no interaction between bonsai instances,
 // and Bonsai just borrows scene, not owns it.
 // Plants changes doesn't show up until you call re_materialize.
 // re_materialize is idempotent from visual perspective.
+//
+// TODO: Supplant pot by introducing light - soil - plant interaction.
+// Instead, add dummy object for creating three.js coordinate frame, and
+// rename Bonsai to Chunk or something.
 var Bonsai = function(scene) {
 	this.scene = scene;
 
 	// add pot (three.js scene)
-	var tex = THREE.ImageUtils.loadTexture("./texture_dirt.jpg");
-
+	// dummy material
 	this.pot = new THREE.Mesh(
 		new THREE.CubeGeometry(0.3, 0.3, 0.3),
 		new THREE.MeshLambertMaterial({
-			color: 'orange',
-			map: tex}));
+			color: 'blue',
+			wireframe: true}));
 	this.pot.position.z = -0.15;
 	this.scene.add(this.pot);
 
+	// Soil (plant sim)
+	this.soil = new Soil(this);
+
 	// Light (plant sim)
-	this.light_volume = new LightVolume();
+	this.light_volume = new LightVolume(this);
 
 	// Plants (plant sim)
+	// TODO: rename to plants for easier access from soil and light_volume.
 	this.children = [];
 };
 
 
 // return :: Plant
 Bonsai.prototype.add_plant = function() {
-	var shoot = new Plant();
+	var shoot = new Plant(this);
 	this.children.push(shoot);
 	return shoot;
 };
@@ -318,6 +390,11 @@ Bonsai.prototype.re_materialize = function(options) {
 	_.each(_.clone(this.pot.children), function(three_plant_or_debug) {
 		this.pot.remove(three_plant_or_debug);
 	}, this);
+
+	// Materialize soil.
+	var soil = this.soil.materialize();
+	this.pot.add(soil);
+	soil.position.z = 0.15;
 
 	// Materialize all plants.
 	_.each(this.children, function(plant) {
