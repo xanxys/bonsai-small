@@ -203,7 +203,7 @@ LightVolume.prototype.slice = function(z) {
 LightVolume.prototype.step = function(occs) {
 	// Separate occluders into layers.
 	this.occ_layers = _.map(_.range(this.h), function(z) {return [];}, this);
-	
+
 	_.each(occs, function(occ) {
 		var z = Math.floor((occ[0].z - this.z0) / this.zstep);
 		if(0 <= z && z < this.h) {
@@ -213,13 +213,23 @@ LightVolume.prototype.step = function(occs) {
 
 	// step
 	_.each(_.range(this.h-1), function(z) {
-		// TODO: occluders
+		// Bake occluders into transparency array.
+		// TODO: occluder radius
+		var transparency = _.map(_.range(this.n * this.n), function(i) {return 1.0;}, this);
+		_.each(this.occ_layers[z+1], function(occ) {
+			var center = occ[0];
+			var ix = Math.floor(this.n * (center.x / this.aperture + 0.5));
+			var iy = Math.floor(this.n * (center.y / this.aperture + 0.5));
+			if(0 <= ix && ix < this.n && 0 <= iy && iy < this.n) {
+				transparency[ix + iy * this.n] *= 0.2;
+			}
+		}, this);
 
-		//
+		// Multiply with transparency and propagate.
 		var slice_from = this.slice(z+1);
 		var slice_to = this.slice(z);
 		_.each(_.range(this.n * this.n), function(i) {
-			slice_to[i] = slice_from[i] * 0.8;
+			slice_to[i] = slice_from[i] * transparency[i];
 		}, this);
 	}, this);
 
@@ -359,9 +369,12 @@ Bonsai.prototype.generate_light_volume_slice_texture = function(light_volume, z)
 			var c = this.value_to_color(v);
 
 			// TODO: make coordinte saner
-			var step = (size - padding * 2) / (n - 1);
+			var step = size / n;
+			var patch_size = 3;
 			context.beginPath();
-			context.rect(padding + x * step, padding + y * step, 3, 3);
+			context.rect(
+				(x + 0.5) * step - patch_size / 2, (y + 0.5) * step - patch_size / 2,
+				patch_size, patch_size);
 			context.fillStyle = c.getStyle();
 			context.fill();
 		}, this);
