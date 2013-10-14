@@ -4,6 +4,14 @@
 	top: 0;
 }
 
+.logo-text {
+	font-size: 50px;
+	position: relative;
+	bottom: 7px;
+	font-family: 'Clicker Script', cursive;
+	color: #eeffaa;
+}
+
 body {
 	margin: 0;
 }
