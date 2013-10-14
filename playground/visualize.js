@@ -181,7 +181,6 @@ var LightVolume = function() {
 	// occluders per layers
 	this.occ_layers = _.map(_.range(this.h), function(z) {return [];}, this);
 
-
 	// For debugging: initialize by [0,1] random values.
 	var flat_array = new Float32Array(this.buffer);
 	_.each(_.range(this.n * this.n * this.h), function(i) {
@@ -203,6 +202,8 @@ LightVolume.prototype.slice = function(z) {
 // return :: ()
 LightVolume.prototype.step = function(occs) {
 	// Separate occluders into layers.
+	this.occ_layers = _.map(_.range(this.h), function(z) {return [];}, this);
+	
 	_.each(occs, function(occ) {
 		var z = Math.floor((occ[0].z - this.z0) / this.zstep);
 		if(0 <= z && z < this.h) {
