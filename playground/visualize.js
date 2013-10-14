@@ -166,13 +166,21 @@ Plant.prototype.add_leaf_cont = function() {
 
 // Light Volume class suitable for simulating one directional light.
 var LightVolume = function() {
+	// three.js world metrics
+	this.z0 = 0.3;
+	this.zstep = 0.1;
 	this.direction = new THREE.Vector3(0, 0, -1);
+	this.aperture = 0.5;
 
 	this.n = 10;
 	this.h = 5;  // height
 
 	// TODO: use Float32Array.subarray for safer operations.
 	this.buffer = new ArrayBuffer(4 * this.n * this.n * this.h);
+
+	// occluders per layers
+	this.occ_layers = _.map(_.range(this.h), function(z) {return [];}, this);
+
 
 	// For debugging: initialize by [0,1] random values.
 	var flat_array = new Float32Array(this.buffer);
@@ -191,18 +199,34 @@ LightVolume.prototype.slice = function(z) {
 	return new Float32Array(this.buffer, 4 * this.n * this.n * z, this.n * this.n);
 };
 
-LightVolume.prototype.step = function() {
+// occs :: [(center, radius)] spherical occluders
+// return :: ()
+LightVolume.prototype.step = function(occs) {
+	// Separate occluders into layers.
+	_.each(occs, function(occ) {
+		var z = Math.floor((occ[0].z - this.z0) / this.zstep);
+		if(0 <= z && z < this.h) {
+			this.occ_layers[z].push(occ);
+		}
+	}, this);
+
 	// step
 	_.each(_.range(this.h-1), function(z) {
 		// TODO: occluders
-		this.slice(z).set(this.slice(z+1));
+
+		//
+		var slice_from = this.slice(z+1);
+		var slice_to = this.slice(z);
+		_.each(_.range(this.n * this.n), function(i) {
+			slice_to[i] = slice_from[i] * 0.8;
+		}, this);
 	}, this);
 
 	// emit
 	var light_strength = 1.0;
 	var top_slice = this.slice(this.h - 1);
 	_.each(_.range(this.n * this.n), function(i) {
-		top_slice[i] += light_strength;
+		top_slice[i] = light_strength;
 	}, this);
 };
 
@@ -248,11 +272,15 @@ Bonsai.prototype.remove_plant = function(plant) {
 
 // return :: ()
 Bonsai.prototype.step = function() {
+	var occs = _.flatten(_.map(this.children, function(plant) {
+		return plant.occluders(new THREE.Vector3(0, 0, 0.15 - plant.stem_length / 2), new THREE.Quaternion(0, 0, 0, 1));
+	}, this), true);
+
 	_.each(this.children, function(plant) {
 		plant.step();
 	}, this);
 
-	this.light_volume.step();
+	this.light_volume.step(occs);
 };
 
 // options :: dict(string, bool)
@@ -289,11 +317,11 @@ Bonsai.prototype.re_materialize = function(options) {
 	if(options['show_light_volume']) {
 		_.each(_.range(this.light_volume.h), function(ix) {
 			var slice = new THREE.Mesh(
-				new THREE.PlaneGeometry(0.5, 0.5),
+				new THREE.PlaneGeometry(this.light_volume.aperture, this.light_volume.aperture),
 				new THREE.MeshBasicMaterial({
 					transparent: true,
 					map: this.generate_light_volume_slice_texture(this.light_volume, ix)}));
-			slice.position.z = 0.3 + 0.1 * ix;
+			slice.position.z = this.light_volume.z0 + this.light_volume.zstep * ix;
 			this.pot.add(slice);
 		}, this);
 	}
@@ -307,37 +335,65 @@ Bonsai.prototype.value_to_color = function(v) {
 
 // light_volume :: LightVolume
 // z :: int
+// return :: THREE.Texture
 Bonsai.prototype.generate_light_volume_slice_texture = function(light_volume, z) {
 	var n = light_volume.n;
 	var slice = light_volume.slice(z);
 
+	var size = 256;
+
 	var canvas = document.createElement('canvas');
-	canvas.width = 256;
-	canvas.height = 256;
+	canvas.width = size;
+	canvas.height = size;
 
 	var context = canvas.getContext('2d');
-	context.save();
-	context.translate(30, 30);
-	context.fillStyle = 'black';
-	context.fillText('z=' + z, 0, 0);
-	context.restore();
 
+
+	var padding = 10;
+
+	// light volume values
 	_.each(_.range(n), function(y) {
 		_.each(_.range(n), function(x) {
 			var v = slice[n * y + x];
 			var c = this.value_to_color(v);
 
 			// TODO: make coordinte saner
-			var step = (256-20) / (n-1);
+			var step = (size - padding * 2) / (n - 1);
 			context.beginPath();
-			context.rect(10 + x * step, 10 + y * step, 3, 3);
-			context.fill();
+			context.rect(padding + x * step, padding + y * step, 3, 3);
 			context.fillStyle = c.getStyle();
+			context.fill();
 		}, this);
 	}, this);
 
+	// light volume occluders
+	context.save();
+	context.scale(size, size);
+	context.translate(0.5, 0.5);
+	context.scale(1 / light_volume.aperture, -1 / light_volume.aperture);
 	context.beginPath();
-	context.rect(10, 10, 256-20, 256-20);
+	context.lineWidth = 1e-3;
+	_.each(light_volume.occ_layers[z], function(occ) {
+		var center = occ[0];
+		var radius = occ[1];
+		context.arc(center.x, center.y, radius, 0, 2 * Math.PI);
+	});
+	context.fillStyle = 'rgba(255, 0, 0, 0.2)';
+	context.fill();
+	context.restore();
+
+	// stat
+	context.save();
+	context.translate(30, 30);
+	context.beginPath();
+	context.fillStyle = 'black';
+	context.fillText('z=' + z + ' / ' + '#occluder=' + light_volume.occ_layers[z].length, 0, 0);
+	context.restore();
+
+	// frame
+	context.beginPath();
+	context.rect(padding, padding, size - padding * 2, size - padding * 2);
+	context.strokeStyle = 'black';
 	context.stroke();
 
 	var tex = new THREE.Texture(canvas);
