@@ -175,16 +175,14 @@ var LightVolume = function() {
 	this.n = 10;
 	this.h = 5;  // height
 
-	// TODO: use Float32Array.subarray for safer operations.
-	this.buffer = new ArrayBuffer(4 * this.n * this.n * this.h);
+	this.volume = new Float32Array(this.n * this.n * this.h);
 
 	// occluders per layers
 	this.occ_layers = _.map(_.range(this.h), function(z) {return [];}, this);
 
 	// For debugging: initialize by [0,1] random values.
-	var flat_array = new Float32Array(this.buffer);
-	_.each(_.range(this.n * this.n * this.h), function(i) {
-		flat_array[i] = Math.random();
+	_.each(_.range(this.volume.length), function(i) {
+		this.volume[i] = 0;
 	}, this);
 };
 
@@ -195,12 +193,22 @@ LightVolume.prototype.slice = function(z) {
 		throw "Given height is out of range.";
 	}
 
-	return new Float32Array(this.buffer, 4 * this.n * this.n * z, this.n * this.n);
+	var n_slice = this.n * this.n;
+	return this.volume.subarray(n_slice * z, n_slice * (z + 1));
+};
+
+// Fully propagate light thorough the LightVolume.
+// occs :: [(center, radius)] spherical occluders
+// return :: ()
+LightVolume.prototype.step = function(occs) {
+	_.each(_.range(this.h), function(i) {
+		this.step_layer(occs);
+	}, this);
 };
 
 // occs :: [(center, radius)] spherical occluders
 // return :: ()
-LightVolume.prototype.step = function(occs) {
+LightVolume.prototype.step_layer = function(occs) {
 	// Separate occluders into layers.
 	this.occ_layers = _.map(_.range(this.h), function(z) {return [];}, this);
 
@@ -359,9 +367,6 @@ Bonsai.prototype.generate_light_volume_slice_texture = function(light_volume, z)
 
 	var context = canvas.getContext('2d');
 
-
-	var padding = 10;
-
 	// light volume values
 	_.each(_.range(n), function(y) {
 		_.each(_.range(n), function(x) {
@@ -398,7 +403,7 @@ Bonsai.prototype.generate_light_volume_slice_texture = function(light_volume, z)
 
 	// stat
 	context.save();
-	context.translate(30, 30);
+	context.translate(20, 20);
 	context.beginPath();
 	context.fillStyle = 'black';
 	context.fillText('z=' + z + ' / ' + '#occluder=' + light_volume.occ_layers[z].length, 0, 0);
@@ -406,7 +411,7 @@ Bonsai.prototype.generate_light_volume_slice_texture = function(light_volume, z)
 
 	// frame
 	context.beginPath();
-	context.rect(padding, padding, size - padding * 2, size - padding * 2);
+	context.rect(0, 0, size, size);
 	context.strokeStyle = 'black';
 	context.stroke();
 
