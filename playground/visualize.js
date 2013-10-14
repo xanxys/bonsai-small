@@ -271,6 +271,84 @@ LightVolume.prototype.get_down_lighting_at = function(pos) {
 	}
 };
 
+// v :: float [0,1]
+// return :: THREE.Color
+LightVolume.prototype.value_to_color = function(v) {
+	return new THREE.Color().setRGB(v, v, v);
+};
+
+// z :: int
+// return :: THREE.Texture
+LightVolume.prototype.generate_slice_texture = function(z) {
+	var slice = this.slice(z);
+
+	var size = 256;
+
+	var canvas = document.createElement('canvas');
+	canvas.width = size;
+	canvas.height = size;
+
+	var context = canvas.getContext('2d');
+
+	// light volume values
+	context.save();
+	context.translate(0, size);
+	context.scale(1, -1);
+	_.each(_.range(this.n), function(y) {
+		_.each(_.range(this.n), function(x) {
+			var v = slice[this.n * y + x];
+			var c = this.value_to_color(v);
+
+			// TODO: make coordinte saner
+			var step = size / this.n;
+			var patch_size = 3;
+			context.beginPath();
+			context.rect(
+				(x + 0.5) * step - patch_size / 2,
+				(y + 0.5) * step - patch_size / 2,
+				patch_size, patch_size);
+			context.fillStyle = c.getStyle();
+			context.fill();
+		}, this);
+	}, this);
+	context.restore();
+
+	// light volume occluders
+	context.save();
+	context.scale(size, size);
+	context.translate(0.5, 0.5);
+	context.scale(1 / this.aperture, -1 / this.aperture);
+	context.beginPath();
+	context.lineWidth = 1e-3;
+	_.each(this.occ_layers[z], function(occ) {
+		var center = occ[0];
+		var radius = occ[1];
+		context.arc(center.x, center.y, radius, 0, 2 * Math.PI);
+	});
+	context.fillStyle = 'rgba(255, 0, 0, 0.2)';
+	context.fill();
+	context.restore();
+
+	// stat
+	context.save();
+	context.translate(20, 20);
+	context.beginPath();
+	context.fillStyle = 'black';
+	context.fillText('z=' + z + ' / ' + '#occluder=' + this.occ_layers[z].length, 0, 0);
+	context.restore();
+
+	// frame
+	context.beginPath();
+	context.rect(0, 0, size, size);
+	context.strokeStyle = 'black';
+	context.stroke();
+
+	var tex = new THREE.Texture(canvas);
+	tex.needsUpdate = true;
+
+	return tex;
+}
+
 
 // Represents soil surface state by a grid.
 // parent :: Bonsai
@@ -425,87 +503,12 @@ Bonsai.prototype.re_materialize = function(options) {
 				new THREE.PlaneGeometry(this.light_volume.aperture, this.light_volume.aperture),
 				new THREE.MeshBasicMaterial({
 					transparent: true,
-					map: this.generate_light_volume_slice_texture(this.light_volume, ix)}));
+					map: this.light_volume.generate_slice_texture(ix)}));
 			slice.position.z = this.light_volume.z0 + this.light_volume.zstep * ix;
 			this.pot.add(slice);
 		}, this);
 	}
 };
-
-// v :: float [0,1]
-// return :: THREE.Color
-Bonsai.prototype.value_to_color = function(v) {
-	return new THREE.Color().setRGB(v, v, v);
-};
-
-// light_volume :: LightVolume
-// z :: int
-// return :: THREE.Texture
-Bonsai.prototype.generate_light_volume_slice_texture = function(light_volume, z) {
-	var n = light_volume.n;
-	var slice = light_volume.slice(z);
-
-	var size = 256;
-
-	var canvas = document.createElement('canvas');
-	canvas.width = size;
-	canvas.height = size;
-
-	var context = canvas.getContext('2d');
-
-	// light volume values
-	_.each(_.range(n), function(y) {
-		_.each(_.range(n), function(x) {
-			var v = slice[n * y + x];
-			var c = this.value_to_color(v);
-
-			// TODO: make coordinte saner
-			var step = size / n;
-			var patch_size = 3;
-			context.beginPath();
-			context.rect(
-				(x + 0.5) * step - patch_size / 2, (y + 0.5) * step - patch_size / 2,
-				patch_size, patch_size);
-			context.fillStyle = c.getStyle();
-			context.fill();
-		}, this);
-	}, this);
-
-	// light volume occluders
-	context.save();
-	context.scale(size, size);
-	context.translate(0.5, 0.5);
-	context.scale(1 / light_volume.aperture, -1 / light_volume.aperture);
-	context.beginPath();
-	context.lineWidth = 1e-3;
-	_.each(light_volume.occ_layers[z], function(occ) {
-		var center = occ[0];
-		var radius = occ[1];
-		context.arc(center.x, center.y, radius, 0, 2 * Math.PI);
-	});
-	context.fillStyle = 'rgba(255, 0, 0, 0.2)';
-	context.fill();
-	context.restore();
-
-	// stat
-	context.save();
-	context.translate(20, 20);
-	context.beginPath();
-	context.fillStyle = 'black';
-	context.fillText('z=' + z + ' / ' + '#occluder=' + light_volume.occ_layers[z].length, 0, 0);
-	context.restore();
-
-	// frame
-	context.beginPath();
-	context.rect(0, 0, size, size);
-	context.strokeStyle = 'black';
-	context.stroke();
-
-	var tex = new THREE.Texture(canvas);
-	tex.needsUpdate = true;
-
-	return tex;
-}
 
 
 
