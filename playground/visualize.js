@@ -289,17 +289,26 @@ Bonsai.prototype.remove_plant = function(plant) {
 	this.children = _.without(this.children, plant);
 };
 
-// return :: ()
+// return :: object (stats)
 Bonsai.prototype.step = function() {
+	var t0 = 0;
+	var sim_stats = {};
+
 	var occs = _.flatten(_.map(this.children, function(plant) {
 		return plant.occluders(new THREE.Vector3(0, 0, 0.15 - plant.stem_length / 2), new THREE.Quaternion(0, 0, 0, 1));
 	}, this), true);
 
+	t0 = performance.now();
 	_.each(this.children, function(plant) {
 		plant.step();
 	}, this);
+	sim_stats['plant/ms'] = performance.now() - t0;
 
+	t0 = performance.now();
 	this.light_volume.step(occs);
+	sim_stats['light/ms'] = performance.now() - t0;
+
+	return sim_stats;
 };
 
 // options :: dict(string, bool)
@@ -481,7 +490,7 @@ function init() {
 	current_plant = bonsai.add_plant();
 	bonsai.re_materialize({});
 
-	ui_update_stats();
+	ui_update_stats({});
 
 	// start canvas
 	renderer = new THREE.WebGLRenderer();
@@ -516,11 +525,12 @@ function init() {
 }
 
 /* UI Utils */
-function ui_update_stats() {
+function ui_update_stats(sim_stat) {
 	var dict = current_plant.count_type({});
 	dict['mass/g'] = current_plant.mass() * 1e3;
 
 	$('#info').text(JSON.stringify(dict, null, 2));
+	$('#info-sim').text(JSON.stringify(sim_stat, null, 2));
 }
 
 /* UI Handlers */
@@ -533,19 +543,21 @@ function handle_replant() {
 	current_plant = bonsai.add_plant();
 	bonsai.re_materialize(ui_get_debug_option());
 
-	ui_update_stats();
+	ui_update_stats({});
 }
 
 function handle_step(n) {
 	if(current_plant === null) {
 		return;
 	}
+
+	var sim_stat = {};
 	_.each(_.range(n), function(i) {
-		bonsai.step();
+		sim_stat = bonsai.step();
 	});
 	bonsai.re_materialize(ui_get_debug_option());
 
-	ui_update_stats();
+	ui_update_stats(sim_stat);
 }
 
 function handle_update_debug_options() {
