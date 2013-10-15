@@ -205,7 +205,15 @@ LightVolume.prototype.slice = function(z) {
 // Fully propagate light thorough the LightVolume.
 // occs :: [(center, radius)] spherical occluders
 // return :: ()
-LightVolume.prototype.step = function(occs) {
+LightVolume.prototype.step = function() {
+	// Get occluders.
+	var occs = _.flatten(_.map(this.parent.children, function(plant) {
+		return plant.occluders(
+			new THREE.Vector3(0, 0, 0.15 - plant.stem_length / 2),
+			new THREE.Quaternion(0, 0, 0, 1));
+	}, this), true);
+
+	// Propagate end-to-end.
 	_.each(_.range(this.h), function(i) {
 		this.step_layer(occs);
 	}, this);
@@ -359,6 +367,10 @@ var Soil = function(parent) {
 	this.size = 0.3;
 };
 
+// return :: ()
+Soil.prototype.step = function() {
+};
+
 // return :: THREE.Object3D
 Soil.prototype.materialize = function() {
 	var soil_base = new THREE.Mesh(
@@ -444,10 +456,6 @@ Bonsai.prototype.step = function() {
 	var t0 = 0;
 	var sim_stats = {};
 
-	var occs = _.flatten(_.map(this.children, function(plant) {
-		return plant.occluders(new THREE.Vector3(0, 0, 0.15 - plant.stem_length / 2), new THREE.Quaternion(0, 0, 0, 1));
-	}, this), true);
-
 	t0 = performance.now();
 	_.each(this.children, function(plant) {
 		plant.step();
@@ -455,8 +463,12 @@ Bonsai.prototype.step = function() {
 	sim_stats['plant/ms'] = performance.now() - t0;
 
 	t0 = performance.now();
-	this.light_volume.step(occs);
+	this.light_volume.step();
 	sim_stats['light/ms'] = performance.now() - t0;
+
+	t0 = performance.now();
+	this.soil.step();
+	sim_stats['soil/ms'] = performance.now() - t0;
 
 	return sim_stats;
 };
