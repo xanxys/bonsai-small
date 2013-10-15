@@ -124,8 +124,7 @@ Plant.prototype.get_mass = function() {
 		volume = Math.pow(this.stem_diameter, 2) * this.stem_length;
 	}
 
-	return
-		volume * density +
+	return volume * density +
 		sum(_.map(this.children, function(child) {return child.get_mass();}));
 };
 
