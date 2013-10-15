@@ -171,6 +171,8 @@ Plant.prototype.add_leaf_cont = function() {
 var LightVolume = function(parent) {
 	this.parent = parent;
 
+	this.light_power = 1000;  // W/m^2 (assuming direct sunlight, all spectrum)
+
 	// three.js world metrics
 	this.z0 = 0.3;
 	this.zstep = 0.1;
@@ -255,10 +257,9 @@ LightVolume.prototype.step_layer = function(occs) {
 	}, this);
 
 	// emit
-	var light_strength = 1.0;
 	var top_slice = this.slice(this.h - 1);
 	_.each(_.range(this.n * this.n), function(i) {
-		top_slice[i] = light_strength;
+		top_slice[i] = this.light_power;
 	}, this);
 };
 
@@ -279,9 +280,10 @@ LightVolume.prototype.get_down_lighting_at = function(pos) {
 	}
 };
 
-// v :: float [0,1]
+// flux :: float [0,+inf) W/m^2, total energy density
 // return :: THREE.Color
-LightVolume.prototype.value_to_color = function(v) {
+LightVolume.prototype.flux_to_color = function(flux) {
+	var v = flux / 1000;
 	return new THREE.Color().setRGB(v, v, v);
 };
 
@@ -305,7 +307,7 @@ LightVolume.prototype.generate_slice_texture = function(z) {
 	_.each(_.range(this.n), function(y) {
 		_.each(_.range(this.n), function(x) {
 			var v = slice[this.n * y + x];
-			var c = this.value_to_color(v);
+			var c = this.flux_to_color(v);
 
 			// TODO: make coordinte saner
 			var step = size / this.n;
@@ -388,7 +390,7 @@ Soil.prototype.materialize = function() {
 				-(y - this.n / 2 + 0.5) * this.size / this.n,
 				0.01);
 
-			var v = this.parent.light_volume.get_down_lighting_at(p);
+			var v = this.parent.light_volume.get_down_lighting_at(p) / 1000;
 			var lighting = new THREE.Color().setRGB(v, v, v);
 
 			var soil_tile = new THREE.Mesh(
@@ -437,6 +439,11 @@ var Bonsai = function(scene) {
 	this.children = [];
 };
 
+// flux :: float [0,+inf) W/m^2, sunlight energy density equivalent
+// return :: ()
+Bonsai.prototype.set_flux = function(flux) {
+	this.light_volume.light_power = flux;
+};
 
 // return :: Plant
 Bonsai.prototype.add_plant = function() {
@@ -650,6 +657,10 @@ function handle_step(n) {
 	bonsai.re_materialize(ui_get_debug_option());
 
 	ui_update_stats(sim_stat);
+}
+
+function handle_light_change() {
+	bonsai.set_flux($('#light_flux').val());
 }
 
 function handle_update_debug_options() {

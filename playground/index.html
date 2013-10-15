@@ -26,6 +26,11 @@
 				<button onclick="handle_replant()">Replant</button>
 				<button onclick="handle_step(1)">Step(1)</button>
 				<button onclick="handle_step(10)">Step(10)</button>
+				<label>
+					<span style="font-size: 75%">darkness - 2x direct sun</span>
+					<input oninput="handle_light_change()" id="light_flux" type="range" min="0" max="2000" value="1000"/>
+				</label>
+				
 			</div>
 
 			<div class="pane-panel">
@@ -34,7 +39,7 @@
 			</div>
 
 			<div class="pane-panel">
-				<div>Simulation Stats</div>
+				<div>Execution Stats</div>
 				<pre id="info-sim"></pre>
 			</div>
 
