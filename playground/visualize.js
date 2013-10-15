@@ -14,6 +14,9 @@ _.mixin(_.str.exports());
 var Plant = function(parent) {
 	this.parent = parent;
 	this.children = [];
+
+	this.age = 0;
+
 	// Relative rotation in parent's frame.
 	this.rotation = new THREE.Euler(); // Euler angles. TODO: make it quaternion
 
@@ -89,9 +92,15 @@ Plant.prototype.materialize = function() {
 	return three_plant;
 };
 
+// Get plant age in seconds.
+// return :: float (sec)
+Plant.prototype.get_age = function() {
+	return this.age;
+};
+
 // Get total mass of this and children.
 // return :: float (kg)
-Plant.prototype.mass = function() {
+Plant.prototype.get_mass = function() {
 	var density = 1000; // kg/m^3
 
 	var volume;
@@ -102,7 +111,7 @@ Plant.prototype.mass = function() {
 	}
 
 	var children_mass = _.map(this.children, function(child) {
-		return child.mass();
+		return child.get_mass();
 	});
 
 	var this_mass = volume * density;
@@ -124,7 +133,7 @@ Plant.prototype.count_type = function(counter) {
 
 // Get spherically approximated occuluders.
 // return :: array((THREE.Vector3, float))
-Plant.prototype.occluders = function(parent_top, parent_rot) {
+Plant.prototype.get_occluders = function(parent_top, parent_rot) {
 	var this_rot = parent_rot.clone().multiply(new THREE.Quaternion().setFromEuler(this.rotation));
 	var this_top = parent_top.clone().add(new THREE.Vector3(0, 0, this.stem_length).applyQuaternion(this_rot));
 	var this_center = parent_top.clone().add(new THREE.Vector3(0, 0, 0.5 * this.stem_length).applyQuaternion(this_rot));
@@ -133,7 +142,7 @@ Plant.prototype.occluders = function(parent_top, parent_rot) {
 	var occl = [this_center, radius];
 
 	var occs = _.flatten(_.map(this.children, function(child) {
-		return child.occluders(this_top, this_rot);
+		return child.get_occluders(this_top, this_rot);
 	}), true);
 	occs.push(occl);
 	return occs;
@@ -210,7 +219,7 @@ LightVolume.prototype.slice = function(z) {
 LightVolume.prototype.step = function() {
 	// Get occluders.
 	var occs = _.flatten(_.map(this.parent.children, function(plant) {
-		return plant.occluders(
+		return plant.get_occluders(
 			new THREE.Vector3(0, 0, 0.15 - plant.stem_length / 2),
 			new THREE.Quaternion(0, 0, 0, 1));
 	}, this), true);
@@ -502,7 +511,7 @@ Bonsai.prototype.re_materialize = function(options) {
 
 		// Occluders.
 		if(options['show_occluder']) {
-			var occs = plant.occluders(new THREE.Vector3(0, 0, 0.15 - plant.stem_length / 2), new THREE.Quaternion(0, 0, 0, 1));
+			var occs = plant.get_occluders(new THREE.Vector3(0, 0, 0.15 - plant.stem_length / 2), new THREE.Quaternion(0, 0, 0, 1));
 			_.each(occs, function(occ) {
 				var three_occ = new THREE.Mesh(
 					new THREE.IcosahedronGeometry(occ[1]),
@@ -625,8 +634,10 @@ function init() {
 
 /* UI Utils */
 function ui_update_stats(sim_stat) {
+	// TODO: plant stats code should be moved to Bonsai.
 	var dict = current_plant.count_type({});
-	dict['mass/g'] = current_plant.mass() * 1e3;
+	dict['mass/g'] = current_plant.get_mass() * 1e3;
+	dict['age/d'] = current_plant.get_age() / (24 * 60 * 60);
 
 	$('#info').text(JSON.stringify(dict, null, 2));
 	$('#info-sim').text(JSON.stringify(sim_stat, null, 2));
