@@ -101,11 +101,15 @@ Plant.prototype.get_age = function() {
 	return this.age;
 };
 
-// Return received sunlight.
+// Return received sunlight. This will not be completely accurate,
+// but robust to strange geometry.
 // return :: float [0,+inf) (W)
 Plant.prototype.get_flux = function() {
-	// TODO: implement
-	return 0;
+	// TODO: DO NOT call light_volume... here. It should be stored in Plant instances
+	// in step phase.
+	// TODO: this is wrong when non-plant occluders or multiple plants exist.
+	// TODO: what about normals?
+	return this.parent.light_volume.flux_occluded;
 }
 
 // Get total mass of this and children.
@@ -120,12 +124,9 @@ Plant.prototype.get_mass = function() {
 		volume = Math.pow(this.stem_diameter, 2) * this.stem_length;
 	}
 
-	var children_mass = _.map(this.children, function(child) {
-		return child.get_mass();
-	});
-
-	var this_mass = volume * density;
-	return  this_mass + _.reduce(children_mass, function(x, y) { return x + y; }, 0);
+	return
+		volume * density +
+		sum(_.map(this.children, function(child) {return child.get_mass();}));
 };
 
 // counter :: dict(string, int)
@@ -234,15 +235,6 @@ LightVolume.prototype.step = function(dt) {
 			new THREE.Quaternion(0, 0, 0, 1));
 	}, this), true);
 
-	// Propagate end-to-end.
-	_.each(_.range(this.h), function(i) {
-		this.step_layer(occs);
-	}, this);
-};
-
-// occs :: [(center, radius)] spherical occluders
-// return :: ()
-LightVolume.prototype.step_layer = function(occs) {
 	// Separate occluders into layers.
 	this.occ_layers = _.map(_.range(this.h), function(z) {return [];}, this);
 
@@ -253,8 +245,16 @@ LightVolume.prototype.step_layer = function(occs) {
 		}
 	}, this);
 
-	// step
-	_.each(_.range(this.h-1), function(z) {
+	// inject
+	var top_slice = this.slice(this.h - 1);
+	_.each(_.range(this.n * this.n), function(i) {
+		top_slice[i] = this.light_power;
+	}, this);
+
+	// step through layers.
+	var flux_occluded = 0;
+	var flux_escaped = 0;
+	_.each(_.range(this.h-2, -1, -1), function(z) {
 		// Bake occluders into transparency array.
 		// TODO: occluder radius
 		var transparency = _.map(_.range(this.n * this.n), function(i) {return 1.0;}, this);
@@ -270,16 +270,19 @@ LightVolume.prototype.step_layer = function(occs) {
 		// Multiply with transparency and propagate.
 		var slice_from = this.slice(z+1);
 		var slice_to = this.slice(z);
+		var tile_area = this.aperture * this.aperture / (this.n * this.n);
+		if(z == 0) {
+			flux_escaped = sum(slice_to) * tile_area;
+		}
+
 		_.each(_.range(this.n * this.n), function(i) {
 			slice_to[i] = slice_from[i] * transparency[i];
+			flux_occluded += slice_from[i] * (1 - transparency[i]) * tile_area;
 		}, this);
 	}, this);
 
-	// emit
-	var top_slice = this.slice(this.h - 1);
-	_.each(_.range(this.n * this.n), function(i) {
-		top_slice[i] = this.light_power;
-	}, this);
+	this.flux_occluded = flux_occluded;
+	this.flux_escaped = flux_escaped;
 };
 
 
@@ -709,15 +712,8 @@ function animate() {
 	stats.end();
 }
 
-function dict_to_v3(d) {
-	return new THREE.Vector3(d['x'], d['y'], d['z']);
-}
-
-// Generate human-readable block element from given json object.
-function json_to_dom(obj) {
-	return $('<div/>').text(JSON.stringify(obj));
-}
-
-function get_ms(){
-	return new Date().getTime();
+// xs :: [num]
+// return :: num
+function sum(xs) {
+	return _.reduce(xs, function(x, y) { return x + y; }, 0);
 }
