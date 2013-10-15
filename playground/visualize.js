@@ -101,6 +101,13 @@ Plant.prototype.get_age = function() {
 	return this.age;
 };
 
+// Return received sunlight.
+// return :: float [0,+inf) (W)
+Plant.prototype.get_flux = function() {
+	// TODO: implement
+	return 0;
+}
+
 // Get total mass of this and children.
 // return :: float (kg)
 Plant.prototype.get_mass = function() {
@@ -641,6 +648,7 @@ function init() {
 function ui_update_stats(sim_stat) {
 	// TODO: plant stats code should be moved to Bonsai.
 	var dict = current_plant.count_type({});
+	dict['flux/W'] = current_plant.get_flux();
 	dict['mass/g'] = current_plant.get_mass() * 1e3;
 	dict['age/d'] = current_plant.get_age() / (24 * 60 * 60);
 
