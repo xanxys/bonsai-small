@@ -36,10 +36,13 @@ Plant.prototype.add = function(sub_plant) {
 	this.children.push(sub_plant);
 };
 
+// dt :: sec
 // return :: ()
-Plant.prototype.step = function() {
+Plant.prototype.step = function(dt) {
+	this.age += dt;
+
 	_.each(this.children, function(sub_plant) {
-		sub_plant.step();
+		sub_plant.step(dt);
 	}, this);
 
 	this.stem_length += 3e-3;
@@ -214,9 +217,9 @@ LightVolume.prototype.slice = function(z) {
 };
 
 // Fully propagate light thorough the LightVolume.
-// occs :: [(center, radius)] spherical occluders
+// dt :: sec
 // return :: ()
-LightVolume.prototype.step = function() {
+LightVolume.prototype.step = function(dt) {
 	// Get occluders.
 	var occs = _.flatten(_.map(this.parent.children, function(plant) {
 		return plant.get_occluders(
@@ -378,8 +381,9 @@ var Soil = function(parent) {
 	this.size = 0.3;
 };
 
+// dt :: sec
 // return :: ()
-Soil.prototype.step = function() {
+Soil.prototype.step = function(dt) {
 };
 
 // return :: THREE.Object3D
@@ -467,23 +471,24 @@ Bonsai.prototype.remove_plant = function(plant) {
 	this.children = _.without(this.children, plant);
 };
 
+// dt :: float (sec)
 // return :: object (stats)
-Bonsai.prototype.step = function() {
+Bonsai.prototype.step = function(dt) {
 	var t0 = 0;
 	var sim_stats = {};
 
 	t0 = performance.now();
 	_.each(this.children, function(plant) {
-		plant.step();
+		plant.step(dt);
 	}, this);
 	sim_stats['plant/ms'] = performance.now() - t0;
 
 	t0 = performance.now();
-	this.light_volume.step();
+	this.light_volume.step(dt);
 	sim_stats['light/ms'] = performance.now() - t0;
 
 	t0 = performance.now();
-	this.soil.step();
+	this.soil.step(dt);
 	sim_stats['soil/ms'] = performance.now() - t0;
 
 	return sim_stats;
@@ -663,7 +668,7 @@ function handle_step(n) {
 
 	var sim_stat = {};
 	_.each(_.range(n), function(i) {
-		sim_stat = bonsai.step();
+		sim_stat = bonsai.step(24 * 60 * 60);  // step 1day
 	});
 	bonsai.re_materialize(ui_get_debug_option());
 
