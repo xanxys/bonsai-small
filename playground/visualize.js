@@ -20,9 +20,19 @@ var Plant = function(parent) {
 	// Relative rotation in parent's frame.
 	this.rotation = new THREE.Euler(); // Euler angles. TODO: make it quaternion
 
+	this.max_stress = 0.15e9; // 0.15GPa, from Schwendener 1874, Plant Physics p. 143
+
 	this.stem_length = 30e-3;
 	this.stem_diameter = 1e-3;
 	this.is_leaf = false;
+};
+
+// Return max moment cylindrical plant segment (e.g. stem) can withstand.
+// radius :: float (m)
+// return :: moment (N*m)
+Plant.prototype.max_moment = function(radius) {
+	var second_moment_area = Math.PI * Math.pow(radius, 4) / 4;
+	return this.max_stress * second_moment_area / radius;
 };
 
 // return :: bool
@@ -40,6 +50,15 @@ Plant.prototype.add = function(sub_plant) {
 // return :: ()
 Plant.prototype.step = function(dt) {
 	this.age += dt;
+
+	// TODO: Use real Photosynthesis-Irradiance (PI) curve.
+	// var 0.5 * 1-1/(x/100+1) // [0,+inf) -> [0,1], 0.8 @ 200
+	var max_delta_mass_glucose = this.parent.light_volume.flux_occluded * 0.5 * (dt / (24 * 60 * 60));
+	var max_delta_mass_total = max_delta_mass_glucose * 10;  // 90% of plant mass is water.
+	var max_delta_mass = max_delta_mass_total * 0.5;  // half of them go to root system.
+	console.log('delta mass', max_delta_mass);
+	console.log('max moment', this.max_moment(1e-3));
+
 
 	_.each(this.children, function(sub_plant) {
 		sub_plant.step(dt);
@@ -109,6 +128,7 @@ Plant.prototype.get_flux = function() {
 	// in step phase.
 	// TODO: this is wrong when non-plant occluders or multiple plants exist.
 	// TODO: what about normals?
+	// TODO: Use real Photosynthesis-Irradiance (PI) curve.
 	return this.parent.light_volume.flux_occluded;
 }
 
