@@ -11,7 +11,7 @@ _.mixin(_.str.exports());
 // Plant grows Z+ direction when rotation is identity.
 // When the Plant is a leaf,  photosynthetic plane is Y+.
 // parent :: Bonsai
-var Plant = function(parent) {
+var Plant = function(parent, is_seed) {
 	this.parent = parent;
 	this.children = [];
 
@@ -25,6 +25,15 @@ var Plant = function(parent) {
 	this.stem_length = 30e-3;
 	this.stem_diameter = 1e-3;
 	this.is_leaf = false;
+	this.is_root = false;
+	this.is_seed = false;
+
+	if(is_seed) {
+		this.stem_length = 1e-3;
+		this.is_seed = true;
+		this.add_shoot_cont(false);
+		this.add_root_cont(false, true);
+	}
 };
 
 // Return max moment cylindrical plant segment (e.g. stem) can withstand.
@@ -36,8 +45,13 @@ Plant.prototype.max_moment = function(radius) {
 };
 
 // return :: bool
-Plant.prototype.is_end = function() {
-	return this.children.length == 0 && !this.is_leaf;
+Plant.prototype.is_shoot_end = function() {
+	return this.children.length == 0 && !this.is_leaf && !this.is_root;
+}
+
+// return :: bool
+Plant.prototype.is_root_end = function() {
+	return this.children.length == 0 && !this.is_leaf && this.is_root;
 }
 
 // sub_plant :: Plant
@@ -64,16 +78,22 @@ Plant.prototype.step = function(dt) {
 		sub_plant.step(dt);
 	}, this);
 
-	this.stem_length += 3e-3;
+	if(!this.is_seed) {
+		if(this.is_root) {
+			this.stem_length += 1e-3;
+		} else {
+			this.stem_length += 3e-3;
+		}
+	}
 
 	// Monocot stems do not replicate, so there's a limit to diameter.
 	// On the other hands, most dicots stem cells do replicate, so they can grow
 	// indefinitely (especially trees).
 	this.stem_diameter = Math.min(5e-3, this.stem_diameter + 0.1e-3);
 
-	if (this.is_end()) {
+	if(this.is_shoot_end()) {
 		var z = Math.random();
-		if (z < 0.1) {
+		if(z < 0.1) {
 			this.add_shoot_cont(false);
 			this.add_leaf_cont();
 		} else if(z < 0.2) {
@@ -81,11 +101,25 @@ Plant.prototype.step = function(dt) {
 			this.add_shoot_cont(true);
 		}
 	}
+	if(this.is_root_end()) {
+		var z = Math.random();
+		if(z < 0.1) {
+			this.add_root_cont(false);
+			this.add_root_cont(true);
+		}
+	}
 };
 
 // return :: THREE.Object3D
 Plant.prototype.materialize = function() {
-	var color_diffuse = new THREE.Color(this.is_leaf ? 'green' : 'brown');
+	var color_diffuse = 'blue';
+	if(this.is_root) {
+		color_diffuse = 'white';
+	} else if(this.is_leaf) {
+		color_diffuse = 'green';
+	} else {
+		color_diffuse = 'brown';
+	}
 	var color_ambient = color_diffuse; // .offsetHSL(0, 0, -0.3);
 
 	var geom;
@@ -178,7 +212,25 @@ Plant.prototype.get_occluders = function(parent_top, parent_rot) {
 	return occs;
 };
 
-// Infinitesimal version of add_shoot.
+// Add infinitesimal root cell.
+// side :: boolean
+// return :: ()
+Plant.prototype.add_root_cont = function(side, flip) {
+	var root = new Plant(this.parent);
+	root.is_root = true;
+	root.stem_length = 1e-3;
+
+	var cone_angle = side ? 1.0 : 0.5;
+	root.rotation = new THREE.Euler(
+		(Math.random() - 0.5) * cone_angle + (flip ? Math.PI : 0),
+		(Math.random() - 0.5) * cone_angle,
+		0);
+	root.stem_length = 1e-3;
+
+	this.add(root);
+};
+
+// Add infinitesimal shoot cell.
 // side :: boolean
 // return :: ()
 Plant.prototype.add_shoot_cont = function(side) {
@@ -489,7 +541,7 @@ Bonsai.prototype.set_flux = function(flux) {
 
 // return :: Plant
 Bonsai.prototype.add_plant = function() {
-	var shoot = new Plant(this);
+	var shoot = new Plant(this, true);
 	this.children.push(shoot);
 	return shoot;
 };
@@ -541,7 +593,7 @@ Bonsai.prototype.re_materialize = function(options) {
 		// Plant itself.
 		var three_plant = plant.materialize();
 		this.pot.add(three_plant);
-		three_plant.position.z += 0.15 - plant.stem_length / 2;  // hack hack
+		three_plant.position.z += 0.15;  // hack hack
 
 		// Occluders.
 		if(options['show_occluder']) {
