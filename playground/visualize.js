@@ -111,12 +111,14 @@ Plant.prototype.step = function(dt) {
 };
 
 // return :: THREE.Object3D
-Plant.prototype.materialize = function() {
-	var color_diffuse = 'blue';
+Plant.prototype.materialize = function(attached_to_seed) {
+	var color_diffuse;
 	if(this.is_root) {
 		color_diffuse = 'white';
 	} else if(this.is_leaf) {
 		color_diffuse = 'green';
+	} else if(this.is_seed) {
+		color_diffuse = 'blue';
 	} else {
 		color_diffuse = 'brown';
 	}
@@ -135,14 +137,22 @@ Plant.prototype.materialize = function() {
 			color: color_diffuse,
 			ambient: color_ambient}));
 
-	var position = new THREE.Vector3(0, 0, this.stem_length/2).add(
-		new THREE.Vector3(0, 0, this.stem_length/2).applyEuler(this.rotation));
+	var position;
+	if(this.is_seed) {
+		position = new THREE.Vector3(0, 0, 0);
+	} else if(attached_to_seed) {
+		position = new THREE.Vector3(0, 0, this.stem_length/2).applyEuler(this.rotation);
+	} else {
+		position = new THREE.Vector3(0, 0, this.stem_length/2).add(
+			new THREE.Vector3(0, 0, this.stem_length/2).applyEuler(this.rotation));
+	}
+	 
 
 	three_plant.rotation.copy(this.rotation);
 	three_plant.position.copy(position);
 
 	_.each(this.children, function(child) {
-		three_plant.add(child.materialize());
+		three_plant.add(child.materialize(this.is_seed));
 	}, this);
 
 	return three_plant;
@@ -186,6 +196,13 @@ Plant.prototype.get_mass = function() {
 // return :: dict(string, int)
 Plant.prototype.count_type = function(counter) {
 	var key = this.is_leaf ? "leaf" : "shoot";
+	if(this.is_root) {
+		key = "root";
+	}
+	if(this.is_seed) {
+		key = "seed";
+	}
+
 	counter[key] = 1 + (_.has(counter, key) ? counter[key] : 0);
 
 	_.each(this.children, function(child) {
