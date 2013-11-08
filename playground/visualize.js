@@ -80,7 +80,7 @@ function init() {
 	// start canvas
 	renderer = new THREE.WebGLRenderer();
 	renderer.setSize(window.innerWidth, window.innerHeight);
-	document.body.appendChild(renderer.domElement);
+	$('#main').append(renderer.domElement);
 
 	// add mouse control (do this after canvas insertion)
 	controls = new TrackballControls(camera, renderer.domElement);
