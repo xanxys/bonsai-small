@@ -1,3 +1,17 @@
+requirejs.config({
+	shim: {
+		'underscore': {
+			exports: '_'
+		},
+		'three': {
+			exports: 'THREE'
+		}
+	}
+});
+
+requirejs([
+	'jquery', 'three', 'TrackballControls'],
+function($, THREE, TrackballControls) {
 "use strict";
 
 // package imports for underscore
@@ -683,7 +697,7 @@ function init() {
 	document.body.appendChild(renderer.domElement);
 
 	// add mouse control (do this after canvas insertion)
-	controls = new THREE.TrackballControls(camera, renderer.domElement);
+	controls = new TrackballControls(camera, renderer.domElement);
 	controls.maxDistance = 5;
 
 	// register frame info update hook
@@ -707,6 +721,15 @@ function init() {
 	};
 	var target = document.getElementById('side_info');
 	spinner = new Spinner(opts);
+
+
+	// Connect signals
+	$('#debug_light_volume').on('click', handle_update_debug_options);
+	$('#debug_occluder').on('click', handle_update_debug_options);
+	$('#light_flux').change(handle_light_change);
+	$('#button_replant').on('click', handle_replant);
+	$('#button_step1').on('click', function(){handle_step(1);});
+	$('#button_step10').on('click', function(){handle_step(10);});
 }
 
 /* UI Utils */
@@ -779,3 +802,5 @@ function animate() {
 function sum(xs) {
 	return _.reduce(xs, function(x, y) { return x + y; }, 0);
 }
+
+});  // requirejs

@@ -9,11 +9,12 @@
 
 		<script src="./underscore-min.js"></script>
 		<script src="./underscore.string.min.js"></script>
-		<script src="./jquery-2.0.3.min.js"></script>
-		<script src="./three.min.js"></script>
+		<script src="./typeface-0.15.js"></script>
 		<script src="./optimer_regular.typeface.js"></script>
 		<script src="./stats.min.js"></script>
 		<script src="./spin.min.js"></script>
+
+		<script data-main="visualize" src="./require.js"></script>
 	</head>
 	<body>
 		<div class="pane-top-left" style="width: 200px; position:absolute">
@@ -23,12 +24,12 @@
 			</div>
 
 			<div class="pane-panel">
-				<button onclick="handle_replant()">Replant</button>
-				<button onclick="handle_step(1)">+1 day</button>
-				<button onclick="handle_step(10)">+10 day</button>
+				<button id="button_replant">Replant</button>
+				<button id="button_step1">+1 day</button>
+				<button id="button_step10">+10 day</button>
 				<label>
 					<span style="font-size: 75%">darkness - 2x direct sun</span>
-					<input oninput="handle_light_change()" id="light_flux" type="range" min="0" max="2000" value="1000"/>
+					<input id="light_flux" type="range" min="0" max="2000" value="1000"/>
 				</label>
 				
 			</div>
@@ -46,18 +47,15 @@
 			<div class="pane-panel">
 				<div>Debug Layers</div>
 				<label>
-					<input type="checkbox" id="debug_occluder" onclick="handle_update_debug_options()">
+					<input type="checkbox" id="debug_occluder"/>
 					Occluders
 				</label>
 				<label>
-					<input type="checkbox" id="debug_light_volume" onclick="handle_update_debug_options()">
+					<input type="checkbox" id="debug_light_volume"/>
 					Light Volume
 				</label>
 			</div>
 		</div>
-
-		<script src="./TrackballControls.js"></script>
-		<script src="./visualize.js"></script>
 
 		<hr/>
 		<div>
