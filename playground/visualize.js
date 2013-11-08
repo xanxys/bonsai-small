@@ -25,14 +25,12 @@ var Plant = function(parent, is_seed) {
 	this.stem_length = 30e-3;
 	this.stem_diameter = 1e-3;
 	this.is_leaf = false;
-	this.is_root = false;
 	this.is_seed = false;
 
 	if(is_seed) {
 		this.stem_length = 1e-3;
 		this.is_seed = true;
 		this.add_shoot_cont(false);
-		this.add_root_cont(false, true);
 	}
 };
 
@@ -46,12 +44,7 @@ Plant.prototype.max_moment = function(radius) {
 
 // return :: bool
 Plant.prototype.is_shoot_end = function() {
-	return this.children.length == 0 && !this.is_leaf && !this.is_root;
-}
-
-// return :: bool
-Plant.prototype.is_root_end = function() {
-	return this.children.length == 0 && !this.is_leaf && this.is_root;
+	return this.children.length == 0 && !this.is_leaf;
 }
 
 // sub_plant :: Plant
@@ -79,11 +72,7 @@ Plant.prototype.step = function(dt) {
 	}, this);
 
 	if(!this.is_seed) {
-		if(this.is_root) {
-			this.stem_length += 1e-3;
-		} else {
-			this.stem_length += 3e-3;
-		}
+		this.stem_length += 3e-3;
 	}
 
 	// Monocot stems do not replicate, so there's a limit to diameter.
@@ -101,21 +90,12 @@ Plant.prototype.step = function(dt) {
 			this.add_shoot_cont(true);
 		}
 	}
-	if(this.is_root_end()) {
-		var z = Math.random();
-		if(z < 0.1) {
-			this.add_root_cont(false);
-			this.add_root_cont(true);
-		}
-	}
 };
 
 // return :: THREE.Object3D
 Plant.prototype.materialize = function(attached_to_seed) {
 	var color_diffuse;
-	if(this.is_root) {
-		color_diffuse = 'white';
-	} else if(this.is_leaf) {
+	if(this.is_leaf) {
 		color_diffuse = 'green';
 	} else if(this.is_seed) {
 		color_diffuse = 'blue';
@@ -196,9 +176,6 @@ Plant.prototype.get_mass = function() {
 // return :: dict(string, int)
 Plant.prototype.count_type = function(counter) {
 	var key = this.is_leaf ? "leaf" : "shoot";
-	if(this.is_root) {
-		key = "root";
-	}
 	if(this.is_seed) {
 		key = "seed";
 	}
@@ -227,24 +204,6 @@ Plant.prototype.get_occluders = function(parent_top, parent_rot) {
 	}), true);
 	occs.push(occl);
 	return occs;
-};
-
-// Add infinitesimal root cell.
-// side :: boolean
-// return :: ()
-Plant.prototype.add_root_cont = function(side, flip) {
-	var root = new Plant(this.parent);
-	root.is_root = true;
-	root.stem_length = 1e-3;
-
-	var cone_angle = side ? 1.0 : 0.5;
-	root.rotation = new THREE.Euler(
-		(Math.random() - 0.5) * cone_angle + (flip ? Math.PI : 0),
-		(Math.random() - 0.5) * cone_angle,
-		0);
-	root.stem_length = 1e-3;
-
-	this.add(root);
 };
 
 // Add infinitesimal shoot cell.
