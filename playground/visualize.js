@@ -13,6 +13,8 @@ _.mixin(_.str.exports());
 // parent :: Bonsai
 var Plant = function(parent, is_seed) {
 	this.parent = parent;
+
+	this.core = this;
 	this.children = [];
 
 	this.age = 0;
@@ -32,6 +34,11 @@ var Plant = function(parent, is_seed) {
 		this.is_seed = true;
 		this.add_shoot_cont(false);
 	}
+};
+
+// return :: [0,1]
+Plant.prototype.growth_factor = function() {
+	return this.core.growth_factor();
 };
 
 // Return max moment cylindrical plant segment (e.g. stem) can withstand.
@@ -63,8 +70,6 @@ Plant.prototype.step = function(dt) {
 	var max_delta_mass_glucose = this.parent.light_volume.flux_occluded * 0.5 * (dt / (24 * 60 * 60));
 	var max_delta_mass_total = max_delta_mass_glucose * 10;  // 90% of plant mass is water.
 	var max_delta_mass = max_delta_mass_total * 0.5;  // half of them go to root system.
-	console.log('delta mass', max_delta_mass);
-	console.log('max moment', this.max_moment(1e-3));
 
 
 	_.each(this.children, function(sub_plant) {
@@ -72,22 +77,25 @@ Plant.prototype.step = function(dt) {
 	}, this);
 
 	if(!this.is_seed) {
-		this.stem_length += 3e-3;
+		this.stem_length += 3e-3 * this.growth_factor();
 	}
 
 	// Monocot stems do not replicate, so there's a limit to diameter.
 	// On the other hands, most dicots stem cells do replicate, so they can grow
 	// indefinitely (especially trees).
-	this.stem_diameter = Math.min(5e-3, this.stem_diameter + 0.1e-3);
+	this.stem_diameter = Math.min(5e-3, this.stem_diameter + 0.1e-3 * this.growth_factor());
 
-	if(this.is_shoot_end()) {
-		var z = Math.random();
-		if(z < 0.1) {
-			this.add_shoot_cont(false);
-			this.add_leaf_cont();
-		} else if(z < 0.2) {
-			this.add_shoot_cont(false);
-			this.add_shoot_cont(true);
+	var z_x = Math.random();
+	if(z_x < this.growth_factor()) {
+		if(this.is_shoot_end()) {
+			var z = Math.random();
+			if(z < 0.1) {
+				this.add_shoot_cont(false);
+				this.add_leaf_cont();
+			} else if(z < 0.2) {
+				this.add_shoot_cont(false);
+				this.add_shoot_cont(true);
+			}
 		}
 	}
 };
@@ -211,6 +219,7 @@ Plant.prototype.get_occluders = function(parent_top, parent_rot) {
 // return :: ()
 Plant.prototype.add_shoot_cont = function(side) {
 	var shoot = new Plant(this.parent);
+	shoot.core = this.core;
 
 	var cone_angle = side ? 1.0 : 0.5;
 	shoot.rotation = new THREE.Euler(
@@ -226,6 +235,7 @@ Plant.prototype.add_shoot_cont = function(side) {
 // return :: ()
 Plant.prototype.add_leaf_cont = function() {
 	var leaf = new Plant(this.parent);
+	leaf.core = this.core;
 	leaf.rotation = new THREE.Euler(- Math.PI * 0.5, 0, 0);
 	leaf.stem_length = 1e-3;
 	leaf.is_leaf = true;
@@ -518,6 +528,11 @@ Bonsai.prototype.set_flux = function(flux) {
 // return :: Plant
 Bonsai.prototype.add_plant = function() {
 	var shoot = new Plant(this, true);
+	shoot.core = {
+		growth_factor: function() {
+			return Math.exp(-shoot.age / (30 * 24 * 60 * 60));
+		}
+	};
 	this.children.push(shoot);
 	return shoot;
 };
