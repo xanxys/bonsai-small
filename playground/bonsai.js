@@ -1,6 +1,15 @@
 define(['jquery', 'three'],
 function($, THREE) {
 
+
+
+var CellType = {
+	SEED: 0,
+	LEAF: 1,
+	SHOOT: 2,
+	FLOWER: 3  // self-pollinating, seed-dispersing
+};
+
 // Bonsai plant. This class uses THREE.Vector3 or Quaternion, but doesn't depend on
 // scene, mesh, geometry etc. Instead, Plant is capable of generating Object3D instance
 // given scene.
@@ -21,16 +30,15 @@ var Plant = function(parent, is_seed) {
 	this.rotation = new THREE.Euler(); // Euler angles. TODO: make it quaternion
 
 	this.max_stress = 0.15e9; // 0.15GPa, from Schwendener 1874, Plant Physics p. 143
-
-	this.stem_length = 30e-3;
 	this.stem_diameter = 1e-3;
-	this.is_leaf = false;
-	this.is_seed = false;
 
 	if(is_seed) {
 		this.stem_length = 1e-3;
-		this.is_seed = true;
+		this.cell_type = CellType.SEED;
 		this.add_shoot_cont(false);
+	} else {
+		this.stem_length = 30e-3;
+		this.cell_type = CellType.SHOOT;
 	}
 };
 
@@ -49,7 +57,7 @@ Plant.prototype.max_moment = function(radius) {
 
 // return :: bool
 Plant.prototype.is_shoot_end = function() {
-	return this.children.length == 0 && !this.is_leaf;
+	return this.children.length == 0 && this.cell_type === CellType.SHOOT;
 }
 
 // sub_plant :: Plant
@@ -74,7 +82,7 @@ Plant.prototype.step = function(dt) {
 		sub_plant.step(dt);
 	}, this);
 
-	if(!this.is_seed) {
+	if(this.cell_type != CellType.SEED) {
 		this.stem_length += 3e-3 * this.growth_factor();
 	}
 
@@ -101,9 +109,9 @@ Plant.prototype.step = function(dt) {
 // return :: THREE.Object3D
 Plant.prototype.materialize = function(attached_to_seed) {
 	var color_diffuse;
-	if(this.is_leaf) {
+	if(this.cell_type === CellType.LEAF) {
 		color_diffuse = 'green';
-	} else if(this.is_seed) {
+	} else if(this.cell_type === CellType.SEED) {
 		color_diffuse = 'blue';
 	} else {
 		color_diffuse = 'brown';
@@ -111,7 +119,7 @@ Plant.prototype.materialize = function(attached_to_seed) {
 	var color_ambient = color_diffuse; // .offsetHSL(0, 0, -0.3);
 
 	var geom;
-	if (this.is_leaf) {
+	if(this.cell_type === CellType.LEAF) {
 		geom = new THREE.CubeGeometry(20e-3, 3e-3, this.stem_length);
 	} else {
 		geom = new THREE.CubeGeometry(this.stem_diameter, this.stem_diameter, this.stem_length);
@@ -124,7 +132,7 @@ Plant.prototype.materialize = function(attached_to_seed) {
 			ambient: color_ambient}));
 
 	var position;
-	if(this.is_seed) {
+	if(this.cell_type === CellType.SEED) {
 		position = new THREE.Vector3(0, 0, 0);
 	} else if(attached_to_seed) {
 		position = new THREE.Vector3(0, 0, this.stem_length/2).applyEuler(this.rotation);
@@ -138,7 +146,7 @@ Plant.prototype.materialize = function(attached_to_seed) {
 	three_plant.position.copy(position);
 
 	_.each(this.children, function(child) {
-		three_plant.add(child.materialize(this.is_seed));
+		three_plant.add(child.materialize(this.cell_type === CellType.LEAF));
 	}, this);
 
 	return three_plant;
@@ -168,7 +176,7 @@ Plant.prototype.get_mass = function() {
 	var density = 1000; // kg/m^3
 
 	var volume;
-	if(this.is_leaf) {
+	if(this.cell_type === CellType.LEAF) {
 		volume = 20e-3 * 3e-3 * this.stem_length;
 	} else {
 		volume = Math.pow(this.stem_diameter, 2) * this.stem_length;
@@ -181,9 +189,13 @@ Plant.prototype.get_mass = function() {
 // counter :: dict(string, int)
 // return :: dict(string, int)
 Plant.prototype.count_type = function(counter) {
-	var key = this.is_leaf ? "leaf" : "shoot";
-	if(this.is_seed) {
-		key = "seed";
+	var key = 'unknown';
+	if(this.cell_type === CellType.SEED) {
+		key = 'seed';
+	} else if(this.cell_type === CellType.LEAF) {
+		key = 'leaf';
+	} else if(this.cell_type === CellType.SHOOT) {
+		key = 'shoot';
 	}
 
 	counter[key] = 1 + (_.has(counter, key) ? counter[key] : 0);
@@ -236,7 +248,7 @@ Plant.prototype.add_leaf_cont = function() {
 	leaf.core = this.core;
 	leaf.rotation = new THREE.Euler(- Math.PI * 0.5, 0, 0);
 	leaf.stem_length = 1e-3;
-	leaf.is_leaf = true;
+	leaf.cell_type = CellType.LEAF;
 	this.add(leaf);
 };
 
