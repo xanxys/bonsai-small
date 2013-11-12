@@ -10,14 +10,14 @@ var CellType = {
 	FLOWER: 3  // self-pollinating, seed-dispersing
 };
 
-// Bonsai plant. This class uses THREE.Vector3 or Quaternion, but doesn't depend on
+// Chunk plant. This class uses THREE.Vector3 or Quaternion, but doesn't depend on
 // scene, mesh, geometry etc. Instead, Plant is capable of generating Object3D instance
 // given scene.
 // Single plant instance corresponds roughly to Object3D.
 //
 // Plant grows Z+ direction when rotation is identity.
 // When the Plant is a leaf,  photosynthetic plane is Y+.
-// parent :: Bonsai
+// parent :: Chunk
 var Plant = function(parent, is_seed) {
 	this.parent = parent;
 
@@ -101,6 +101,13 @@ Plant.prototype.step = function() {
 		this.cell_type = CellType.FLOWER;
 		this.stem_length = 5e-3;
 		this.stem_diameter = 10e-3;
+	}
+
+	if(this.cell_type) {
+		// Disperse seed once in a while.
+		if(Math.random() < 0.1) {
+
+		}
 	}
 };
 
@@ -254,7 +261,7 @@ Plant.prototype.add_leaf_cont = function() {
 
 
 // Light Volume class suitable for simulating one directional light.
-// parent :: Bonsai
+// parent :: Chunk
 var LightVolume = function(parent) {
 	this.parent = parent;
 
@@ -450,7 +457,7 @@ LightVolume.prototype.generate_slice_texture = function(z) {
 
 
 // Represents soil surface state by a grid.
-// parent :: Bonsai
+// parent :: Chunk
 var Soil = function(parent) {
 	this.parent = parent;
 
@@ -497,15 +504,14 @@ Soil.prototype.materialize = function() {
 };
 
 
-// Bonsai world class. There's no interaction between bonsai instances,
-// and Bonsai just borrows scene, not owns it.
+// Chunk world class. There's no interaction between bonsai instances,
+// and Chunk just borrows scene, not owns it.
 // Plants changes doesn't show up until you call re_materialize.
 // re_materialize is idempotent from visual perspective.
 //
 // TODO: Supplant pot by introducing light - soil - plant interaction.
 // Instead, add dummy object for creating three.js coordinate frame, and
-// rename Bonsai to Chunk or something.
-var Bonsai = function(scene) {
+var Chunk = function(scene) {
 	this.scene = scene;
 
 	// add pot (three.js scene)
@@ -531,12 +537,12 @@ var Bonsai = function(scene) {
 
 // flux :: float [0,+inf) W/m^2, sunlight energy density equivalent
 // return :: ()
-Bonsai.prototype.set_flux = function(flux) {
+Chunk.prototype.set_flux = function(flux) {
 	this.light_volume.light_power = flux;
 };
 
 // return :: Plant
-Bonsai.prototype.add_plant = function() {
+Chunk.prototype.add_plant = function() {
 	var shoot = new Plant(this, true);
 	shoot.core = {
 		growth_factor: function() {
@@ -549,13 +555,13 @@ Bonsai.prototype.add_plant = function() {
 
 // plant :: Plant, must be returned by add_plant
 // return :: ()
-Bonsai.prototype.remove_plant = function(plant) {
+Chunk.prototype.remove_plant = function(plant) {
 	this.children = _.without(this.children, plant);
 };
 
 // dt :: float (sec)
 // return :: object (stats)
-Bonsai.prototype.step = function(dt) {
+Chunk.prototype.step = function(dt) {
 	var t0 = 0;
 	var sim_stats = {};
 
@@ -578,7 +584,7 @@ Bonsai.prototype.step = function(dt) {
 
 // options :: dict(string, bool)
 // return :: ()
-Bonsai.prototype.re_materialize = function(options) {
+Chunk.prototype.re_materialize = function(options) {
 	// Throw away all children of pot.
 	_.each(_.clone(this.pot.children), function(three_plant_or_debug) {
 		this.pot.remove(three_plant_or_debug);
@@ -633,7 +639,7 @@ function sum(xs) {
 
 
 return {
-	'Bonsai': Bonsai
+	'Chunk': Chunk
 };
 
 });  // define
