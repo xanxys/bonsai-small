@@ -66,20 +66,12 @@ Plant.prototype.add = function(sub_plant) {
 	this.children.push(sub_plant);
 };
 
-// dt :: sec
 // return :: ()
-Plant.prototype.step = function(dt) {
-	this.age += dt;
-
-	// TODO: Use real Photosynthesis-Irradiance (PI) curve.
-	// var 0.5 * 1-1/(x/100+1) // [0,+inf) -> [0,1], 0.8 @ 200
-	var max_delta_mass_glucose = this.parent.light_volume.flux_occluded * 0.5 * (dt / (24 * 60 * 60));
-	var max_delta_mass_total = max_delta_mass_glucose * 10;  // 90% of plant mass is water.
-	var max_delta_mass = max_delta_mass_total * 0.5;  // half of them go to root system.
-
+Plant.prototype.step = function() {
+	this.age += 1;
 
 	_.each(this.children, function(sub_plant) {
-		sub_plant.step(dt);
+		sub_plant.step();
 	}, this);
 
 	if(this.cell_type != CellType.SEED) {
@@ -104,6 +96,12 @@ Plant.prototype.step = function(dt) {
 			}
 		}
 	}
+
+	if(this.growth_factor() < 0.1 && this.is_shoot_end()) {
+		this.cell_type = CellType.FLOWER;
+		this.stem_length = 5e-3;
+		this.stem_diameter = 10e-3;
+	}
 };
 
 // return :: THREE.Object3D
@@ -113,6 +111,8 @@ Plant.prototype.materialize = function(attached_to_seed) {
 		color_diffuse = 'green';
 	} else if(this.cell_type === CellType.SEED) {
 		color_diffuse = 'blue';
+	} else if(this.cell_type === CellType.FLOWER) {
+		color_diffuse = 'red';
 	} else {
 		color_diffuse = 'brown';
 	}
@@ -540,7 +540,7 @@ Bonsai.prototype.add_plant = function() {
 	var shoot = new Plant(this, true);
 	shoot.core = {
 		growth_factor: function() {
-			return Math.exp(-shoot.age / (30 * 24 * 60 * 60));
+			return Math.exp(-shoot.age / 30);
 		}
 	};
 	this.children.push(shoot);

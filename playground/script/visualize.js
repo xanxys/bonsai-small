@@ -124,7 +124,7 @@ function ui_update_stats(sim_stat) {
 	var dict = current_plant.count_type({});
 	dict['flux/W'] = current_plant.get_flux();
 	dict['mass/g'] = current_plant.get_mass() * 1e3;
-	dict['age/d'] = current_plant.get_age() / (24 * 60 * 60);
+	dict['age/tick'] = current_plant.get_age();
 
 	$('#info').text(JSON.stringify(dict, null, 2));
 	$('#info-sim').text(JSON.stringify(sim_stat, null, 2));
@@ -150,7 +150,7 @@ function handle_step(n) {
 
 	var sim_stat = {};
 	_.each(_.range(n), function(i) {
-		sim_stat = bonsai.step(24 * 60 * 60);  // step 1day
+		sim_stat = bonsai.step();
 	});
 	bonsai.re_materialize(ui_get_debug_option());
 
