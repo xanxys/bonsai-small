@@ -19,15 +19,6 @@ _.mixin(_.str.exports());
 
 
 var Bonsai = function() {
-	/* Global variables */
-	var stats;
-	var camera, scene, renderer;
-	var controls;
-
-	// bonsai related
-	var bonsai;
-	var current_plant = null;
-
 	this.add_stats();
 	this.init();
 };
@@ -71,7 +62,7 @@ Bonsai.prototype.init = function() {
 
 
 	this.bonsai = new bonsai.Chunk(this.scene);
-	this.current_plant = this.bonsai.add_plant();
+	this.current_plant = this.bonsai.add_plant(new THREE.Vector3(0, 0, 0));
 	this.bonsai.re_materialize({});
 
 	this.ui_update_stats({});
@@ -114,7 +105,7 @@ Bonsai.prototype.handle_replant = function() {
 	}
 
 	this.bonsai.remove_plant(this.current_plant);
-	this.current_plant = this.bonsai.add_plant();
+	this.current_plant = this.bonsai.add_plant(new THREE.Vector3(0, 0, 0));
 	this.bonsai.re_materialize(this.ui_get_debug_option());
 
 	this.ui_update_stats({});

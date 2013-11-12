@@ -103,10 +103,14 @@ Plant.prototype.step = function() {
 		this.stem_diameter = 10e-3;
 	}
 
-	if(this.cell_type) {
+	if(this.cell_type === CellType.FLOWER) {
 		// Disperse seed once in a while.
-		if(Math.random() < 0.1) {
-
+		if(Math.random() < 0.01) {
+			this.parent.add_plant(new THREE.Vector3(
+				Math.random() * 1 - 0.5,
+				Math.random() * 1 - 0.5,
+				0
+				));
 		}
 	}
 };
@@ -299,9 +303,8 @@ LightVolume.prototype.slice = function(z) {
 };
 
 // Fully propagate light thorough the LightVolume.
-// dt :: sec
 // return :: ()
-LightVolume.prototype.step = function(dt) {
+LightVolume.prototype.step = function() {
 	// Get occluders.
 	var occs = _.flatten(_.map(this.parent.children, function(plant) {
 		return plant.get_occluders(
@@ -465,9 +468,8 @@ var Soil = function(parent) {
 	this.size = 0.3;
 };
 
-// dt :: sec
 // return :: ()
-Soil.prototype.step = function(dt) {
+Soil.prototype.step = function() {
 };
 
 // return :: THREE.Object3D
@@ -508,21 +510,18 @@ Soil.prototype.materialize = function() {
 // and Chunk just borrows scene, not owns it.
 // Plants changes doesn't show up until you call re_materialize.
 // re_materialize is idempotent from visual perspective.
-//
-// TODO: Supplant pot by introducing light - soil - plant interaction.
-// Instead, add dummy object for creating three.js coordinate frame, and
 var Chunk = function(scene) {
 	this.scene = scene;
 
 	// add pot (three.js scene)
 	// dummy material
-	this.pot = new THREE.Mesh(
+	this.land = new THREE.Mesh(
 		new THREE.CubeGeometry(0.3, 0.3, 0.3),
 		new THREE.MeshLambertMaterial({
 			color: 'blue',
 			wireframe: true}));
-	this.pot.position.z = -0.15;
-	this.scene.add(this.pot);
+	this.land.position.z = -0.15;
+	this.scene.add(this.land);
 
 	// Soil (plant sim)
 	this.soil = new Soil(this);
@@ -541,9 +540,11 @@ Chunk.prototype.set_flux = function(flux) {
 	this.light_volume.light_power = flux;
 };
 
+// pos :: THREE.Vector3
 // return :: Plant
-Chunk.prototype.add_plant = function() {
+Chunk.prototype.add_plant = function(pos) {
 	var shoot = new Plant(this, true);
+	shoot.position = pos;
 	shoot.core = {
 		growth_factor: function() {
 			return Math.exp(-shoot.age / 30);
@@ -559,24 +560,23 @@ Chunk.prototype.remove_plant = function(plant) {
 	this.children = _.without(this.children, plant);
 };
 
-// dt :: float (sec)
 // return :: object (stats)
-Chunk.prototype.step = function(dt) {
+Chunk.prototype.step = function() {
 	var t0 = 0;
 	var sim_stats = {};
 
 	t0 = performance.now();
 	_.each(this.children, function(plant) {
-		plant.step(dt);
+		plant.step();
 	}, this);
 	sim_stats['plant/ms'] = performance.now() - t0;
 
 	t0 = performance.now();
-	this.light_volume.step(dt);
+	this.light_volume.step();
 	sim_stats['light/ms'] = performance.now() - t0;
 
 	t0 = performance.now();
-	this.soil.step(dt);
+	this.soil.step();
 	sim_stats['soil/ms'] = performance.now() - t0;
 
 	return sim_stats;
@@ -586,20 +586,21 @@ Chunk.prototype.step = function(dt) {
 // return :: ()
 Chunk.prototype.re_materialize = function(options) {
 	// Throw away all children of pot.
-	_.each(_.clone(this.pot.children), function(three_plant_or_debug) {
-		this.pot.remove(three_plant_or_debug);
+	_.each(_.clone(this.land.children), function(three_plant_or_debug) {
+		this.land.remove(three_plant_or_debug);
 	}, this);
 
 	// Materialize soil.
 	var soil = this.soil.materialize();
-	this.pot.add(soil);
+	this.land.add(soil);
 	soil.position.z = 0.15;
 
 	// Materialize all plants.
 	_.each(this.children, function(plant) {
 		// Plant itself.
 		var three_plant = plant.materialize();
-		this.pot.add(three_plant);
+		three_plant.position = plant.position.clone();
+		this.land.add(three_plant);
 		three_plant.position.z += 0.15;  // hack hack
 
 		// Occluders.
@@ -612,7 +613,7 @@ Chunk.prototype.re_materialize = function(options) {
 						color: 'red'
 					}));
 				three_occ.position = occ[0];
-				this.pot.add(three_occ);
+				this.land.add(three_occ);
 			}, this);
 		}
 	}, this);
@@ -626,7 +627,7 @@ Chunk.prototype.re_materialize = function(options) {
 					transparent: true,
 					map: this.light_volume.generate_slice_texture(ix)}));
 			slice.position.z = this.light_volume.z0 + this.light_volume.zstep * ix;
-			this.pot.add(slice);
+			this.land.add(slice);
 		}, this);
 	}
 };
