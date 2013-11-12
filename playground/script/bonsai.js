@@ -464,8 +464,8 @@ LightVolume.prototype.generate_slice_texture = function(z) {
 var Soil = function(parent) {
 	this.parent = parent;
 
-	this.n = 4;
-	this.size = 0.3;
+	this.n = 10;
+	this.size = 2;
 };
 
 // return :: ()
@@ -474,10 +474,7 @@ Soil.prototype.step = function() {
 
 // return :: THREE.Object3D
 Soil.prototype.materialize = function() {
-	var soil_base = new THREE.Mesh(
-		new THREE.CubeGeometry(this.size, this.size, 0.01),
-		new THREE.MeshLambertMaterial({
-			color: 'black'}));
+	var soil_base = new THREE.Object3D();
 
 	// Attach tiles to the base.
 	var tex = THREE.ImageUtils.loadTexture("./texture_dirt.jpg");
@@ -515,11 +512,7 @@ var Chunk = function(scene) {
 
 	// add pot (three.js scene)
 	// dummy material
-	this.land = new THREE.Mesh(
-		new THREE.CubeGeometry(0.3, 0.3, 0.3),
-		new THREE.MeshLambertMaterial({
-			color: 'blue',
-			wireframe: true}));
+	this.land = new THREE.Object3D();
 	this.land.position.z = -0.15;
 	this.scene.add(this.land);
 

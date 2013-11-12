@@ -44,16 +44,6 @@ Bonsai.prototype.init = function() {
 
 	this.scene = new THREE.Scene();
 
-	/*
-	var debug_plate = new THREE.Mesh(
-		new THREE.PlaneGeometry(0.5, 0.5),
-		new THREE.MeshBasicMaterial({
-			transparent: true,
-			map: THREE.ImageUtils.loadTexture('./xy_plate_debug.png')}));
-	debug_plate.position.z = 0.01;
-	scene.add(debug_plate);
-	*/
-
 	var sunlight = new THREE.DirectionalLight(0xffffff);
 	sunlight.position.set(0, 0, 1).normalize();
 	this.scene.add(sunlight);
