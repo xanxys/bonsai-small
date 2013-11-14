@@ -13,23 +13,41 @@ var CellType = {
 // (e.g. vegetative growth, physics)
 // Most plants seems to have some kind of information sharing system within them
 // via transportation of regulation growth factors.
+//
+// 100% efficiency, 0-latency energy storage and transportation within Plant.
+// (n.b. energy = power * time)
+//
 // position :: THREE.Vector3<World>
 var Plant = function(position, unsafe_chunk) {
 	this.unsafe_chunk = unsafe_chunk;
 
 	this.age = 0;
 	this.position = position;
+	this.energy = Math.pow(1e-3, 3) * 10000;
 	this.seed = new Cell(this, CellType.SHOOT);
 };
 
 Plant.prototype.step = function() {
+	// Step cells
 	this.age += 1;
-	// TODO: this seems super wrong!!!
-	// cell should be updated independently, and it's part of world physics,
-	// not bio-physics!
-	this.seed.step();
+	var step_cell_recursive = function(cell) {
+		cell.step();
+		_.each(cell.children, step_cell_recursive);
+	}
+	step_cell_recursive(this.seed);
 
 	console.assert(this.seed.age === this.age);
+
+	// Consume/store in-Plant energy.
+	var sum_power_cell_recursive = function(cell) {
+		return cell.powerForPlant() +
+			sum(_.map(cell.children, sum_power_cell_recursive));
+	};
+	this.energy += sum_power_cell_recursive(this.seed);  // power * 1 step
+
+	if(this.energy < 0) {
+		console.log('TODO: plant should die!');
+	}
 };
 
 // Approximates lifetime of the plant.
@@ -50,28 +68,14 @@ Plant.prototype.count_type = function() {
 	return this.seed.count_type({});
 };
 
-// Chunk Cell. This class uses THREE.Vector3 or Quaternion, but doesn't depend on
-// scene, mesh, geometry etc. Instead, Cell is capable of generating Object3D instance
-// given scene.
-// Single Cell instance corresponds roughly to Object3D.
+// Cell's local coordinates is symmetric for X,Y, but not Z.
+// Normally Z is growth direction, assuming loc_to_parent to near to identity.
 //
-// Cell grows Z+ direction when rotation is identity.
-// When the Cell is a leaf,  photosynthetic plane is Y+.
-// parent :: Chunk
-//
-// Cell energy model:
-//  Currently, each Cell is represented by tree of cells.
-//  A Cell have state shared among all cells in it.
-//  One of them is energy.
-//  Energy In:
-//    sum of photosynthesis by LEAF cells
-//  Energy Out:
-//    sum of metabolic by all cells (volume * k + some_constant for cell core function)
-//
-//  When Energy <= 0, Cell dies immediately. (vanishes without trace)
-//   -> this is very unnatural, fix it later.
-//
-// Each cell in Cell grows (or divides) independently.
+//  Power Generation (<- Light):
+//    sum of photosynthesis (LEAF)
+//  Power Consumption:
+//    basic (minimum cell volume equivalent)
+//    linear-volume
 var Cell = function(plant, cell_type) {
 	this.plant = plant;
 
@@ -92,8 +96,6 @@ var Cell = function(plant, cell_type) {
 
 	if(cell_type === CellType.SEED) {
 		this.add_shoot_cont(false);
-	} else {
-		this.stem_length = 30e-3;
 	}
 };
 
@@ -108,13 +110,28 @@ Cell.prototype.add = function(sub_cell) {
 	this.children.push(sub_cell);
 };
 
+// Return net usable power for Plant.
+// return :: float<Energy>
+Cell.prototype.powerForPlant = function() {
+	var total = 0;
+
+	if(this.cell_type === CellType.LEAF) {
+		var total_visible_area = this.sx * this.sy + this.sy * this.sz + this.sz * this.sx;
+		total += total_visible_area * 1e-9; // TODO: light dependent term
+	}
+
+	// basic consumption (stands for DNA-related func.)
+	total -= 1e-9;
+
+	// linear-volume consumption (stands for cell substrate maintainance)
+	total -= this.sx * this.sy * this.sz;
+	
+	return total;
+};
+
 // return :: ()
 Cell.prototype.step = function() {
 	this.age += 1;
-
-	_.each(this.children, function(sub_cell) {
-		sub_cell.step();
-	}, this);
 
 	// These should differ depending on CellType
 	this.sx = Math.min(5e-3, this.sx + 0.1e-3 * this.plant.growth_factor());
@@ -198,34 +215,6 @@ Cell.prototype.materialize = function() {
 // return :: float (sec)
 Cell.prototype.get_age = function() {
 	return this.age;
-};
-
-// Return received sunlight. This will not be completely accurate,
-// but robust to strange geometry.
-// return :: float [0,+inf) (W)
-Cell.prototype.get_flux = function() {
-	// TODO: DO NOT call light_volume... here. It should be stored in Cell instances
-	// in step phase.
-	// TODO: this is wrong when non-Cell occluders or multiple Cells exist.
-	// TODO: what about normals?
-	// TODO: Use real Photosynthesis-Irradiance (PI) curve.
-	return this.parent.light_volume.flux_occluded;
-}
-
-// Get total mass of this and children.
-// return :: float (kg)
-Cell.prototype.get_mass = function() {
-	var density = 1000; // kg/m^3
-
-	var volume;
-	if(this.cell_type === CellType.LEAF) {
-		volume = 20e-3 * 3e-3 * this.stem_length;
-	} else {
-		volume = Math.pow(this.stem_diameter, 2) * this.stem_length;
-	}
-
-	return volume * density +
-		sum(_.map(this.children, function(child) {return child.get_mass();}));
 };
 
 // counter :: dict(string, int)
