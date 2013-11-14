@@ -125,8 +125,7 @@ Bonsai.prototype.handle_update_debug_options = function() {
 
 /* UI Utils */
 Bonsai.prototype.ui_update_stats = function(sim_stat) {
-	// TODO: plant stats code should be moved to Bonsai.
-	var dict = this.current_plant.count_type({});
+	var dict = this.current_plant.get_stat();
 	
 	/*	
 	dict['flux/W'] = this.current_plant.get_flux();

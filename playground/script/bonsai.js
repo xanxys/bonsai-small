@@ -23,7 +23,7 @@ var Plant = function(position, unsafe_chunk) {
 
 	this.age = 0;
 	this.position = position;
-	this.energy = Math.pow(1e-3, 3) * 10000;
+	this.energy = Math.pow(30e-3, 3) * 100;  // allow 3cm cube for 100T
 	this.seed = new Cell(this, CellType.SHOOT);
 };
 
@@ -39,14 +39,11 @@ Plant.prototype.step = function() {
 	console.assert(this.seed.age === this.age);
 
 	// Consume/store in-Plant energy.
-	var sum_power_cell_recursive = function(cell) {
-		return cell.powerForPlant() +
-			sum(_.map(cell.children, sum_power_cell_recursive));
-	};
-	this.energy += sum_power_cell_recursive(this.seed);  // power * 1 step
+	this.energy += this._powerForPlant() * 1;
 
 	if(this.energy < 0) {
-		console.log('TODO: plant should die!');
+		// die
+		this.unsafe_chunk.remove_plant(this);
 	}
 };
 
@@ -64,9 +61,21 @@ Plant.prototype.materialize = function() {
 	return three_plant;
 };
 
-Plant.prototype.count_type = function() {
-	return this.seed.count_type({});
+Plant.prototype.get_stat = function() {
+	var stat = this.seed.count_type({});
+	stat['age/T'] = this.age;
+	stat['store/E'] = this.energy;
+	stat['delta/(E/T)'] = this._powerForPlant();
+	return stat;
 };
+
+Plant.prototype._powerForPlant = function() {
+	var sum_power_cell_recursive = function(cell) {
+		return cell.powerForPlant() +
+			sum(_.map(cell.children, sum_power_cell_recursive));
+	};
+	return sum_power_cell_recursive(this.seed);
+}
 
 // Cell's local coordinates is symmetric for X,Y, but not Z.
 // Normally Z is growth direction, assuming loc_to_parent to near to identity.
@@ -557,10 +566,10 @@ Chunk.prototype.add_plant = function(pos) {
 	return shoot;
 };
 
-// Cell :: Cell, must be returned by add_cell
+// Plant :: must be returned by add_plant
 // return :: ()
-Chunk.prototype.remove_cell = function(Cell) {
-	this.children = _.without(this.children, Cell);
+Chunk.prototype.remove_plant = function(plant) {
+	this.children = _.without(this.children, plant);
 };
 
 // return :: object (stats)
@@ -569,10 +578,10 @@ Chunk.prototype.step = function() {
 	var sim_stats = {};
 
 	t0 = performance.now();
-	_.each(this.children, function(Cell) {
-		Cell.step();
+	_.each(this.children, function(plant) {
+		plant.step();
 	}, this);
-	sim_stats['Cell/ms'] = performance.now() - t0;
+	sim_stats['plant/ms'] = performance.now() - t0;
 
 	t0 = performance.now();
 	this.light_volume.step();
