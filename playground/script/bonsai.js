@@ -265,6 +265,8 @@ Plant.prototype.add_leaf_cont = function() {
 
 
 // Light Volume class suitable for simulating one directional light.
+// This is actually a shadow map, but light energy is conserved.
+// (No cheating via floating point error etc.)
 // parent :: Chunk
 var LightVolume = function(parent) {
 	this.parent = parent;
