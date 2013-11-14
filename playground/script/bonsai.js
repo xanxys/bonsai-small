@@ -1,8 +1,6 @@
 define(['jquery', 'three'],
 function($, THREE) {
 
-
-
 var CellType = {
 	SEED: 0,
 	LEAF: 1,
@@ -18,41 +16,48 @@ var CellType = {
 // Plant grows Z+ direction when rotation is identity.
 // When the Plant is a leaf,  photosynthetic plane is Y+.
 // parent :: Chunk
-var Plant = function(parent, is_seed) {
+//
+// Plant energy model:
+//  Currently, each plant is represented by tree of cells.
+//  A plant have state shared among all cells in it.
+//  One of them is energy.
+//  Energy In:
+//    sum of photosynthesis by LEAF cells
+//  Energy Out:
+//    sum of metabolic by all cells (volume * k + some_constant for cell core function)
+//
+//  When Energy <= 0, plant dies immediately. (vanishes without trace)
+//   -> this is very unnatural, fix it later.
+//
+// Each cell in Plant grows (or divides) independently.
+var Plant = function(parent, cell_type) {
 	this.parent = parent;
 
 	this.core = this;
 	this.children = [];
 
+	// tracer
 	this.age = 0;
 
-	// Relative rotation in parent's frame.
-	this.rotation = new THREE.Euler(); // Euler angles. TODO: make it quaternion
+	// in-sim (phys + bio)
+	this.loc_to_parent = new THREE.Quaternion();
+	this.sx = 1e-3;
+	this.sy = 1e-3;
+	this.sz = 1e-3;
 
-	this.max_stress = 0.15e9; // 0.15GPa, from Schwendener 1874, Plant Physics p. 143
-	this.stem_diameter = 1e-3;
+	// in-sim (bio)
+	this.cell_type = cell_type;
 
-	if(is_seed) {
-		this.stem_length = 1e-3;
-		this.cell_type = CellType.SEED;
+	if(cell_type === CellType.SEED) {
 		this.add_shoot_cont(false);
 	} else {
 		this.stem_length = 30e-3;
-		this.cell_type = CellType.SHOOT;
 	}
 };
 
 // return :: [0,1]
 Plant.prototype.growth_factor = function() {
 	return this.core.growth_factor();
-};
-
-// Return max moment cylindrical plant segment (e.g. stem) can withstand.
-// radius :: float (m)
-// return :: moment (N*m)
-Plant.prototype.max_moment = function(radius) {
-	var second_moment_area = Math.PI * Math.pow(radius, 4) / 4;
-	return this.max_stress * second_moment_area / radius;
 };
 
 // return :: bool
@@ -75,13 +80,11 @@ Plant.prototype.step = function() {
 	}, this);
 
 	if(this.cell_type != CellType.SEED) {
-		this.stem_length += 3e-3 * this.growth_factor();
+		this.sz += 3e-3 * this.growth_factor();
 	}
 
-	// Monocot stems do not replicate, so there's a limit to diameter.
-	// On the other hands, most dicots stem cells do replicate, so they can grow
-	// indefinitely (especially trees).
-	this.stem_diameter = Math.min(5e-3, this.stem_diameter + 0.1e-3 * this.growth_factor());
+	this.sx = Math.min(5e-3, this.sx + 0.1e-3 * this.growth_factor());
+	this.sy = Math.min(5e-3, this.sy + 0.1e-3 * this.growth_factor());
 
 	var z_x = Math.random();
 	if(z_x < this.growth_factor()) {
@@ -99,8 +102,9 @@ Plant.prototype.step = function() {
 
 	if(this.growth_factor() < 0.1 && this.is_shoot_end()) {
 		this.cell_type = CellType.FLOWER;
-		this.stem_length = 5e-3;
-		this.stem_diameter = 10e-3;
+		this.sx = 10e-3;
+		this.sy = 10e-3;
+		this.sz = 5e-3;
 	}
 
 	if(this.cell_type === CellType.FLOWER) {
@@ -116,7 +120,8 @@ Plant.prototype.step = function() {
 };
 
 // return :: THREE.Object3D
-Plant.prototype.materialize = function(attached_to_seed) {
+Plant.prototype.materialize = function() {
+	// Create cell object [-sx/2,sx/2] * [-sy/2,sy/2] * [0, sz]
 	var color_diffuse;
 	if(this.cell_type === CellType.LEAF) {
 		color_diffuse = 'green';
@@ -129,38 +134,29 @@ Plant.prototype.materialize = function(attached_to_seed) {
 	}
 	var color_ambient = color_diffuse; // .offsetHSL(0, 0, -0.3);
 
-	var geom;
-	if(this.cell_type === CellType.LEAF) {
-		geom = new THREE.CubeGeometry(20e-3, 3e-3, this.stem_length);
-	} else {
-		geom = new THREE.CubeGeometry(this.stem_diameter, this.stem_diameter, this.stem_length);
-	}
-
-	var three_plant = new THREE.Mesh(
-		geom,
+	var object_cell = new THREE.Mesh(
+		new THREE.CubeGeometry(this.sx, this.sy, this.sz),
 		new THREE.MeshLambertMaterial({
 			color: color_diffuse,
 			ambient: color_ambient}));
+	object_cell.position.z = this.sz / 2;
 
-	var position;
-	if(this.cell_type === CellType.SEED) {
-		position = new THREE.Vector3(0, 0, 0);
-	} else if(attached_to_seed) {
-		position = new THREE.Vector3(0, 0, this.stem_length/2).applyEuler(this.rotation);
-	} else {
-		position = new THREE.Vector3(0, 0, this.stem_length/2).add(
-			new THREE.Vector3(0, 0, this.stem_length/2).applyEuler(this.rotation));
-	}
-	 
+	// Create children coordinates frame.
+	var object_frame_children = new THREE.Object3D();
+	object_frame_children.position.z += this.sz;
 
-	three_plant.rotation.copy(this.rotation);
-	three_plant.position.copy(position);
+	// Create cell coordinates frame.
+	var object_frame = new THREE.Object3D();
+	object_frame.quaternion = this.loc_to_parent;  // TODO: is this ok?
+	object_frame.add(object_cell);
+	object_frame.add(object_frame_children);
 
+	// Add children.
 	_.each(this.children, function(child) {
-		three_plant.add(child.materialize(this.cell_type === CellType.LEAF));
+		object_frame_children.add(child.materialize());
 	}, this);
 
-	return three_plant;
+	return object_frame;
 };
 
 // Get plant age in seconds.
@@ -219,35 +215,23 @@ Plant.prototype.count_type = function(counter) {
 };
 
 // Get spherically approximated occuluders.
-// return :: array((THREE.Vector3, float))
+// return :: [(THREE.Vector3, float)]
 Plant.prototype.get_occluders = function(parent_top, parent_rot) {
-	var this_rot = parent_rot.clone().multiply(new THREE.Quaternion().setFromEuler(this.rotation));
-	var this_top = parent_top.clone().add(new THREE.Vector3(0, 0, this.stem_length).applyQuaternion(this_rot));
-	var this_center = parent_top.clone().add(new THREE.Vector3(0, 0, 0.5 * this.stem_length).applyQuaternion(this_rot));
-
-	var radius = (this.stem_length + this.stem_diameter) / 2;
-	var occl = [this_center, radius];
-
-	var occs = _.flatten(_.map(this.children, function(child) {
-		return child.get_occluders(this_top, this_rot);
-	}), true);
-	occs.push(occl);
-	return occs;
+	return [];
 };
 
 // Add infinitesimal shoot cell.
 // side :: boolean
 // return :: ()
 Plant.prototype.add_shoot_cont = function(side) {
-	var shoot = new Plant(this.parent);
+	var shoot = new Plant(this.parent, CellType.SHOOT);
 	shoot.core = this.core;
 
 	var cone_angle = side ? 1.0 : 0.5;
-	shoot.rotation = new THREE.Euler(
+	shoot.loc_to_parent = new THREE.Quaternion().setFromEuler(new THREE.Euler(
 		(Math.random() - 0.5) * cone_angle,
 		(Math.random() - 0.5) * cone_angle,
-		0);
-	shoot.stem_length = 1e-3;
+		0));
 
 	this.add(shoot);
 };
@@ -255,11 +239,12 @@ Plant.prototype.add_shoot_cont = function(side) {
 // shoot_base :: Plant
 // return :: ()
 Plant.prototype.add_leaf_cont = function() {
-	var leaf = new Plant(this.parent);
+	var leaf = new Plant(this.parent, CellType.LEAF);
 	leaf.core = this.core;
-	leaf.rotation = new THREE.Euler(- Math.PI * 0.5, 0, 0);
-	leaf.stem_length = 1e-3;
-	leaf.cell_type = CellType.LEAF;
+	leaf.loc_to_parent = new THREE.Quaternion().setFromEuler(new THREE.Euler(- Math.PI * 0.5, 0, 0));
+	leaf.sx = 20e-3;
+	leaf.sy = 3e-3;
+	leaf.sz = 1e-3;
 	this.add(leaf);
 };
 
@@ -538,7 +523,7 @@ Chunk.prototype.set_flux = function(flux) {
 // pos :: THREE.Vector3
 // return :: Plant
 Chunk.prototype.add_plant = function(pos) {
-	var shoot = new Plant(this, true);
+	var shoot = new Plant(this, CellType.SEED);
 	shoot.position = pos;
 	shoot.core = {
 		growth_factor: function() {
@@ -588,7 +573,6 @@ Chunk.prototype.re_materialize = function(options) {
 	// Materialize soil.
 	var soil = this.soil.materialize();
 	this.land.add(soil);
-	soil.position.z = 0.15;
 
 	// Materialize all plants.
 	_.each(this.children, function(plant) {
@@ -596,7 +580,6 @@ Chunk.prototype.re_materialize = function(options) {
 		var three_plant = plant.materialize();
 		three_plant.position = plant.position.clone();
 		this.land.add(three_plant);
-		three_plant.position.z += 0.15;  // hack hack
 
 		// Occluders.
 		if(options['show_occluder']) {
