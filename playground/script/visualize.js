@@ -127,9 +127,12 @@ Bonsai.prototype.handle_update_debug_options = function() {
 Bonsai.prototype.ui_update_stats = function(sim_stat) {
 	// TODO: plant stats code should be moved to Bonsai.
 	var dict = this.current_plant.count_type({});
+	
+	/*	
 	dict['flux/W'] = this.current_plant.get_flux();
 	dict['mass/g'] = this.current_plant.get_mass() * 1e3;
 	dict['age/tick'] = this.current_plant.get_age();
+	*/
 
 	$('#info').text(JSON.stringify(dict, null, 2));
 	$('#info-sim').text(JSON.stringify(sim_stat, null, 2));

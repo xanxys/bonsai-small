@@ -2,36 +2,78 @@ define(['jquery', 'three'],
 function($, THREE) {
 
 var CellType = {
-	SEED: 0,
 	LEAF: 1,
 	SHOOT: 2,
 	FLOWER: 3  // self-pollinating, seed-dispersing
 };
 
-// Chunk plant. This class uses THREE.Vector3 or Quaternion, but doesn't depend on
-// scene, mesh, geometry etc. Instead, Plant is capable of generating Object3D instance
+
+// Collections of cells that forms a "single" plant.
+// This is not biologically accurate depiction of plants,
+// (e.g. vegetative growth, physics)
+// Most plants seems to have some kind of information sharing system within them
+// via transportation of regulation growth factors.
+// position :: THREE.Vector3<World>
+var Plant = function(position, unsafe_chunk) {
+	this.unsafe_chunk = unsafe_chunk;
+
+	this.age = 0;
+	this.position = position;
+	this.seed = new Cell(this, CellType.SHOOT);
+};
+
+Plant.prototype.step = function() {
+	this.age += 1;
+	// TODO: this seems super wrong!!!
+	// cell should be updated independently, and it's part of world physics,
+	// not bio-physics!
+	this.seed.step();
+
+	console.assert(this.seed.age === this.age);
+};
+
+// Approximates lifetime of the plant.
+// Max growth=1, zero growth=0.
+// return :: [0,1]
+Plant.prototype.growth_factor = function() {
+	return Math.exp(-this.age / 30);
+};
+
+// return :: THREE.Object3D<world>
+Plant.prototype.materialize = function() {
+	var three_plant = this.seed.materialize();
+	three_plant.position = this.position;
+	return three_plant;
+};
+
+Plant.prototype.count_type = function() {
+	return this.seed.count_type({});
+};
+
+// Chunk Cell. This class uses THREE.Vector3 or Quaternion, but doesn't depend on
+// scene, mesh, geometry etc. Instead, Cell is capable of generating Object3D instance
 // given scene.
-// Single plant instance corresponds roughly to Object3D.
+// Single Cell instance corresponds roughly to Object3D.
 //
-// Plant grows Z+ direction when rotation is identity.
-// When the Plant is a leaf,  photosynthetic plane is Y+.
+// Cell grows Z+ direction when rotation is identity.
+// When the Cell is a leaf,  photosynthetic plane is Y+.
 // parent :: Chunk
 //
-// Plant energy model:
-//  Currently, each plant is represented by tree of cells.
-//  A plant have state shared among all cells in it.
+// Cell energy model:
+//  Currently, each Cell is represented by tree of cells.
+//  A Cell have state shared among all cells in it.
 //  One of them is energy.
 //  Energy In:
 //    sum of photosynthesis by LEAF cells
 //  Energy Out:
 //    sum of metabolic by all cells (volume * k + some_constant for cell core function)
 //
-//  When Energy <= 0, plant dies immediately. (vanishes without trace)
+//  When Energy <= 0, Cell dies immediately. (vanishes without trace)
 //   -> this is very unnatural, fix it later.
 //
-// Each cell in Plant grows (or divides) independently.
-var Plant = function(parent, cell_type) {
-	this.parent = parent;
+// Each cell in Cell grows (or divides) independently.
+var Cell = function(plant, cell_type) {
+	this.plant = plant;
 
 	this.core = this;
 	this.children = [];
@@ -55,39 +97,32 @@ var Plant = function(parent, cell_type) {
 	}
 };
 
-// return :: [0,1]
-Plant.prototype.growth_factor = function() {
-	return this.core.growth_factor();
-};
-
 // return :: bool
-Plant.prototype.is_shoot_end = function() {
+Cell.prototype.is_shoot_end = function() {
 	return this.children.length == 0 && this.cell_type === CellType.SHOOT;
 }
 
-// sub_plant :: Plant
+// sub_cell :: Cell
 // return :: ()
-Plant.prototype.add = function(sub_plant) {
-	this.children.push(sub_plant);
+Cell.prototype.add = function(sub_cell) {
+	this.children.push(sub_cell);
 };
 
 // return :: ()
-Plant.prototype.step = function() {
+Cell.prototype.step = function() {
 	this.age += 1;
 
-	_.each(this.children, function(sub_plant) {
-		sub_plant.step();
+	_.each(this.children, function(sub_cell) {
+		sub_cell.step();
 	}, this);
 
-	if(this.cell_type != CellType.SEED) {
-		this.sz += 3e-3 * this.growth_factor();
-	}
-
-	this.sx = Math.min(5e-3, this.sx + 0.1e-3 * this.growth_factor());
-	this.sy = Math.min(5e-3, this.sy + 0.1e-3 * this.growth_factor());
+	// These should differ depending on CellType
+	this.sx = Math.min(5e-3, this.sx + 0.1e-3 * this.plant.growth_factor());
+	this.sy = Math.min(5e-3, this.sy + 0.1e-3 * this.plant.growth_factor());
+	this.sz += 3e-3 * this.plant.growth_factor();
 
 	var z_x = Math.random();
-	if(z_x < this.growth_factor()) {
+	if(z_x < this.plant.growth_factor()) {
 		if(this.is_shoot_end()) {
 			var z = Math.random();
 			if(z < 0.1) {
@@ -100,7 +135,7 @@ Plant.prototype.step = function() {
 		}
 	}
 
-	if(this.growth_factor() < 0.1 && this.is_shoot_end()) {
+	if(this.plant.growth_factor() < 0.1 && this.is_shoot_end()) {
 		this.cell_type = CellType.FLOWER;
 		this.sx = 10e-3;
 		this.sy = 10e-3;
@@ -110,9 +145,9 @@ Plant.prototype.step = function() {
 	if(this.cell_type === CellType.FLOWER) {
 		// Disperse seed once in a while.
 		if(Math.random() < 0.01) {
-			this.parent.add_plant(new THREE.Vector3(
-				Math.random() * 1 - 0.5,
-				Math.random() * 1 - 0.5,
+			this.plant.unsafe_chunk.add_plant(new THREE.Vector3(
+				this.plant.position.x + Math.random() * 1 - 0.5,
+				this.plant.position.y + Math.random() * 1 - 0.5,
 				0
 				));
 		}
@@ -120,7 +155,7 @@ Plant.prototype.step = function() {
 };
 
 // return :: THREE.Object3D
-Plant.prototype.materialize = function() {
+Cell.prototype.materialize = function() {
 	// Create cell object [-sx/2,sx/2] * [-sy/2,sy/2] * [0, sz]
 	var color_diffuse;
 	if(this.cell_type === CellType.LEAF) {
@@ -159,19 +194,19 @@ Plant.prototype.materialize = function() {
 	return object_frame;
 };
 
-// Get plant age in seconds.
+// Get Cell age in seconds.
 // return :: float (sec)
-Plant.prototype.get_age = function() {
+Cell.prototype.get_age = function() {
 	return this.age;
 };
 
 // Return received sunlight. This will not be completely accurate,
 // but robust to strange geometry.
 // return :: float [0,+inf) (W)
-Plant.prototype.get_flux = function() {
-	// TODO: DO NOT call light_volume... here. It should be stored in Plant instances
+Cell.prototype.get_flux = function() {
+	// TODO: DO NOT call light_volume... here. It should be stored in Cell instances
 	// in step phase.
-	// TODO: this is wrong when non-plant occluders or multiple plants exist.
+	// TODO: this is wrong when non-Cell occluders or multiple Cells exist.
 	// TODO: what about normals?
 	// TODO: Use real Photosynthesis-Irradiance (PI) curve.
 	return this.parent.light_volume.flux_occluded;
@@ -179,7 +214,7 @@ Plant.prototype.get_flux = function() {
 
 // Get total mass of this and children.
 // return :: float (kg)
-Plant.prototype.get_mass = function() {
+Cell.prototype.get_mass = function() {
 	var density = 1000; // kg/m^3
 
 	var volume;
@@ -195,7 +230,7 @@ Plant.prototype.get_mass = function() {
 
 // counter :: dict(string, int)
 // return :: dict(string, int)
-Plant.prototype.count_type = function(counter) {
+Cell.prototype.count_type = function(counter) {
 	var key = 'unknown';
 	if(this.cell_type === CellType.SEED) {
 		key = 'seed';
@@ -216,15 +251,15 @@ Plant.prototype.count_type = function(counter) {
 
 // Get spherically approximated occuluders.
 // return :: [(THREE.Vector3, float)]
-Plant.prototype.get_occluders = function(parent_top, parent_rot) {
+Cell.prototype.get_occluders = function(parent_top, parent_rot) {
 	return [];
 };
 
 // Add infinitesimal shoot cell.
 // side :: boolean
 // return :: ()
-Plant.prototype.add_shoot_cont = function(side) {
-	var shoot = new Plant(this.parent, CellType.SHOOT);
+Cell.prototype.add_shoot_cont = function(side) {
+	var shoot = new Cell(this.plant, CellType.SHOOT);
 	shoot.core = this.core;
 
 	var cone_angle = side ? 1.0 : 0.5;
@@ -236,10 +271,10 @@ Plant.prototype.add_shoot_cont = function(side) {
 	this.add(shoot);
 };
 
-// shoot_base :: Plant
+// shoot_base :: Cell
 // return :: ()
-Plant.prototype.add_leaf_cont = function() {
-	var leaf = new Plant(this.parent, CellType.LEAF);
+Cell.prototype.add_leaf_cont = function() {
+	var leaf = new Cell(this.plant, CellType.LEAF);
 	leaf.core = this.core;
 	leaf.loc_to_parent = new THREE.Quaternion().setFromEuler(new THREE.Euler(- Math.PI * 0.5, 0, 0));
 	leaf.sx = 20e-3;
@@ -292,10 +327,12 @@ LightVolume.prototype.slice = function(z) {
 // Fully propagate light thorough the LightVolume.
 // return :: ()
 LightVolume.prototype.step = function() {
+	return;
+
 	// Get occluders.
-	var occs = _.flatten(_.map(this.parent.children, function(plant) {
-		return plant.get_occluders(
-			new THREE.Vector3(0, 0, 0.15 - plant.stem_length / 2),
+	var occs = _.flatten(_.map(this.parent.children, function(Cell) {
+		return Cell.get_occluders(
+			new THREE.Vector3(0, 0, 0.15 - Cell.stem_length / 2),
 			new THREE.Quaternion(0, 0, 0, 1));
 	}, this), true);
 
@@ -492,7 +529,7 @@ Soil.prototype.materialize = function() {
 
 // Chunk world class. There's no interaction between bonsai instances,
 // and Chunk just borrows scene, not owns it.
-// Plants changes doesn't show up until you call re_materialize.
+// Cells changes doesn't show up until you call re_materialize.
 // re_materialize is idempotent from visual perspective.
 var Chunk = function(scene) {
 	this.scene = scene;
@@ -503,14 +540,14 @@ var Chunk = function(scene) {
 	this.land.position.z = -0.15;
 	this.scene.add(this.land);
 
-	// Soil (plant sim)
+	// Soil (Cell sim)
 	this.soil = new Soil(this);
 
-	// Light (plant sim)
+	// Light (Cell sim)
 	this.light_volume = new LightVolume(this);
 
-	// Plants (plant sim)
-	// TODO: rename to plants for easier access from soil and light_volume.
+	// Cells (Cell sim)
+	// TODO: rename to Cells for easier access from soil and light_volume.
 	this.children = [];
 };
 
@@ -523,21 +560,18 @@ Chunk.prototype.set_flux = function(flux) {
 // pos :: THREE.Vector3
 // return :: Plant
 Chunk.prototype.add_plant = function(pos) {
-	var shoot = new Plant(this, CellType.SEED);
-	shoot.position = pos;
-	shoot.core = {
-		growth_factor: function() {
-			return Math.exp(-shoot.age / 30);
-		}
-	};
+	console.assert(Math.abs(pos.z) < 1e-3);
+
+	var shoot = new Plant(pos, this);
 	this.children.push(shoot);
+
 	return shoot;
 };
 
-// plant :: Plant, must be returned by add_plant
+// Cell :: Cell, must be returned by add_cell
 // return :: ()
-Chunk.prototype.remove_plant = function(plant) {
-	this.children = _.without(this.children, plant);
+Chunk.prototype.remove_cell = function(Cell) {
+	this.children = _.without(this.children, Cell);
 };
 
 // return :: object (stats)
@@ -546,10 +580,10 @@ Chunk.prototype.step = function() {
 	var sim_stats = {};
 
 	t0 = performance.now();
-	_.each(this.children, function(plant) {
-		plant.step();
+	_.each(this.children, function(Cell) {
+		Cell.step();
 	}, this);
-	sim_stats['plant/ms'] = performance.now() - t0;
+	sim_stats['Cell/ms'] = performance.now() - t0;
 
 	t0 = performance.now();
 	this.light_volume.step();
@@ -566,24 +600,24 @@ Chunk.prototype.step = function() {
 // return :: ()
 Chunk.prototype.re_materialize = function(options) {
 	// Throw away all children of pot.
-	_.each(_.clone(this.land.children), function(three_plant_or_debug) {
-		this.land.remove(three_plant_or_debug);
+	_.each(_.clone(this.land.children), function(three_cell_or_debug) {
+		this.land.remove(three_cell_or_debug);
 	}, this);
 
 	// Materialize soil.
 	var soil = this.soil.materialize();
 	this.land.add(soil);
 
-	// Materialize all plants.
-	_.each(this.children, function(plant) {
-		// Plant itself.
-		var three_plant = plant.materialize();
-		three_plant.position = plant.position.clone();
-		this.land.add(three_plant);
+	// Materialize all Cells.
+	_.each(this.children, function(Cell) {
+		// Cell itself.
+		var three_cell = Cell.materialize();
+		three_cell.position = Cell.position.clone();
+		this.land.add(three_cell);
 
 		// Occluders.
 		if(options['show_occluder']) {
-			var occs = plant.get_occluders(new THREE.Vector3(0, 0, 0.15 - plant.stem_length / 2), new THREE.Quaternion(0, 0, 0, 1));
+			var occs = Cell.get_occluders(new THREE.Vector3(0, 0, 0.15 - Cell.stem_length / 2), new THREE.Quaternion(0, 0, 0, 1));
 			_.each(occs, function(occ) {
 				var three_occ = new THREE.Mesh(
 					new THREE.IcosahedronGeometry(occ[1]),
@@ -596,7 +630,7 @@ Chunk.prototype.re_materialize = function(options) {
 		}
 	}, this);
 
-	// Visualization common for all plants.
+	// Visualization common for all Cells.
 	if(options['show_light_volume']) {
 		_.each(_.range(this.light_volume.h), function(ix) {
 			var slice = new THREE.Mesh(
