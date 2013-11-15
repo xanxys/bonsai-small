@@ -4,7 +4,8 @@ function($, THREE) {
 var CellType = {
 	LEAF: 1,
 	SHOOT: 2,
-	FLOWER: 3  // self-pollinating, seed-dispersing
+	SHOOT_END: 3,  // Corresponds to shoot apical meristem
+	FLOWER: 4  // self-pollinating, seed-dispersing
 };
 
 
@@ -24,7 +25,7 @@ var Plant = function(position, unsafe_chunk) {
 	this.age = 0;
 	this.position = position;
 	this.energy = Math.pow(30e-3, 3) * 100;  // allow 3cm cube for 100T
-	this.seed = new Cell(this, CellType.SHOOT);
+	this.seed = new Cell(this, CellType.SHOOT_END);
 };
 
 Plant.prototype.step = function() {
@@ -86,11 +87,6 @@ Plant.prototype._powerForPlant = function() {
 //    basic (minimum cell volume equivalent)
 //    linear-volume
 var Cell = function(plant, cell_type) {
-	this.plant = plant;
-
-	this.core = this;
-	this.children = [];
-
 	// tracer
 	this.age = 0;
 
@@ -102,16 +98,9 @@ var Cell = function(plant, cell_type) {
 
 	// in-sim (bio)
 	this.cell_type = cell_type;
-
-	if(cell_type === CellType.SEED) {
-		this.add_shoot_cont(false);
-	}
+	this.plant = plant;
+	this.children = [];
 };
-
-// return :: bool
-Cell.prototype.is_shoot_end = function() {
-	return this.children.length == 0 && this.cell_type === CellType.SHOOT;
-}
 
 // sub_cell :: Cell
 // return :: ()
@@ -160,14 +149,16 @@ Cell.prototype.step = function() {
 	// Divide.
 	var z_x = Math.random();
 	if(z_x < this.plant.growth_factor()) {
-		if(this.is_shoot_end()) {
+		if(this.cell_type === CellType.SHOOT_END) {
 			var z = Math.random();
 			if(z < 0.1) {
 				this.add_shoot_cont(false);
 				this.add_leaf_cont();
+				this.cell_type = CellType.SHOOT;
 			} else if(z < 0.2) {
 				this.add_shoot_cont(false);
 				this.add_shoot_cont(true);
+				this.cell_type = CellType.SHOOT;
 			}
 		}
 	}
@@ -186,7 +177,7 @@ Cell.prototype.step = function() {
 	}
 
 	// Differentiate.
-	if(this.plant.growth_factor() < 0.1 && this.is_shoot_end()) {
+	if(this.plant.growth_factor() < 0.1 && this.cell_type === CellType.SHOOT_END) {
 		this.cell_type = CellType.FLOWER;
 	}
 };
@@ -268,7 +259,7 @@ Cell.prototype.get_occluders = function(parent_top, parent_rot) {
 // side :: boolean
 // return :: ()
 Cell.prototype.add_shoot_cont = function(side) {
-	var shoot = new Cell(this.plant, CellType.SHOOT);
+	var shoot = new Cell(this.plant, CellType.SHOOT_END);
 
 	var cone_angle = side ? 1.0 : 0.5;
 	shoot.loc_to_parent = new THREE.Quaternion().setFromEuler(new THREE.Euler(
