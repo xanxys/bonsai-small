@@ -142,11 +142,22 @@ Cell.prototype.powerForPlant = function() {
 Cell.prototype.step = function() {
 	this.age += 1;
 
-	// These should differ depending on CellType
-	this.sx = Math.min(5e-3, this.sx + 0.1e-3 * this.plant.growth_factor());
-	this.sy = Math.min(5e-3, this.sy + 0.1e-3 * this.plant.growth_factor());
-	this.sz += 3e-3 * this.plant.growth_factor();
-
+	// Grow continually.
+	if(this.cell_type === CellType.FLOWER) {
+		this.sx = Math.min(10e-3, this.sx + 0.1e-3);
+		this.sy = Math.min(10e-3, this.sy + 0.1e-3);
+		this.sz = Math.min(5e-3, this.sz + 0.1e-3);
+	} else if(this.cell_type === CellType.LEAF) {
+		this.sx = Math.min(5e-3, this.sx + 0.1e-3);
+		this.sy = Math.min(3e-3, this.sy + 0.1e-3);
+		this.sz = Math.min(20e-3, this.sz + 2e-3);
+	} else {
+		this.sx = Math.min(5e-3, this.sx + 0.1e-3 * this.plant.growth_factor());
+		this.sy = Math.min(5e-3, this.sy + 0.1e-3 * this.plant.growth_factor());
+		this.sz += 3e-3 * this.plant.growth_factor();
+	}
+	
+	// Divide.
 	var z_x = Math.random();
 	if(z_x < this.plant.growth_factor()) {
 		if(this.is_shoot_end()) {
@@ -161,15 +172,10 @@ Cell.prototype.step = function() {
 		}
 	}
 
-	if(this.plant.growth_factor() < 0.1 && this.is_shoot_end()) {
-		this.cell_type = CellType.FLOWER;
-		this.sx = 10e-3;
-		this.sy = 10e-3;
-		this.sz = 5e-3;
-	}
-
 	if(this.cell_type === CellType.FLOWER) {
 		// Disperse seed once in a while.
+		// TODO: this should be handled by physics, not biology.
+		// Maybe dead cells with stored energy survives when fallen off.
 		if(Math.random() < 0.01) {
 			this.plant.unsafe_chunk.add_plant(new THREE.Vector3(
 				this.plant.position.x + Math.random() * 1 - 0.5,
@@ -177,6 +183,11 @@ Cell.prototype.step = function() {
 				0
 				));
 		}
+	}
+
+	// Differentiate.
+	if(this.plant.growth_factor() < 0.1 && this.is_shoot_end()) {
+		this.cell_type = CellType.FLOWER;
 	}
 };
 
@@ -258,7 +269,6 @@ Cell.prototype.get_occluders = function(parent_top, parent_rot) {
 // return :: ()
 Cell.prototype.add_shoot_cont = function(side) {
 	var shoot = new Cell(this.plant, CellType.SHOOT);
-	shoot.core = this.core;
 
 	var cone_angle = side ? 1.0 : 0.5;
 	shoot.loc_to_parent = new THREE.Quaternion().setFromEuler(new THREE.Euler(
@@ -273,11 +283,8 @@ Cell.prototype.add_shoot_cont = function(side) {
 // return :: ()
 Cell.prototype.add_leaf_cont = function() {
 	var leaf = new Cell(this.plant, CellType.LEAF);
-	leaf.core = this.core;
+
 	leaf.loc_to_parent = new THREE.Quaternion().setFromEuler(new THREE.Euler(- Math.PI * 0.5, 0, 0));
-	leaf.sx = 20e-3;
-	leaf.sy = 3e-3;
-	leaf.sz = 1e-3;
 	this.add(leaf);
 };
 
