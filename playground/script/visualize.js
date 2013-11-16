@@ -44,7 +44,7 @@ Bonsai.prototype.init = function() {
 
 	this.scene = new THREE.Scene();
 
-	var sunlight = new THREE.DirectionalLight(0xffffff);
+	var sunlight = new THREE.DirectionalLight(0xcccccc);
 	sunlight.position.set(0, 0, 1).normalize();
 	this.scene.add(sunlight);
 

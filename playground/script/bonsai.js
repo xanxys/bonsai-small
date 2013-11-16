@@ -88,8 +88,26 @@ Plant.prototype.growth_factor = function() {
 // return :: THREE.Object3D<world>
 Plant.prototype.materialize = function() {
 	var three_plant = this.seed.materialize();
-	three_plant.position = this.position;
-	return three_plant;
+	
+	// Merge everything
+	var merged_geom = new THREE.Geometry();
+	three_plant.traverse(function(child) {
+		if(child.parent){
+			child.updateMatrixWorld();
+			child.applyMatrix(child.parent.matrixWorld);    
+		}
+
+		if(child instanceof THREE.Mesh) {
+			THREE.GeometryUtils.merge(merged_geom, child);
+		}
+	});
+
+	var merged_plant = new THREE.Mesh(
+		merged_geom,
+		new THREE.MeshLambertMaterial({vertexColors: THREE.VertexColors}));
+
+	merged_plant.position = this.position;
+	return merged_plant;
 };
 
 Plant.prototype.get_stat = function() {
@@ -217,11 +235,18 @@ Cell.prototype.materialize = function() {
 	// Create cell object [-sx/2,sx/2] * [-sy/2,sy/2] * [0, sz]
 	var color_diffuse = convertCellTypeToColor(this.cell_type);
 
+	var geom_cube = new THREE.CubeGeometry(this.sx, this.sy, this.sz);
+	for(var i = 0; i < 8; i++) {
+		for(var j = 0; j < 3; j++) {
+			geom_cube.faces[i].vertexColors[j] = new THREE.Color(color_diffuse);
+		}
+	}
+
 	var object_cell = new THREE.Mesh(
-		new THREE.CubeGeometry(this.sx, this.sy, this.sz),
+		geom_cube,
 		new THREE.MeshLambertMaterial({
-			color: color_diffuse,
-			ambient: color_diffuse}));
+			vertexColors: THREE.VertexColors}));
+
 	object_cell.position.z = this.sz / 2;
 
 	// Create children coordinates frame.
@@ -230,7 +255,7 @@ Cell.prototype.materialize = function() {
 
 	// Create cell coordinates frame.
 	var object_frame = new THREE.Object3D();
-	object_frame.quaternion = this.loc_to_parent;  // TODO: is this ok?
+	object_frame.quaternion = this.loc_to_parent.clone();  // TODO: is this ok?
 	object_frame.add(object_cell);
 	object_frame.add(object_frame_children);
 
