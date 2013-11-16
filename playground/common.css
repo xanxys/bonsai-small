@@ -48,3 +48,13 @@ body {
 	margin-bottom: 0.5em;
 	padding-left: 0.25em;
 }
+
+.pane-panel h1 {
+	font-size: 100%;
+	margin-bottom: 1px;
+}
+
+.pane-panel pre {
+	margin-top: 0;
+	margin-bottom: 0;
+}
