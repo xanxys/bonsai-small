@@ -236,7 +236,7 @@ Cell.prototype.materialize = function() {
 	var color_diffuse = convertCellTypeToColor(this.cell_type);
 
 	var geom_cube = new THREE.CubeGeometry(this.sx, this.sy, this.sz);
-	for(var i = 0; i < 8; i++) {
+	for(var i = 0; i < geom_cube.faces.length; i++) {
 		for(var j = 0; j < 3; j++) {
 			geom_cube.faces[i].vertexColors[j] = new THREE.Color(color_diffuse);
 		}
