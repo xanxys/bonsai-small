@@ -60,6 +60,7 @@ Bonsai.prototype.init = function() {
 	// start canvas
 	this.renderer = new THREE.WebGLRenderer();
 	this.renderer.setSize(window.innerWidth, window.innerHeight);
+	this.renderer.setClearColor('#eee');
 	$('#main').append(this.renderer.domElement);
 
 	// add mouse control (do this after canvas insertion)
