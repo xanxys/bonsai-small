@@ -334,29 +334,31 @@ Soil.prototype.step = function() {
 
 // return :: THREE.Object3D
 Soil.prototype.materialize = function() {
-	var soil_base = new THREE.Object3D();
-
-	// Attach tiles to the base.
+	// Create texture.
+	var canvas = document.createElement('canvas');
+	canvas.width = this.n;
+	canvas.height = this.n;
+	var context = canvas.getContext('2d');
 	_.each(_.range(this.n), function(y) {
 		_.each(_.range(this.n), function(x) {
-			var p = new THREE.Vector3(
-				(x - this.n / 2 + 0.5) * this.size / this.n,
-				(y - this.n / 2 + 0.5) * this.size / this.n,
-				0.01);
-
 			var v = this.parent.light.shadow_map[x + y * this.n] > 1e-3 ? 0.1 : 0.5;
 			var lighting = new THREE.Color().setRGB(v, v, v);
 
-			var soil_tile = new THREE.Mesh(
-				new THREE.CubeGeometry(this.size / this.n, this.size / this.n, 0.01),
-				new THREE.MeshLambertMaterial({
-					color: lighting}));
-			soil_base.add(soil_tile);
-			soil_tile.position = p;
+			context.fillStyle = lighting.getStyle();
+			context.fillRect(x, this.n - y, 1, 1);
 		}, this);
 	}, this);
 
-	return soil_base;
+	// Attach tiles to the base.
+	var tex = new THREE.Texture(canvas);
+	tex.needsUpdate = true;
+
+	var soil_plate = new THREE.Mesh(
+		new THREE.CubeGeometry(this.size, this.size, 1e-3),
+		new THREE.MeshBasicMaterial({
+			map: tex
+		}));
+	return soil_plate;
 };
 
 // Downward directional light.
