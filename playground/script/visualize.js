@@ -135,6 +135,7 @@ Bonsai.prototype.ui_update_stats = function(sim_stat) {
 
 	$('#info').text(JSON.stringify(dict, null, 2));
 	$('#info-sim').text(JSON.stringify(sim_stat, null, 2));
+	$('#info-chunk').text(JSON.stringify(this.bonsai.get_stat(), null, 2));
 };
 
 Bonsai.prototype.ui_get_debug_option = function() {

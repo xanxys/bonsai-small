@@ -8,6 +8,20 @@ var CellType = {
 	FLOWER: 4  // self-pollinating, seed-dispersing
 };
 
+var convertCellTypeToKey = function(type) {
+	if(type === CellType.LEAF) {
+		return 'leaf';
+	} else if(type === CellType.SHOOT) {
+		return 'shoot';
+	} else if(type === CellType.SHOOT_END) {
+		return 'shoot_apex';
+	} else if(type === CellType.FLOWER) {
+		return 'flower';
+	} else {
+		return 'unknown';
+	}
+}
+
 
 // Collections of cells that forms a "single" plant.
 // This is not biologically accurate depiction of plants,
@@ -24,7 +38,9 @@ var Plant = function(position, unsafe_chunk) {
 
 	this.age = 0;
 	this.position = position;
-	this.energy = Math.pow(30e-3, 3) * 100;  // allow 3cm cube for 100T
+
+	// TODO: Free energy out of nowhere!!! fix it.
+	this.energy = Math.pow(20e-3, 3) * 100;  // allow 3cm cube for 100T
 	this.seed = new Cell(this, CellType.SHOOT_END);
 };
 
@@ -52,7 +68,7 @@ Plant.prototype.step = function() {
 // Max growth=1, zero growth=0.
 // return :: [0,1]
 Plant.prototype.growth_factor = function() {
-	return Math.exp(-this.age / 30);
+	return Math.exp(-this.age / 20);
 };
 
 // return :: THREE.Object3D<world>
@@ -222,8 +238,8 @@ Cell.prototype.materialize = function() {
 	return object_frame;
 };
 
-// Get Cell age in seconds.
-// return :: float (sec)
+// Get Cell age in ticks.
+// return :: int (tick)
 Cell.prototype.get_age = function() {
 	return this.age;
 };
@@ -231,14 +247,7 @@ Cell.prototype.get_age = function() {
 // counter :: dict(string, int)
 // return :: dict(string, int)
 Cell.prototype.count_type = function(counter) {
-	var key = 'unknown';
-	if(this.cell_type === CellType.SEED) {
-		key = 'seed';
-	} else if(this.cell_type === CellType.LEAF) {
-		key = 'leaf';
-	} else if(this.cell_type === CellType.SHOOT) {
-		key = 'shoot';
-	}
+	var key = convertCellTypeToKey(this.cell_type);
 
 	counter[key] = 1 + (_.has(counter, key) ? counter[key] : 0);
 
@@ -570,6 +579,13 @@ Chunk.prototype.remove_plant = function(plant) {
 	this.children = _.without(this.children, plant);
 };
 
+// return :: dict
+Chunk.prototype.get_stat = function() {
+	return {
+		'plant': this.children.length
+	};
+};
+
 // return :: object (stats)
 Chunk.prototype.step = function() {
 	var t0 = 0;
@@ -604,12 +620,12 @@ Chunk.prototype.re_materialize = function(options) {
 	var soil = this.soil.materialize();
 	this.land.add(soil);
 
-	// Materialize all Cells.
-	_.each(this.children, function(Cell) {
-		// Cell itself.
-		var three_cell = Cell.materialize();
-		three_cell.position = Cell.position.clone();
-		this.land.add(three_cell);
+	// Materialize all Plant.
+	_.each(this.children, function(plant) {
+		// Plant itself.
+		var three_plant = plant.materialize();
+		three_plant.position = plant.position.clone();
+		this.land.add(three_plant);
 
 		// Occluders.
 		if(options['show_occluder']) {
