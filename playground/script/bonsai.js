@@ -320,11 +320,12 @@ Cell.prototype.add_leaf_cont = function() {
 
 // Represents soil surface state by a grid.
 // parent :: Chunk
-var Soil = function(parent) {
+// size :: float > 0
+var Soil = function(parent, size) {
 	this.parent = parent;
 
-	this.n = 10;
-	this.size = 1;
+	this.n = 50;
+	this.size = size;
 };
 
 // return :: ()
@@ -336,23 +337,20 @@ Soil.prototype.materialize = function() {
 	var soil_base = new THREE.Object3D();
 
 	// Attach tiles to the base.
-	var tex = THREE.ImageUtils.loadTexture("./texture_dirt.jpg");
-
 	_.each(_.range(this.n), function(y) {
 		_.each(_.range(this.n), function(x) {
 			var p = new THREE.Vector3(
-				-(x - this.n / 2 + 0.5) * this.size / this.n,
-				-(y - this.n / 2 + 0.5) * this.size / this.n,
+				(x - this.n / 2 + 0.5) * this.size / this.n,
+				(y - this.n / 2 + 0.5) * this.size / this.n,
 				0.01);
 
-			var v = 1; // this.parent.light_volume.get_down_lighting_at(p) / 1000;
+			var v = this.parent.light.shadow_map[x + y * this.n] > 1e-3 ? 0.1 : 0.5;
 			var lighting = new THREE.Color().setRGB(v, v, v);
 
 			var soil_tile = new THREE.Mesh(
 				new THREE.CubeGeometry(this.size / this.n, this.size / this.n, 0.01),
 				new THREE.MeshLambertMaterial({
-					color: lighting,
-					map: tex}));
+					color: lighting}));
 			soil_base.add(soil_tile);
 			soil_tile.position = p;
 		}, this);
@@ -360,6 +358,49 @@ Soil.prototype.materialize = function() {
 
 	return soil_base;
 };
+
+// Downward directional light.
+var Light = function(chunk, size) {
+	this.chunk = chunk;
+
+	this.n = 50;
+	this.size = size;
+
+	this.shadow_map = new Float32Array(this.n * this.n);
+};
+
+Light.prototype.step = function() {
+	this.updateShadowMap();
+
+
+};
+
+Light.prototype.updateShadowMap = function() {
+	var dummy = new THREE.Scene();
+	_.each(this.chunk.children, function(plant) {
+		dummy.add(plant.materialize());
+	});
+	// We need this call since dummy doesn't belong to render path,
+	// so world matrix (used by raycaster) isn't automatically updated.
+	dummy.updateMatrixWorld();
+
+	for(var i = 0; i < this.n; i++) {
+		for(var j = 0; j < this.n; j++) {
+			var isect = new THREE.Raycaster(
+				new THREE.Vector3(
+					(i / this.n - 0.5) * this.size,
+					(j / this.n - 0.5) * this.size,
+					10),
+				new THREE.Vector3(0, 0, -1),
+				0.1,
+				1e2).intersectObject(dummy, true);
+
+			var h = (isect.length > 0) ? isect[0].point.z : 0;
+			this.shadow_map[i + j * this.n] = h;
+		}
+	}
+};
+
 
 
 // Chunk world class. There's no interaction between bonsai instances,
@@ -376,9 +417,14 @@ var Chunk = function(scene) {
 	this.land = new THREE.Object3D();
 	this.scene.add(this.land);
 
+	// Chunk spatail
+	this.size = 0.5;
+
 	// Soil (Cell sim)
-	this.soil = new Soil(this);
-	this.size = 1;
+	this.soil = new Soil(this, this.size);
+
+	// Light
+	this.light = new Light(this, this.size);
 
 	// Cells (Cell sim)
 	// TODO: rename to Cells for easier access from soil and light_volume.
@@ -436,6 +482,10 @@ Chunk.prototype.step = function() {
 	sim_stats['plant/ms'] = performance.now() - t0;
 
 	t0 = performance.now();
+	this.light.step();
+	sim_stats['light/ms'] = performance.now() - t0;
+
+	t0 = performance.now();
 	this.soil.step();
 	sim_stats['soil/ms'] = performance.now() - t0;
 
@@ -445,6 +495,8 @@ Chunk.prototype.step = function() {
 // options :: dict(string, bool)
 // return :: ()
 Chunk.prototype.re_materialize = function(options) {
+	t0 = performance.now();
+
 	// Throw away all children of pot.
 	_.each(_.clone(this.land.children), function(three_cell_or_debug) {
 		this.land.remove(three_cell_or_debug);
@@ -456,38 +508,13 @@ Chunk.prototype.re_materialize = function(options) {
 
 	// Materialize all Plant.
 	_.each(this.children, function(plant) {
-		// Plant itself.
-		var three_plant = plant.materialize();
-		three_plant.position = plant.position.clone();
-		this.land.add(three_plant);
-
-		// Occluders.
-		if(options['show_occluder']) {
-			var occs = Cell.get_occluders(new THREE.Vector3(0, 0, 0.15 - Cell.stem_length / 2), new THREE.Quaternion(0, 0, 0, 1));
-			_.each(occs, function(occ) {
-				var three_occ = new THREE.Mesh(
-					new THREE.IcosahedronGeometry(occ[1]),
-					new THREE.MeshLambertMaterial({
-						color: 'red'
-					}));
-				three_occ.position = occ[0];
-				this.land.add(three_occ);
-			}, this);
-		}
+		this.land.add(plant.materialize());
 	}, this);
 
 	// Visualization common for all Cells.
 	if(options['show_light_volume']) {
-		_.each(_.range(this.light_volume.h), function(ix) {
-			var slice = new THREE.Mesh(
-				new THREE.PlaneGeometry(this.light_volume.aperture, this.light_volume.aperture),
-				new THREE.MeshBasicMaterial({
-					transparent: true,
-					map: this.light_volume.generate_slice_texture(ix)}));
-			slice.position.z = this.light_volume.z0 + this.light_volume.zstep * ix;
-			this.land.add(slice);
-		}, this);
 	}
+	console.log('Materialize', performance.now() - t0);
 };
 
 // xs :: [num]
