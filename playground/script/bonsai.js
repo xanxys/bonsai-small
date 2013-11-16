@@ -289,205 +289,6 @@ Cell.prototype.add_leaf_cont = function() {
 };
 
 
-// Light Volume class suitable for simulating one directional light.
-// This is actually a shadow map, but light energy is conserved.
-// (No cheating via floating point error etc.)
-// parent :: Chunk
-var LightVolume = function(parent) {
-	this.parent = parent;
-
-	this.light_power = 1000;  // W/m^2 (assuming direct sunlight, all spectrum)
-
-	// three.js world metrics
-	this.z0 = 0.3;
-	this.zstep = 0.1;
-	this.direction = new THREE.Vector3(0, 0, -1);
-	this.aperture = 0.5;
-
-	this.n = 10;
-	this.h = 5;  // height
-
-	this.volume = new Float32Array(this.n * this.n * this.h);
-
-	// occluders per layers
-	this.occ_layers = _.map(_.range(this.h), function(z) {return [];}, this);
-
-	// For debugging: initialize by [0,1] random values.
-	_.each(_.range(this.volume.length), function(i) {
-		this.volume[i] = 0;
-	}, this);
-};
-
-// z :: int [0, this.h)
-// return :: Float32Array[this.n^2] in Y-X order (e.g. (0,0,z), (1,0,z), ...)
-LightVolume.prototype.slice = function(z) {
-	if(z < 0 || z >= this.h) {
-		throw "Given height is out of range.";
-	}
-
-	var n_slice = this.n * this.n;
-	return this.volume.subarray(n_slice * z, n_slice * (z + 1));
-};
-
-// Fully propagate light thorough the LightVolume.
-// return :: ()
-LightVolume.prototype.step = function() {
-	return;
-
-	// Get occluders.
-	var occs = _.flatten(_.map(this.parent.children, function(Cell) {
-		return Cell.get_occluders(
-			new THREE.Vector3(0, 0, 0.15 - Cell.stem_length / 2),
-			new THREE.Quaternion(0, 0, 0, 1));
-	}, this), true);
-
-	// Separate occluders into layers.
-	this.occ_layers = _.map(_.range(this.h), function(z) {return [];}, this);
-
-	_.each(occs, function(occ) {
-		var z = Math.floor((occ[0].z - this.z0) / this.zstep);
-		if(0 <= z && z < this.h) {
-			this.occ_layers[z].push(occ);
-		}
-	}, this);
-
-	// inject
-	var top_slice = this.slice(this.h - 1);
-	_.each(_.range(this.n * this.n), function(i) {
-		top_slice[i] = this.light_power;
-	}, this);
-
-	// step through layers.
-	var flux_occluded = 0;
-	var flux_escaped = 0;
-	_.each(_.range(this.h-2, -1, -1), function(z) {
-		// Bake occluders into transparency array.
-		// TODO: occluder radius
-		var transparency = _.map(_.range(this.n * this.n), function(i) {return 1.0;}, this);
-		_.each(this.occ_layers[z+1], function(occ) {
-			var center = occ[0];
-			var ix = Math.floor(this.n * (center.x / this.aperture + 0.5));
-			var iy = Math.floor(this.n * (center.y / this.aperture + 0.5));
-			if(0 <= ix && ix < this.n && 0 <= iy && iy < this.n) {
-				transparency[ix + iy * this.n] *= 0.2;
-			}
-		}, this);
-
-		// Multiply with transparency and propagate.
-		var slice_from = this.slice(z+1);
-		var slice_to = this.slice(z);
-		var tile_area = this.aperture * this.aperture / (this.n * this.n);
-		if(z == 0) {
-			flux_escaped = sum(slice_to) * tile_area;
-		}
-
-		_.each(_.range(this.n * this.n), function(i) {
-			slice_to[i] = slice_from[i] * transparency[i];
-			flux_occluded += slice_from[i] * (1 - transparency[i]) * tile_area;
-		}, this);
-	}, this);
-
-	this.flux_occluded = flux_occluded;
-	this.flux_escaped = flux_escaped;
-};
-
-
-// Get downwards lighting at given position.
-// pos :: THREE.Vector3
-// return :: float
-LightVolume.prototype.get_down_lighting_at = function(pos) {
-	var ix = Math.floor((pos.x / this.aperture + 0.5) * this.n);
-	var iy = Math.floor((pos.y / this.aperture + 0.5) * this.n);
-	var iz = Math.floor((pos.z - this.z0) / this.zstep);
-	iz = Math.max(0, iz);  // assume empty space after LightVolume ends.
-
-	if(ix < 0 || this.n <= ix || iy < 0 || this.n <= iy || iz < 0 || this.h <= iz) {
-		return 0;
-	} else {
-		return this.slice(iz)[ix + this.n * iy];
-	}
-};
-
-// flux :: float [0,+inf) W/m^2, total energy density
-// return :: THREE.Color
-LightVolume.prototype.flux_to_color = function(flux) {
-	var v = flux / 1000;
-	return new THREE.Color().setRGB(v, v, v);
-};
-
-// z :: int
-// return :: THREE.Texture
-LightVolume.prototype.generate_slice_texture = function(z) {
-	var slice = this.slice(z);
-
-	var size = 256;
-
-	var canvas = document.createElement('canvas');
-	canvas.width = size;
-	canvas.height = size;
-
-	var context = canvas.getContext('2d');
-
-	// light volume values
-	context.save();
-	context.translate(0, size);
-	context.scale(1, -1);
-	_.each(_.range(this.n), function(y) {
-		_.each(_.range(this.n), function(x) {
-			var v = slice[this.n * y + x];
-			var c = this.flux_to_color(v);
-
-			// TODO: make coordinte saner
-			var step = size / this.n;
-			var patch_size = 3;
-			context.beginPath();
-			context.rect(
-				(x + 0.5) * step - patch_size / 2,
-				(y + 0.5) * step - patch_size / 2,
-				patch_size, patch_size);
-			context.fillStyle = c.getStyle();
-			context.fill();
-		}, this);
-	}, this);
-	context.restore();
-
-	// light volume occluders
-	context.save();
-	context.scale(size, size);
-	context.translate(0.5, 0.5);
-	context.scale(1 / this.aperture, -1 / this.aperture);
-	context.beginPath();
-	context.lineWidth = 1e-3;
-	_.each(this.occ_layers[z], function(occ) {
-		var center = occ[0];
-		var radius = occ[1];
-		context.arc(center.x, center.y, radius, 0, 2 * Math.PI);
-	});
-	context.fillStyle = 'rgba(255, 0, 0, 0.2)';
-	context.fill();
-	context.restore();
-
-	// stat
-	context.save();
-	context.translate(20, 20);
-	context.beginPath();
-	context.fillStyle = 'black';
-	context.fillText('z=' + z + ' / ' + '#occluder=' + this.occ_layers[z].length, 0, 0);
-	context.restore();
-
-	// frame
-	context.beginPath();
-	context.rect(0, 0, size, size);
-	context.strokeStyle = 'black';
-	context.stroke();
-
-	var tex = new THREE.Texture(canvas);
-	tex.needsUpdate = true;
-
-	return tex;
-}
-
-
 // Represents soil surface state by a grid.
 // parent :: Chunk
 var Soil = function(parent) {
@@ -515,7 +316,7 @@ Soil.prototype.materialize = function() {
 				-(y - this.n / 2 + 0.5) * this.size / this.n,
 				0.01);
 
-			var v = this.parent.light_volume.get_down_lighting_at(p) / 1000;
+			var v = 1; // this.parent.light_volume.get_down_lighting_at(p) / 1000;
 			var lighting = new THREE.Color().setRGB(v, v, v);
 
 			var soil_tile = new THREE.Mesh(
@@ -539,17 +340,16 @@ Soil.prototype.materialize = function() {
 var Chunk = function(scene) {
 	this.scene = scene;
 
-	// add pot (three.js scene)
+	// tracer
+	this.age = 0;
+
 	// dummy material
 	this.land = new THREE.Object3D();
-	this.land.position.z = -0.15;
 	this.scene.add(this.land);
 
 	// Soil (Cell sim)
 	this.soil = new Soil(this);
-
-	// Light (Cell sim)
-	this.light_volume = new LightVolume(this);
+	this.size = 2;
 
 	// Cells (Cell sim)
 	// TODO: rename to Cells for easier access from soil and light_volume.
@@ -567,6 +367,12 @@ Chunk.prototype.set_flux = function(flux) {
 Chunk.prototype.add_plant = function(pos) {
 	console.assert(Math.abs(pos.z) < 1e-3);
 
+	// Torus-like boundary
+	pos = new THREE.Vector3(
+		(pos.x + 1.5 * this.size) % this.size - this.size / 2,
+		(pos.y + 1.5 * this.size) % this.size - this.size / 2,
+		pos.z);
+
 	var shoot = new Plant(pos, this);
 	this.children.push(shoot);
 
@@ -582,12 +388,15 @@ Chunk.prototype.remove_plant = function(plant) {
 // return :: dict
 Chunk.prototype.get_stat = function() {
 	return {
+		'age/T': this.age,
 		'plant': this.children.length
 	};
 };
 
 // return :: object (stats)
 Chunk.prototype.step = function() {
+	this.age += 1;
+
 	var t0 = 0;
 	var sim_stats = {};
 
@@ -596,10 +405,6 @@ Chunk.prototype.step = function() {
 		plant.step();
 	}, this);
 	sim_stats['plant/ms'] = performance.now() - t0;
-
-	t0 = performance.now();
-	this.light_volume.step();
-	sim_stats['light/ms'] = performance.now() - t0;
 
 	t0 = performance.now();
 	this.soil.step();
