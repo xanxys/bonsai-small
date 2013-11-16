@@ -83,6 +83,9 @@ Bonsai.prototype.init = function() {
 	$('#button_step10').on('click', function() {
 		_this.handle_step(10);
 	});
+	$('#button_step50').on('click', function() {
+		_this.handle_step(50);
+	});
 }
 
 /* UI Handlers */

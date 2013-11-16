@@ -20,7 +20,21 @@ var convertCellTypeToKey = function(type) {
 	} else {
 		return 'unknown';
 	}
-}
+};
+
+var convertCellTypeToColor = function(type) {
+	if(type === CellType.LEAF) {
+		return 'green';
+	} else if(type === CellType.SHOOT) {
+		return 'brown';
+	} else if(type === CellType.SHOOT_END) {
+		return 'brown';
+	} else if(type === CellType.FLOWER) {
+		return 'red';
+	} else {
+		return 'white';
+	}
+};
 
 
 // Collections of cells that forms a "single" plant.
@@ -153,9 +167,9 @@ Cell.prototype.step = function() {
 		this.sy = Math.min(10e-3, this.sy + 0.1e-3);
 		this.sz = Math.min(5e-3, this.sz + 0.1e-3);
 	} else if(this.cell_type === CellType.LEAF) {
-		this.sx = Math.min(5e-3, this.sx + 0.1e-3);
-		this.sy = Math.min(3e-3, this.sy + 0.1e-3);
-		this.sz = Math.min(20e-3, this.sz + 2e-3);
+		this.sx = Math.min(15e-3, this.sx + 0.5e-3);
+		this.sy = Math.min(2e-3, this.sy + 0.1e-3);
+		this.sz = Math.min(40e-3, this.sz + 2e-3);
 	} else {
 		this.sx = Math.min(5e-3, this.sx + 0.1e-3 * this.plant.growth_factor());
 		this.sy = Math.min(5e-3, this.sy + 0.1e-3 * this.plant.growth_factor());
@@ -201,23 +215,13 @@ Cell.prototype.step = function() {
 // return :: THREE.Object3D
 Cell.prototype.materialize = function() {
 	// Create cell object [-sx/2,sx/2] * [-sy/2,sy/2] * [0, sz]
-	var color_diffuse;
-	if(this.cell_type === CellType.LEAF) {
-		color_diffuse = 'green';
-	} else if(this.cell_type === CellType.SEED) {
-		color_diffuse = 'blue';
-	} else if(this.cell_type === CellType.FLOWER) {
-		color_diffuse = 'red';
-	} else {
-		color_diffuse = 'brown';
-	}
-	var color_ambient = color_diffuse; // .offsetHSL(0, 0, -0.3);
+	var color_diffuse = convertCellTypeToColor(this.cell_type);
 
 	var object_cell = new THREE.Mesh(
 		new THREE.CubeGeometry(this.sx, this.sy, this.sz),
 		new THREE.MeshLambertMaterial({
 			color: color_diffuse,
-			ambient: color_ambient}));
+			ambient: color_diffuse}));
 	object_cell.position.z = this.sz / 2;
 
 	// Create children coordinates frame.
@@ -295,7 +299,7 @@ var Soil = function(parent) {
 	this.parent = parent;
 
 	this.n = 10;
-	this.size = 2;
+	this.size = 1;
 };
 
 // return :: ()
@@ -349,7 +353,7 @@ var Chunk = function(scene) {
 
 	// Soil (Cell sim)
 	this.soil = new Soil(this);
-	this.size = 2;
+	this.size = 1;
 
 	// Cells (Cell sim)
 	// TODO: rename to Cells for easier access from soil and light_volume.
