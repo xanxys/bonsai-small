@@ -118,8 +118,14 @@ Bonsai.prototype.handle_update_debug_options = function() {
 /* UI Utils */
 Bonsai.prototype.ui_update_stats = function(sim_stat) {
 	var dict = this.current_plant.get_stat();
+	if(dict['stored/E'] < 0) {
+		$('#info').text('<dead>\n' + JSON.stringify(dict, null, 2)).css('color', 'hotpink');
+	} else {
+		$('#info').text(JSON.stringify(dict, null, 2)).css('color', null);
+	}
+	
 
-	$('#info').text(JSON.stringify(dict, null, 2));
+
 	$('#info-sim').text(JSON.stringify(sim_stat, null, 2));
 	$('#info-chunk').text(JSON.stringify(this.bonsai.get_stat(), null, 2));
 };
