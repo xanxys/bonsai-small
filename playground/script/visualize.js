@@ -52,7 +52,10 @@ Bonsai.prototype.init = function() {
 
 
 	this.bonsai = new bonsai.Chunk(this.scene);
-	this.current_plant = this.bonsai.add_plant(new THREE.Vector3(0, 0, 0));
+	this.current_plant = this.bonsai.add_plant(
+		new THREE.Vector3(0, 0, 0),
+		Math.pow(20e-3, 3) * 100 // allow 2cm cube for 100T
+		);
 	this.bonsai.re_materialize({});
 
 	this.ui_update_stats({});

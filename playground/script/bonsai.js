@@ -47,14 +47,13 @@ var convertCellTypeToColor = function(type) {
 // (n.b. energy = power * time)
 //
 // position :: THREE.Vector3<World>
-var Plant = function(position, unsafe_chunk) {
+var Plant = function(position, unsafe_chunk, energy) {
 	this.unsafe_chunk = unsafe_chunk;
 
 	this.age = 0;
 	this.position = position;
 
-	// TODO: Free energy out of nowhere!!! fix it.
-	this.energy = Math.pow(20e-3, 3) * 100;  // allow 3cm cube for 100T
+	this.energy = energy;
 	this.seed = new Cell(this, CellType.SHOOT_END);
 };
 
@@ -72,7 +71,7 @@ Plant.prototype.step = function() {
 	// Consume/store in-Plant energy.
 	this.energy += this._powerForPlant() * 1;
 
-	if(this.energy < 0) {
+	if(this.energy <= 0) {
 		// die
 		this.unsafe_chunk.remove_plant(this);
 	}
@@ -119,7 +118,7 @@ Plant.prototype.materialize = function(merge) {
 Plant.prototype.get_stat = function() {
 	var stat = this.seed.count_type({});
 	stat['age/T'] = this.age;
-	stat['store/E'] = this.energy;
+	stat['stored/E'] = this.energy;
 	stat['delta/(E/T)'] = this._powerForPlant();
 	return stat;
 };
@@ -232,11 +231,14 @@ Cell.prototype.step = function() {
 		// TODO: this should be handled by physics, not biology.
 		// Maybe dead cells with stored energy survives when fallen off.
 		if(Math.random() < 0.01) {
+			var seed_energy = Math.min(this.plant.energy, Math.pow(10e-3, 3) * 10);
+
 			this.plant.unsafe_chunk.add_plant(new THREE.Vector3(
 				this.plant.position.x + Math.random() * 1 - 0.5,
 				this.plant.position.y + Math.random() * 1 - 0.5,
 				0
-				));
+				), seed_energy);
+			this.plant.energy -= seed_energy;
 		}
 	}
 
@@ -459,15 +461,9 @@ var Chunk = function(scene) {
 	this.children = [];
 };
 
-// flux :: float [0,+inf) W/m^2, sunlight energy density equivalent
-// return :: ()
-Chunk.prototype.set_flux = function(flux) {
-	this.light_volume.light_power = flux;
-};
-
 // pos :: THREE.Vector3
 // return :: Plant
-Chunk.prototype.add_plant = function(pos) {
+Chunk.prototype.add_plant = function(pos, energy) {
 	console.assert(Math.abs(pos.z) < 1e-3);
 
 	// Torus-like boundary
@@ -476,7 +472,7 @@ Chunk.prototype.add_plant = function(pos) {
 		(pos.y + 1.5 * this.size) % this.size - this.size / 2,
 		pos.z);
 
-	var shoot = new Plant(pos, this);
+	var shoot = new Plant(pos, this, energy);
 	this.children.push(shoot);
 
 	return shoot;
@@ -490,9 +486,14 @@ Chunk.prototype.remove_plant = function(plant) {
 
 // return :: dict
 Chunk.prototype.get_stat = function() {
+	var stored_energy = sum(_.map(this.children, function(plant) {
+		return plant.energy;
+	}));
+
 	return {
 		'age/T': this.age,
-		'plant': this.children.length
+		'plant': this.children.length,
+		'stored/E': stored_energy
 	};
 };
 
