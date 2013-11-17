@@ -86,28 +86,34 @@ Plant.prototype.growth_factor = function() {
 };
 
 // return :: THREE.Object3D<world>
-Plant.prototype.materialize = function() {
+Plant.prototype.materialize = function(merge) {
 	var three_plant = this.seed.materialize();
-	
-	// Merge everything
-	var merged_geom = new THREE.Geometry();
-	three_plant.traverse(function(child) {
-		if(child.parent){
-			child.updateMatrixWorld();
-			child.applyMatrix(child.parent.matrixWorld);    
-		}
 
-		if(child instanceof THREE.Mesh) {
-			THREE.GeometryUtils.merge(merged_geom, child);
-		}
-	});
+	// TODO: maybe merge should be moved to Chunk, since it's UI-specific.
+	if(merge) {
+		// Merge everything
+		var merged_geom = new THREE.Geometry();
+		three_plant.traverse(function(child) {
+			if(child.parent){
+				child.updateMatrixWorld();
+				child.applyMatrix(child.parent.matrixWorld);    
+			}
 
-	var merged_plant = new THREE.Mesh(
-		merged_geom,
-		new THREE.MeshLambertMaterial({vertexColors: THREE.VertexColors}));
+			if(child instanceof THREE.Mesh) {
+				THREE.GeometryUtils.merge(merged_geom, child);
+			}
+		});
 
-	merged_plant.position = this.position;
-	return merged_plant;
+		var merged_plant = new THREE.Mesh(
+			merged_geom,
+			new THREE.MeshLambertMaterial({vertexColors: THREE.VertexColors}));
+
+		merged_plant.position = this.position;
+		return merged_plant;
+	} else {
+		three_plant.position = this.position;
+		return three_plant;
+	}
 };
 
 Plant.prototype.get_stat = function() {
@@ -138,6 +144,9 @@ var Cell = function(plant, cell_type) {
 	// tracer
 	this.age = 0;
 
+	// in-sim (light)
+	this.photons = 0;
+
 	// in-sim (phys + bio)
 	this.loc_to_parent = new THREE.Quaternion();
 	this.sx = 1e-3;
@@ -162,15 +171,22 @@ Cell.prototype.powerForPlant = function() {
 	var total = 0;
 
 	if(this.cell_type === CellType.LEAF) {
-		var total_visible_area = this.sx * this.sy + this.sy * this.sz + this.sz * this.sx;
-		total += total_visible_area * 1e-9; // TODO: light dependent term
+		total += this.photons * 5;
 	}
 
 	// basic consumption (stands for DNA-related func.)
 	total -= 1e-9;
 
 	// linear-volume consumption (stands for cell substrate maintainance)
-	total -= this.sx * this.sy * this.sz;
+	var volume_consumption = 1.0;
+	if(this.cell_type === CellType.SHOOT) {
+		volume_consumption = 1;
+	} else {
+		// Functional cells (LEAF, SAM, FLOWER) consume more energy to be alive.
+		// TODO: separate cell traits and cell type
+		volume_consumption = 2;
+	}
+	total -= this.sx * this.sy * this.sz * volume_consumption;
 	
 	return total;
 };
@@ -228,17 +244,22 @@ Cell.prototype.step = function() {
 	if(this.plant.growth_factor() < 0.1 && this.cell_type === CellType.SHOOT_END) {
 		this.cell_type = CellType.FLOWER;
 	}
+
+	this.photons = 0;
 };
 
 // return :: THREE.Object3D
 Cell.prototype.materialize = function() {
 	// Create cell object [-sx/2,sx/2] * [-sy/2,sy/2] * [0, sz]
-	var color_diffuse = convertCellTypeToColor(this.cell_type);
+	var color_diffuse = new THREE.Color(convertCellTypeToColor(this.cell_type));
+	if(this.photons === 0) {
+		color_diffuse.offsetHSL(0, 0, -0.2);
+	}
 
 	var geom_cube = new THREE.CubeGeometry(this.sx, this.sy, this.sz);
 	for(var i = 0; i < geom_cube.faces.length; i++) {
 		for(var j = 0; j < 3; j++) {
-			geom_cube.faces[i].vertexColors[j] = new THREE.Color(color_diffuse);
+			geom_cube.faces[i].vertexColors[j] = color_diffuse;
 		}
 	}
 
@@ -264,7 +285,14 @@ Cell.prototype.materialize = function() {
 		object_frame_children.add(child.materialize());
 	}, this);
 
+	// Add cell interaction slot.
+	object_cell.cell = this;
+
 	return object_frame;
+};
+
+Cell.prototype.givePhoton = function() {
+	this.photons += 1;
 };
 
 // Get Cell age in ticks.
@@ -285,12 +313,6 @@ Cell.prototype.count_type = function(counter) {
 	}, this);
 
 	return counter;
-};
-
-// Get spherically approximated occuluders.
-// return :: [(THREE.Vector3, float)]
-Cell.prototype.get_occluders = function(parent_top, parent_rot) {
-	return [];
 };
 
 // Add infinitesimal shoot cell.
@@ -324,7 +346,7 @@ Cell.prototype.add_leaf_cont = function() {
 var Soil = function(parent, size) {
 	this.parent = parent;
 
-	this.n = 50;
+	this.n = 25;
 	this.size = size;
 };
 
@@ -365,7 +387,7 @@ Soil.prototype.materialize = function() {
 var Light = function(chunk, size) {
 	this.chunk = chunk;
 
-	this.n = 50;
+	this.n = 25;
 	this.size = size;
 
 	this.shadow_map = new Float32Array(this.n * this.n);
@@ -380,7 +402,7 @@ Light.prototype.step = function() {
 Light.prototype.updateShadowMap = function() {
 	var dummy = new THREE.Scene();
 	_.each(this.chunk.children, function(plant) {
-		dummy.add(plant.materialize());
+		dummy.add(plant.materialize(false));
 	});
 	// We need this call since dummy doesn't belong to render path,
 	// so world matrix (used by raycaster) isn't automatically updated.
@@ -397,8 +419,12 @@ Light.prototype.updateShadowMap = function() {
 				0.1,
 				1e2).intersectObject(dummy, true);
 
-			var h = (isect.length > 0) ? isect[0].point.z : 0;
-			this.shadow_map[i + j * this.n] = h;
+			if(isect.length > 0) {
+				isect[0].object.cell.givePhoton();
+				this.shadow_map[i + j * this.n] = isect[0].point.z;
+			} else {
+				this.shadow_map[i + j * this.n] = 0;
+			}
 		}
 	}
 };
@@ -510,7 +536,7 @@ Chunk.prototype.re_materialize = function(options) {
 
 	// Materialize all Plant.
 	_.each(this.children, function(plant) {
-		this.land.add(plant.materialize());
+		this.land.add(plant.materialize(true));
 	}, this);
 
 	// Visualization common for all Cells.
