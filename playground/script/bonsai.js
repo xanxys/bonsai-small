@@ -156,6 +156,7 @@ var Cell = function(plant, cell_type) {
 	this.cell_type = cell_type;
 	this.plant = plant;
 	this.children = [];
+	this.power = 0;
 };
 
 // sub_cell :: Cell
@@ -167,10 +168,14 @@ Cell.prototype.add = function(sub_cell) {
 // Return net usable power for Plant.
 // return :: float<Energy>
 Cell.prototype.powerForPlant = function() {
+	return this.power;
+};
+
+Cell.prototype._updatePowerForPlant = function() {
 	var total = 0;
 
 	if(this.cell_type === CellType.LEAF) {
-		total += this.photons * 5;
+		total += this.photons * 1e-9 * 3000;
 	}
 
 	// basic consumption (stands for DNA-related func.)
@@ -187,7 +192,8 @@ Cell.prototype.powerForPlant = function() {
 	}
 	total -= this.sx * this.sy * this.sz * volume_consumption;
 	
-	return total;
+	this.power = total;
+	this.photons = 0;
 };
 
 // return :: ()
@@ -231,7 +237,7 @@ Cell.prototype.step = function() {
 		// TODO: this should be handled by physics, not biology.
 		// Maybe dead cells with stored energy survives when fallen off.
 		if(Math.random() < 0.01) {
-			var seed_energy = Math.min(this.plant.energy, Math.pow(10e-3, 3) * 10);
+			var seed_energy = Math.min(this.plant.energy, Math.pow(20e-3, 3) * 10);
 
 			this.plant.unsafe_chunk.add_plant(new THREE.Vector3(
 				this.plant.position.x + Math.random() * 1 - 0.5,
@@ -247,7 +253,8 @@ Cell.prototype.step = function() {
 		this.cell_type = CellType.FLOWER;
 	}
 
-	this.photons = 0;
+	// Update power
+	this._updatePowerForPlant();
 };
 
 // return :: THREE.Object3D
@@ -524,8 +531,6 @@ Chunk.prototype.step = function() {
 // options :: dict(string, bool)
 // return :: ()
 Chunk.prototype.re_materialize = function(options) {
-	t0 = performance.now();
-
 	// Throw away all children of pot.
 	_.each(_.clone(this.land.children), function(three_cell_or_debug) {
 		this.land.remove(three_cell_or_debug);
@@ -539,11 +544,6 @@ Chunk.prototype.re_materialize = function(options) {
 	_.each(this.children, function(plant) {
 		this.land.add(plant.materialize(true));
 	}, this);
-
-	// Visualization common for all Cells.
-	if(options['show_light_volume']) {
-	}
-	console.log('Materialize', performance.now() - t0);
 };
 
 // xs :: [num]
