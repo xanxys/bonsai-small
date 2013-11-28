@@ -43,6 +43,7 @@ Bonsai.prototype.init = function() {
 	this.isolated_chunk.addEventListener('message', function(ev) {
 		console.log(ev);
 	}, false);
+	this.isolated_chunk.postMessage('serialize');
 
 	// old-fashioned, blocking API
 	this.bonsai = new Chunk(this.scene);
@@ -91,6 +92,11 @@ Bonsai.prototype.handle_step = function(n) {
 	if(this.current_plant === null) {
 		return;
 	}
+
+	_.each(_.range(n), function(i) {
+		this.isolated_chunk.postMessage('step');
+	}, this);
+	this.isolated_chunk.postMessage('serialize');
 
 	var sim_stat = {};
 	_.each(_.range(n), function(i) {

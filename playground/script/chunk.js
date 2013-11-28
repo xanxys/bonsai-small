@@ -510,19 +510,31 @@ Chunk.prototype.step = function() {
 	var t0 = 0;
 	var sim_stats = {};
 
-	t0 = performance.now();
+	if(typeof performance !== 'undefined') {
+		t0 = performance.now();
+	}
 	_.each(this.children, function(plant) {
 		plant.step();
 	}, this);
-	sim_stats['plant/ms'] = performance.now() - t0;
+	if(typeof performance !== 'undefined') {
+		sim_stats['plant/ms'] = performance.now() - t0;
+	}
 
-	t0 = performance.now();
+	if(typeof performance !== 'undefined') {
+		t0 = performance.now();
+	}
 	this.light.step();
-	sim_stats['light/ms'] = performance.now() - t0;
+	if(typeof performance !== 'undefined') {
+		sim_stats['light/ms'] = performance.now() - t0;
+	}
 
-	t0 = performance.now();
+	if(typeof performance !== 'undefined') {
+		t0 = performance.now();
+	}
 	this.soil.step();
-	sim_stats['soil/ms'] = performance.now() - t0;
+	if(typeof performance !== 'undefined') {
+		sim_stats['soil/ms'] = performance.now() - t0;
+	}
 
 	return sim_stats;
 };
@@ -542,6 +554,18 @@ Chunk.prototype.re_materialize = function(options) {
 	// Materialize all Plant.
 	_.each(this.children, function(plant) {
 		this.land.add(plant.materialize(true));
+	}, this);
+};
+
+
+Chunk.prototype.serialize = function() {
+	return _.map(this.children, function(plant) {
+		var mesh = plant.materialize(true);
+
+		return {
+			'vertices': mesh.geometry.vertices,
+			'faces': mesh.geometry.faces
+		};
 	}, this);
 };
 
