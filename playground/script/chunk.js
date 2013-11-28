@@ -1,5 +1,4 @@
-define(['three'],
-function(THREE) {
+(function() {
 
 var CellType = {
 	LEAF: 1,
@@ -552,9 +551,6 @@ function sum(xs) {
 	return _.reduce(xs, function(x, y) { return x + y; }, 0);
 }
 
+this.Chunk = Chunk;
 
-return {
-	'Chunk': Chunk
-};
-
-});  // define
+})(this);

@@ -1,5 +1,4 @@
-define(['three'],
-function(THREE) {
+(function() {
 
 var TrackballControls = function ( object, domElement ) {
 
@@ -555,6 +554,6 @@ var TrackballControls = function ( object, domElement ) {
 
 TrackballControls.prototype = Object.create( THREE.EventDispatcher.prototype );
 
-return TrackballControls;
+window.TrackballControls = TrackballControls;
 
-}); // define
+})();

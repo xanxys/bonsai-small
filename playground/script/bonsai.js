@@ -1,17 +1,4 @@
-requirejs.config({
-	shim: {
-		'underscore': {
-			exports: '_'
-		},
-		'three': {
-			exports: 'THREE'
-		}
-	}
-});
-
-requirejs([
-	'jquery', 'three', 'TrackballControls', 'chunk'],
-function($, THREE, TrackballControls, chunk) {
+(function() {
 "use strict";
 
 // package imports for underscore
@@ -51,7 +38,14 @@ Bonsai.prototype.init = function() {
 	this.scene.add(new THREE.AmbientLight(0x333333));
 
 
-	this.bonsai = new chunk.Chunk(this.scene);
+	// new, web worker API
+	this.isolated_chunk = new Worker('script/isolated_chunk.js');
+	this.isolated_chunk.addEventListener('message', function(ev) {
+		console.log(ev);
+	}, false);
+
+	// old-fashioned, blocking API
+	this.bonsai = new Chunk(this.scene);
 	this.current_plant = this.bonsai.add_plant(
 		new THREE.Vector3(0, 0, 0),
 		Math.pow(20e-3, 3) * 100 // allow 2cm cube for 100T
@@ -151,6 +145,8 @@ Bonsai.prototype.animate = function() {
 };
 
 // run app
-new Bonsai().animate();
+$(document).ready(function() {
+	new Bonsai().animate();
+});
 
-});  // requirejs
+})();
