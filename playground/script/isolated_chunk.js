@@ -13,12 +13,18 @@ var ChunkServer = function() {
 
 	var _this = this;
 	self.addEventListener('message', function(ev) {
-		if(ev.data === 'step') {
+		if(ev.data.type === 'step') {
 			_this.chunk.step();
-		} else if(ev.data === 'serialize') {
-			self.postMessage(_this.chunk.serialize());
-		} else if(ev.data === 'stat') {
-			self.postMessage(_this.chunk.get_stat());
+		} else if(ev.data.type === 'serialize') {
+			self.postMessage({
+				type: 'serialize',
+				data: _this.chunk.serialize()
+			});
+		} else if(ev.data.type === 'stat') {
+			self.postMessage({
+				type: 'stat',
+				data: _this.chunk.get_stat()
+			});
 		}
 	});
 };

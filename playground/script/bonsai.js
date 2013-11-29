@@ -39,19 +39,19 @@ Bonsai.prototype.init = function() {
 
 
 	// new, web worker API
+	var curr_proxy = null;
+
 	this.isolated_chunk = new Worker('script/isolated_chunk.js');
-	this.isolated_chunk.addEventListener('message', function(ev) {
-		console.log(ev);
-	}, false);
-	this.isolated_chunk.postMessage('serialize');
 
 	// old-fashioned, blocking API
+	/*
 	this.bonsai = new Chunk(this.scene);
 	this.current_plant = this.bonsai.add_plant(
 		new THREE.Vector3(0, 0, 0),
 		Math.pow(20e-3, 3) * 100 // allow 2cm cube for 100T
 		);
 	this.bonsai.re_materialize({});
+	*/
 
 	this.ui_update_stats({});
 
@@ -85,7 +85,73 @@ Bonsai.prototype.init = function() {
 	$('#button_step50').on('click', function() {
 		_this.handle_step(50);
 	});
+
+	this.isolated_chunk.addEventListener('message', function(ev) {
+		if(ev.data.type == 'serialize') {
+			var proxy = _this.deserialize(ev.data.data);
+			
+			if(curr_proxy) {
+				_this.scene.remove(curr_proxy);
+			}
+			curr_proxy = proxy;
+			_this.scene.add(curr_proxy);
+		}
+	}, false);
+
+	this.isolated_chunk.postMessage({
+		type: 'serialize'
+	});
 }
+
+// return :: THREE.Object3D
+Bonsai.prototype.deserialize = function(data) {
+	var proxy = new THREE.Object3D();
+
+	// de-serialize plants
+	_.each(data.plants, function(data_plant) {
+		var geom = new THREE.Geometry();
+		geom.vertices = data_plant.vertices;
+		geom.faces = data_plant.faces;
+
+		var mesh = new THREE.Mesh(geom,
+			new THREE.MeshLambertMaterial({
+				vertexColors: THREE.VertexColors}));
+
+		mesh.position = new THREE.Vector3(
+			data_plant.position.x,
+			data_plant.position.y,
+			data_plant.position.z);
+		proxy.add(mesh);
+	});
+
+	// de-serialize soil
+	var canvas = document.createElement('canvas');
+	canvas.width = data.soil.n;
+	canvas.height = data.soil.n;
+	var context = canvas.getContext('2d');
+	_.each(_.range(data.soil.n), function(y) {
+		_.each(_.range(data.soil.n), function(x) {
+			var v = data.soil.luminance[x + y * data.soil.n];
+			var lighting = new THREE.Color().setRGB(v, v, v);
+
+			context.fillStyle = lighting.getStyle();
+			context.fillRect(x, data.soil.n - y, 1, 1);
+		}, this);
+	}, this);
+
+	// Attach tiles to the base.
+	var tex = new THREE.Texture(canvas);
+	tex.needsUpdate = true;
+
+	var soil_plate = new THREE.Mesh(
+		new THREE.CubeGeometry(data.soil.size, data.soil.size, 1e-3),
+		new THREE.MeshBasicMaterial({
+			map: tex
+		}));
+	proxy.add(soil_plate);
+			
+	return proxy;
+};
 
 /* UI Handlers */
 Bonsai.prototype.handle_step = function(n) {
@@ -94,15 +160,21 @@ Bonsai.prototype.handle_step = function(n) {
 	}
 
 	_.each(_.range(n), function(i) {
-		this.isolated_chunk.postMessage('step');
+		this.isolated_chunk.postMessage({
+			type: 'step'
+		});
 	}, this);
-	this.isolated_chunk.postMessage('serialize');
+	this.isolated_chunk.postMessage({
+		type: 'serialize'
+	});
 
 	var sim_stat = {};
+	/*
 	_.each(_.range(n), function(i) {
 		sim_stat = this.bonsai.step();
 	}, this);
-	this.bonsai.re_materialize(this.ui_get_debug_option());
+	*/
+	//this.bonsai.re_materialize(this.ui_get_debug_option());
 
 	this.ui_update_stats(sim_stat);
 };
@@ -117,6 +189,8 @@ Bonsai.prototype.handle_update_debug_options = function() {
 
 /* UI Utils */
 Bonsai.prototype.ui_update_stats = function(sim_stat) {
+	return;
+
 	var dict = this.current_plant.get_stat();
 	if(dict['stored/E'] < 0) {
 		$('#info').text('<dead>\n' + JSON.stringify(dict, null, 2)).css('color', 'hotpink');
