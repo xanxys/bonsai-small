@@ -22,7 +22,7 @@ var ChunkServer = function() {
 			});
 		} else if(ev.data.type === 'stat') {
 			self.postMessage({
-				type: 'stat',
+				type: 'stat-chunk',
 				data: _this.chunk.get_stat()
 			});
 		}

@@ -95,6 +95,8 @@ Bonsai.prototype.init = function() {
 			}
 			curr_proxy = proxy;
 			_this.scene.add(curr_proxy);
+		} else if(ev.data.type == 'stat-chunk') {
+			$('#info-chunk').text(JSON.stringify(ev.data.data, null, 2));
 		}
 	}, false);
 
@@ -167,6 +169,10 @@ Bonsai.prototype.handle_step = function(n) {
 	this.isolated_chunk.postMessage({
 		type: 'serialize'
 	});
+	this.isolated_chunk.postMessage({
+		type: 'stat'
+	});
+
 
 	var sim_stat = {};
 	/*
