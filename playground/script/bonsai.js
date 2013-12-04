@@ -177,14 +177,14 @@ Bonsai.prototype.handle_step = function(n) {
 		this.isolated_chunk.postMessage({
 			type: 'step'
 		});
+		this.isolated_chunk.postMessage({
+			type: 'stat'
+		});
+		this.requestPlantStatUpdate();
 	}, this);
 	this.isolated_chunk.postMessage({
 		type: 'serialize'
 	});
-	this.isolated_chunk.postMessage({
-		type: 'stat'
-	});
-	this.requestPlantStatUpdate();
 };
 
 Bonsai.prototype.handle_light_change = function() {
