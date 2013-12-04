@@ -54,12 +54,17 @@ var convertCellTypeToColor = function(type) {
 // (n.b. energy = power * time)
 //
 // position :: THREE.Vector3<World>
-var Plant = function(position, unsafe_chunk, energy) {
+var Plant = function(position, unsafe_chunk, energy, plant_id) {
 	this.unsafe_chunk = unsafe_chunk;
 
+	// tracer
 	this.age = 0;
+	this.id = plant_id;
+
+	// physics
 	this.position = position;
 
+	// biophysics
 	this.energy = energy;
 	this.seed = new Cell(this, CellType.SHOOT_END);
 };
@@ -477,6 +482,7 @@ var Chunk = function(scene) {
 
 	// tracer
 	this.age = 0;
+	this.new_plant_id = 0;
 
 	// dummy material
 	this.land = new THREE.Object3D();
@@ -507,7 +513,8 @@ Chunk.prototype.add_plant = function(pos, energy) {
 		(pos.y + 1.5 * this.size) % this.size - this.size / 2,
 		pos.z);
 
-	var shoot = new Plant(pos, this, energy);
+	var shoot = new Plant(pos, this, energy, this.new_plant_id);
+	this.new_plant_id += 1;
 	this.children.push(shoot);
 
 	return shoot;
@@ -530,6 +537,19 @@ Chunk.prototype.get_stat = function() {
 		'plant': this.children.length,
 		'stored/E': stored_energy
 	};
+};
+
+// Retrieve current statistics about specified plant id.
+// id :: int (plant id)
+// return :: dict | null
+Chunk.prototype.get_plant_stat = function(id) {
+	var stat = null;
+	_.each(this.children, function(plant) {
+		if(plant.id === id) {
+			stat = plant.get_stat();
+		}
+	});
+	return stat;
 };
 
 // return :: object (stats)
@@ -581,6 +601,7 @@ Chunk.prototype.serialize = function() {
 		var mesh = plant.materialize(true);
 
 		return {
+			'id': plant.id,
 			'vertices': mesh.geometry.vertices,
 			'faces': mesh.geometry.faces,
 			'position': {

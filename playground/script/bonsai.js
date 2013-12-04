@@ -42,18 +42,7 @@ Bonsai.prototype.init = function() {
 	var curr_proxy = null;
 
 	this.isolated_chunk = new Worker('script/isolated_chunk.js');
-
-	// old-fashioned, blocking API
-	/*
-	this.bonsai = new Chunk(this.scene);
-	this.current_plant = this.bonsai.add_plant(
-		new THREE.Vector3(0, 0, 0),
-		Math.pow(20e-3, 3) * 100 // allow 2cm cube for 100T
-		);
-	this.bonsai.re_materialize({});
-	*/
-
-	this.ui_update_stats({});
+	this.inspect_plant_id = null;
 
 	// start canvas
 	this.renderer = new THREE.WebGLRenderer();
@@ -67,6 +56,17 @@ Bonsai.prototype.init = function() {
 
 	// Connect signals
 	var _this = this;
+	this.controls.on_click = function(pos_ndc) {
+		var caster = new THREE.Projector().pickingRay(pos_ndc, _this.camera);
+		var intersections = caster.intersectObject(_this.scene, true);
+
+		if(intersections.length > 0 &&
+			intersections[0].object.plant_id !== undefined) {
+			_this.inspect_plant_id = intersections[0].object.plant_id;
+			_this.requestPlantStatUpdate();
+		}
+	};
+
 	$('#debug_light_volume').on('click', function() {
 		_this.handle_update_debug_options()
 	});
@@ -99,6 +99,8 @@ Bonsai.prototype.init = function() {
 			$('#info-chunk').text(JSON.stringify(ev.data.data, null, 2));
 		} else if(ev.data.type === 'stat-sim') {
 			$('#info-sim').text(JSON.stringify(ev.data.data, null, 2));
+		} else if(ev.data.type === 'stat-plant') {
+			$('#info-plant').text(JSON.stringify(ev.data.data.stat, null, 2));
 		}
 	}, false);
 
@@ -106,6 +108,16 @@ Bonsai.prototype.init = function() {
 		type: 'serialize'
 	});
 }
+
+// return :: ()
+Bonsai.prototype.requestPlantStatUpdate = function() {
+	this.isolated_chunk.postMessage({
+		type: 'stat-plant',
+		data: {
+			id: this.inspect_plant_id
+		}
+	});
+};
 
 // return :: THREE.Object3D
 Bonsai.prototype.deserialize = function(data) {
@@ -125,6 +137,8 @@ Bonsai.prototype.deserialize = function(data) {
 			data_plant.position.x,
 			data_plant.position.y,
 			data_plant.position.z);
+
+		mesh.plant_id = data_plant.id;
 		proxy.add(mesh);
 	});
 
@@ -159,10 +173,6 @@ Bonsai.prototype.deserialize = function(data) {
 
 /* UI Handlers */
 Bonsai.prototype.handle_step = function(n) {
-	if(this.current_plant === null) {
-		return;
-	}
-
 	_.each(_.range(n), function(i) {
 		this.isolated_chunk.postMessage({
 			type: 'step'
@@ -174,17 +184,7 @@ Bonsai.prototype.handle_step = function(n) {
 	this.isolated_chunk.postMessage({
 		type: 'stat'
 	});
-
-
-	var sim_stat = {};
-	/*
-	_.each(_.range(n), function(i) {
-		sim_stat = this.bonsai.step();
-	}, this);
-	*/
-	//this.bonsai.re_materialize(this.ui_get_debug_option());
-
-	this.ui_update_stats(sim_stat);
+	this.requestPlantStatUpdate();
 };
 
 Bonsai.prototype.handle_light_change = function() {
@@ -205,11 +205,7 @@ Bonsai.prototype.ui_update_stats = function(sim_stat) {
 	} else {
 		$('#info').text(JSON.stringify(dict, null, 2)).css('color', null);
 	}
-	
 
-
-	$('#info-sim').text(JSON.stringify(sim_stat, null, 2));
-	$('#info-chunk').text(JSON.stringify(this.bonsai.get_stat(), null, 2));
 };
 
 Bonsai.prototype.ui_get_debug_option = function() {

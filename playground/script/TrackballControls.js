@@ -37,22 +37,24 @@ var TrackballControls = function ( object, domElement ) {
 
 	var lastPosition = new THREE.Vector3();
 
-	var _state = STATE.NONE,
-	_prevState = STATE.NONE,
+	var _state = STATE.NONE;
+	var _prevState = STATE.NONE;
 
-	_eye = new THREE.Vector3(),
+	var _eye = new THREE.Vector3();
 
-	_rotateStart = new THREE.Vector3(),
-	_rotateEnd = new THREE.Vector3(),
+	var _rotateStart = new THREE.Vector3();
+	var _rotateEnd = new THREE.Vector3();
+	var _rotate_t_start = 0;
+	var _rotate_moved = false;
 
-	_zoomStart = new THREE.Vector2(),
-	_zoomEnd = new THREE.Vector2(),
+	var _zoomStart = new THREE.Vector2();
+	var _zoomEnd = new THREE.Vector2();
 
-	_touchZoomDistanceStart = 0,
-	_touchZoomDistanceEnd = 0,
+	var _touchZoomDistanceStart = 0;
+	var _touchZoomDistanceEnd = 0;
 
-	_panStart = new THREE.Vector2(),
-	_panEnd = new THREE.Vector2();
+	var _panStart = new THREE.Vector2();
+	var _panEnd = new THREE.Vector2();
 
 	// for reset
 
@@ -101,6 +103,12 @@ var TrackballControls = function ( object, domElement ) {
 			( clientY - _this.screen.top ) / _this.screen.height
 		);
 
+	};
+
+	this.getMouseNDC = function(clientX, clientY) {
+		return new THREE.Vector3(
+			2 * (clientX - _this.screen.left) / _this.screen.width - 1, -2 * (clientY - _this.screen.top) / _this.screen.height + 1,
+			0);
 	};
 
 	this.getMouseProjectionOnBall = function ( clientX, clientY ) {
@@ -369,10 +377,11 @@ var TrackballControls = function ( object, domElement ) {
 		}
 
 		if ( _state === STATE.ROTATE && !_this.noRotate ) {
+			_rotate_t_start = new Date().getTime();
+			_rotate_moved = false;
 
 			_rotateStart = _this.getMouseProjectionOnBall( event.clientX, event.clientY );
 			_rotateEnd.copy(_rotateStart)
-
 		} else if ( _state === STATE.ZOOM && !_this.noZoom ) {
 
 			_zoomStart = _this.getMouseOnScreen( event.clientX, event.clientY );
@@ -398,17 +407,12 @@ var TrackballControls = function ( object, domElement ) {
 		event.stopPropagation();
 
 		if ( _state === STATE.ROTATE && !_this.noRotate ) {
-
+			_rotate_moved = true;
 			_rotateEnd = _this.getMouseProjectionOnBall( event.clientX, event.clientY );
-
 		} else if ( _state === STATE.ZOOM && !_this.noZoom ) {
-
 			_zoomEnd = _this.getMouseOnScreen( event.clientX, event.clientY );
-
 		} else if ( _state === STATE.PAN && !_this.noPan ) {
-
 			_panEnd = _this.getMouseOnScreen( event.clientX, event.clientY );
-
 		}
 
 	}
@@ -419,6 +423,14 @@ var TrackballControls = function ( object, domElement ) {
 
 		event.preventDefault();
 		event.stopPropagation();
+
+		if(_state === STATE.ROTATE) {
+			if(new Date().getTime() - _rotate_t_start < 200 && !_rotate_moved) {
+				if(_this.on_click) {
+					_this.on_click(_this.getMouseNDC(event.clientX, event.clientY));
+				}
+			}
+		}
 
 		_state = STATE.NONE;
 

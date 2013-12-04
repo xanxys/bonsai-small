@@ -29,6 +29,14 @@ var ChunkServer = function() {
 				type: 'stat-chunk',
 				data: _this.chunk.get_stat()
 			});
+		} else if(ev.data.type === 'stat-plant') {
+			self.postMessage({
+				type: 'stat-plant',
+				data: {
+					id: ev.data.data.id,
+					stat: _this.chunk.get_plant_stat(ev.data.data.id)
+				}
+			});
 		}
 	});
 };
