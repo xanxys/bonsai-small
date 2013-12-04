@@ -153,7 +153,7 @@ Bonsai.prototype.deserialize = function(data) {
 			var lighting = new THREE.Color().setRGB(v, v, v);
 
 			context.fillStyle = lighting.getStyle();
-			context.fillRect(x, data.soil.n - y, 1, 1);
+			context.fillRect(x, data.soil.n - 1 - y, 1, 1);
 		}, this);
 	}, this);
 
