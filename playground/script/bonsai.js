@@ -37,6 +37,8 @@ Bonsai.prototype.init = function() {
 
 	this.scene.add(new THREE.AmbientLight(0x333333));
 
+	// UI state
+	this.playing = null;
 
 	// new, web worker API
 	var curr_proxy = null;
@@ -67,22 +69,43 @@ Bonsai.prototype.init = function() {
 		}
 	};
 
-	$('#debug_light_volume').on('click', function() {
-		_this.handle_update_debug_options()
+	$('#button_play').on('click', function() {
+		if(_this.playing !== null) {
+			clearInterval(_this.playing);
+			_this.playing = null;
+			$('#button_play').html('&#x25b6;'); // play symbol
+		} else {
+			_this.playing = setInterval(function() {
+				_this.handle_step(1);
+			}, 500);
+			$('#button_play').html('&#x25a0;'); // stop symbol
+		}
 	});
-	$('#debug_occluder').on('click', function() {
-		_this.handle_update_debug_options();
-	});
-	$('#light_flux').change(function() {
-		_this.handle_light_change();
-	});
+
 	$('#button_step1').on('click', function() {
+		if(_this.playing !== null) {
+			clearInterval(_this.playing);
+			_this.playing = null;
+			$('#button_play').html('&#x25b6;'); // play symbol
+		}
 		_this.handle_step(1);
 	});
+
 	$('#button_step10').on('click', function() {
+		if(_this.playing !== null) {
+			clearInterval(_this.playing);
+			_this.playing = null;
+			$('#button_play').html('&#x25b6;'); // play symbol
+		}
 		_this.handle_step(10);
 	});
+
 	$('#button_step50').on('click', function() {
+		if(_this.playing !== null) {
+			clearInterval(_this.playing);
+			_this.playing = null;
+			$('#button_play').html('&#x25b6;'); // play symbol
+		}
 		_this.handle_step(50);
 	});
 
