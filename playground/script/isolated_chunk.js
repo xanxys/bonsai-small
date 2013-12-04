@@ -14,7 +14,11 @@ var ChunkServer = function() {
 	var _this = this;
 	self.addEventListener('message', function(ev) {
 		if(ev.data.type === 'step') {
-			_this.chunk.step();
+			var sim_stat = _this.chunk.step();
+			self.postMessage({
+				type: 'stat-sim',
+				data: sim_stat
+			});
 		} else if(ev.data.type === 'serialize') {
 			self.postMessage({
 				type: 'serialize',

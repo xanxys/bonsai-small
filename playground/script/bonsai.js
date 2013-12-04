@@ -87,7 +87,7 @@ Bonsai.prototype.init = function() {
 	});
 
 	this.isolated_chunk.addEventListener('message', function(ev) {
-		if(ev.data.type == 'serialize') {
+		if(ev.data.type === 'serialize') {
 			var proxy = _this.deserialize(ev.data.data);
 			
 			if(curr_proxy) {
@@ -95,8 +95,10 @@ Bonsai.prototype.init = function() {
 			}
 			curr_proxy = proxy;
 			_this.scene.add(curr_proxy);
-		} else if(ev.data.type == 'stat-chunk') {
+		} else if(ev.data.type === 'stat-chunk') {
 			$('#info-chunk').text(JSON.stringify(ev.data.data, null, 2));
+		} else if(ev.data.type === 'stat-sim') {
+			$('#info-sim').text(JSON.stringify(ev.data.data, null, 2));
 		}
 	}, false);
 

@@ -1,5 +1,13 @@
 (function() {
 
+var now = function() {
+	if(typeof performance !== 'undefined') {
+		return performance.now();
+	} else {
+		return new Date().getTime();
+	}
+};
+
 var CellType = {
 	LEAF: 1,
 	SHOOT: 2,
@@ -531,31 +539,19 @@ Chunk.prototype.step = function() {
 	var t0 = 0;
 	var sim_stats = {};
 
-	if(typeof performance !== 'undefined') {
-		t0 = performance.now();
-	}
+	t0 = now();
 	_.each(this.children, function(plant) {
 		plant.step();
 	}, this);
-	if(typeof performance !== 'undefined') {
-		sim_stats['plant/ms'] = performance.now() - t0;
-	}
+	sim_stats['plant/ms'] = now() - t0;
 
-	if(typeof performance !== 'undefined') {
-		t0 = performance.now();
-	}
+	t0 = now();
 	this.light.step();
-	if(typeof performance !== 'undefined') {
-		sim_stats['light/ms'] = performance.now() - t0;
-	}
+	sim_stats['light/ms'] = now() - t0;
 
-	if(typeof performance !== 'undefined') {
-		t0 = performance.now();
-	}
+	t0 = now();
 	this.soil.step();
-	if(typeof performance !== 'undefined') {
-		sim_stats['soil/ms'] = performance.now() - t0;
-	}
+	sim_stats['soil/ms'] = now() - t0;
 
 	return sim_stats;
 };
