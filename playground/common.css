@@ -24,8 +24,8 @@ body {
 	padding-left: 0;
 	margin-left: 0;
 	margin-top: 0;
-	border-radius: 0 0 0.5em 0;
 	color: white;
+	height: 100%;
 }
 
 .pane-top-left > #info {
@@ -42,6 +42,7 @@ body {
 	display: block;
 }
 
+/* pane-panels */
 .pane-panel {
 	background-color: rgba(0,0,0,0.2);
 	border-left: 1em solid rgba(173, 127, 168, 0.8);
@@ -59,4 +60,14 @@ body {
 .pane-panel pre {
 	margin-top: 0;
 	margin-bottom: 0;
+}
+
+/* difference from pane-panel */
+.long-panel {
+	position: absolute;
+	bottom: 0;
+	border-left: 1em solid rgba(238, 255, 170, 0.8);
+	background-color: rgba(0, 0, 0, 0.5);
+	height: 100px;
+	width: 500px;
 }

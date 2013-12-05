@@ -4,7 +4,10 @@
 // package imports for underscore
 _.mixin(_.str.exports());
 
-
+// Separate into
+// 1. master class (holds chunk worker)
+// 1': 3D GUI class
+// 2. Panel GUI class
 var Bonsai = function() {
 	this.add_stats();
 	this.init();
@@ -22,12 +25,30 @@ Bonsai.prototype.add_stats = function() {
 	document.body.appendChild(this.stats.domElement);
 }
 
-
-// Separate into
-// 1. master class (holds chunk worker)
-// 1': 3D GUI class
-// 2. Panel GUI class
+// return :: ()
 Bonsai.prototype.init = function() {
+	var chart = new Chart($('#history')[0].getContext('2d'));
+	var data = {
+		labels : ["January","February","March","April","May","June","July"],
+		datasets : [
+			{
+				fillColor : "rgba(220,220,220,0.5)",
+				strokeColor : "rgba(220,220,220,1)",
+				pointColor : "rgba(220,220,220,1)",
+				pointStrokeColor : "#fff",
+				data : [65,59,90,81,56,55,40]
+			},
+			{
+				fillColor : "rgba(151,187,205,0.5)",
+				strokeColor : "rgba(151,187,205,1)",
+				pointColor : "rgba(151,187,205,1)",
+				pointStrokeColor : "#fff",
+				data : [28,48,40,19,96,27,100]
+			}
+		]
+	};
+	chart.Line(data);
+
 	this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.005, 10);
 	this.camera.up = new THREE.Vector3(0, 0, 1);
 	this.camera.position = new THREE.Vector3(0.3, 0.3, 0.4);
