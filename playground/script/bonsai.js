@@ -23,6 +23,10 @@ Bonsai.prototype.add_stats = function() {
 }
 
 
+// Separate into
+// 1. master class (holds chunk worker)
+// 1': 3D GUI class
+// 2. Panel GUI class
 Bonsai.prototype.init = function() {
 	this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.005, 10);
 	this.camera.up = new THREE.Vector3(0, 0, 1);
@@ -210,34 +214,7 @@ Bonsai.prototype.handle_step = function(n) {
 	});
 };
 
-Bonsai.prototype.handle_light_change = function() {
-	this.bonsai.set_flux($('#light_flux').val());
-};
-
-Bonsai.prototype.handle_update_debug_options = function() {
-	this.bonsai.re_materialize(this.ui_get_debug_option());
-};
-
 /* UI Utils */
-Bonsai.prototype.ui_update_stats = function(sim_stat) {
-	return;
-
-	var dict = this.current_plant.get_stat();
-	if(dict['stored/E'] < 0) {
-		$('#info').text('<dead>\n' + JSON.stringify(dict, null, 2)).css('color', 'hotpink');
-	} else {
-		$('#info').text(JSON.stringify(dict, null, 2)).css('color', null);
-	}
-
-};
-
-Bonsai.prototype.ui_get_debug_option = function() {
-	return {
-		'show_occluder': $('#debug_occluder').prop('checked'),
-		'show_light_volume': $('#debug_light_volume').prop('checked')};
-};
-
-
 Bonsai.prototype.animate = function() {
 	this.stats.begin();
 
