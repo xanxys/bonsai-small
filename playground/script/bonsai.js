@@ -27,27 +27,8 @@ Bonsai.prototype.add_stats = function() {
 
 // return :: ()
 Bonsai.prototype.init = function() {
-	var chart = new Chart($('#history')[0].getContext('2d'));
-	var data = {
-		labels : ["January","February","March","April","May","June","July"],
-		datasets : [
-			{
-				fillColor : "rgba(220,220,220,0.5)",
-				strokeColor : "rgba(220,220,220,1)",
-				pointColor : "rgba(220,220,220,1)",
-				pointStrokeColor : "#fff",
-				data : [65,59,90,81,56,55,40]
-			},
-			{
-				fillColor : "rgba(151,187,205,0.5)",
-				strokeColor : "rgba(151,187,205,1)",
-				pointColor : "rgba(151,187,205,1)",
-				pointStrokeColor : "#fff",
-				data : [28,48,40,19,96,27,100]
-			}
-		]
-	};
-	chart.Line(data);
+	this.chart = $('#history')[0].getContext('2d');
+
 
 	this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.005, 10);
 	this.camera.up = new THREE.Vector3(0, 0, 1);
@@ -64,6 +45,7 @@ Bonsai.prototype.init = function() {
 
 	// UI state
 	this.playing = null;
+	this.num_plant_history = [];
 
 	// new, web worker API
 	var curr_proxy = null;
@@ -144,6 +126,10 @@ Bonsai.prototype.init = function() {
 			curr_proxy = proxy;
 			_this.scene.add(curr_proxy);
 		} else if(ev.data.type === 'stat-chunk') {
+			// TODO: this is super-fragile. Move to t-based index.
+			_this.num_plant_history.push(ev.data.data.plant);
+			_this.updateGraph();
+
 			$('#info-chunk').text(JSON.stringify(ev.data.data, null, 2));
 		} else if(ev.data.type === 'stat-sim') {
 			$('#info-sim').text(JSON.stringify(ev.data.data, null, 2));
@@ -156,6 +142,40 @@ Bonsai.prototype.init = function() {
 		type: 'serialize'
 	});
 }
+
+// return :: ()
+Bonsai.prototype.updateGraph = function() {
+	var width = 450;
+	var height = 80;
+
+	var ctx = this.chart;
+
+	ctx.clearRect(0, 0, width, height);
+	if(this.num_plant_history.length === 0) {
+		return;
+	}
+
+	// Plan layout
+	var scale = height / _.max(this.num_plant_history);
+	var scale_x = Math.min(2, width / this.num_plant_history.length);
+
+	// draw line segments
+	ctx.beginPath();
+	_.each(this.num_plant_history, function(data, ix) {
+		if(ix == 0) {
+			ctx.moveTo(ix * scale_x, height - data * scale);
+		} else {
+			ctx.lineTo(ix * scale_x, height - data * scale);
+		}
+	});
+	ctx.lineWidth = 2;
+	ctx.strokeStyle = '#eee';
+	ctx.stroke();
+
+	// TODO: draw grid
+
+	// TODO: draw labels
+};
 
 // return :: ()
 Bonsai.prototype.requestPlantStatUpdate = function() {
