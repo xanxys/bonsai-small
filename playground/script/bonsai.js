@@ -4,6 +4,63 @@
 // package imports for underscore
 _.mixin(_.str.exports());
 
+// target :: CanvasElement
+var RealtimePlot = function(canvas) {
+	this.canvas = canvas;
+	this.context = canvas.getContext('2d');
+};
+
+RealtimePlot.prototype.update = function(dataset) {
+	var width = this.canvas.width;
+	var height = this.canvas.height;
+	var ctx = this.context;
+
+	ctx.clearRect(0, 0, width, height);
+
+	_.each(dataset, function(series) {
+		if(series.data.length === 0) {
+			return;
+		}
+
+		// Plan layout
+		var scale = height / _.max(series.data);
+		var scale_x = Math.min(2, width / series.data.length);
+
+		// Draw horizontal line with label
+		if(series.show_label) {
+			_.each(_.range(_.max(series.data) + 1), function(yv) {
+				var y = height - yv * scale;
+
+				ctx.beginPath();
+				ctx.moveTo(0, y);
+				ctx.lineTo(width, y);
+				ctx.strokeStyle = '#888';
+				ctx.lineWidth = 3;
+				ctx.stroke();
+
+				ctx.textAlign = 'right';
+				ctx.fillStyle = '#eee';
+				ctx.fillText(yv, 20, y);
+			});
+		}
+
+		// draw line segments
+		ctx.beginPath();
+		_.each(series.data, function(data, ix) {
+			if(ix == 0) {
+				ctx.moveTo(ix * scale_x, height - data * scale);
+			} else {
+				ctx.lineTo(ix * scale_x, height - data * scale);
+			}
+		});
+		ctx.lineWidth = 2;
+		ctx.strokeStyle = series.color;
+		ctx.stroke();
+	});
+};
+
+
+
 // Separate into
 // 1. master class (holds chunk worker)
 // 1': 3D GUI class
@@ -27,7 +84,7 @@ Bonsai.prototype.add_stats = function() {
 
 // return :: ()
 Bonsai.prototype.init = function() {
-	this.chart = $('#history')[0].getContext('2d');
+	this.chart = new RealtimePlot($('#history')[0]);
 
 
 	this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.005, 10);
@@ -147,15 +204,7 @@ Bonsai.prototype.init = function() {
 
 // return :: ()
 Bonsai.prototype.updateGraph = function() {
-	var width = 450;
-	var height = 80;
-
-	var ctx = this.chart;
-
-	ctx.clearRect(0, 0, width, height);
-
-
-	var serieses = [
+	this.chart.update([
 		{
 			show_label: true,
 			data: this.num_plant_history,
@@ -166,49 +215,7 @@ Bonsai.prototype.updateGraph = function() {
 			data: this.energy_history,
 			color: '#e88'
 		}
-	];
-
-	_.each(serieses, function(series) {
-		if(series.data.length === 0) {
-			return;
-		}
-
-		// Plan layout
-		var scale = height / _.max(series.data);
-		var scale_x = Math.min(2, width / series.data.length);
-
-		// Draw horizontal line with label
-		if(series.show_label) {
-			_.each(_.range(_.max(series.data) + 1), function(yv) {
-				var y = height - yv * scale;
-
-				ctx.beginPath();
-				ctx.moveTo(0, y);
-				ctx.lineTo(width, y);
-				ctx.strokeStyle = '#888';
-				ctx.lineWidth = 3;
-				ctx.stroke();
-
-				ctx.textAlign = 'right';
-				ctx.fillStyle = '#eee';
-				ctx.fillText(yv, 20, y);
-			});
-		}
-
-		// draw line segments
-		ctx.beginPath();
-		_.each(series.data, function(data, ix) {
-			if(ix == 0) {
-				ctx.moveTo(ix * scale_x, height - data * scale);
-			} else {
-				ctx.lineTo(ix * scale_x, height - data * scale);
-			}
-		});
-		ctx.lineWidth = 2;
-		ctx.strokeStyle = series.color;
-		ctx.stroke();
-	});
-
+	]);
 };
 
 // return :: ()
