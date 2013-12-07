@@ -46,6 +46,7 @@ Bonsai.prototype.init = function() {
 	// UI state
 	this.playing = null;
 	this.num_plant_history = [];
+	this.energy_history = [];
 
 	// new, web worker API
 	var curr_proxy = null;
@@ -127,7 +128,8 @@ Bonsai.prototype.init = function() {
 			_this.scene.add(curr_proxy);
 		} else if(ev.data.type === 'stat-chunk') {
 			// TODO: this is super-fragile. Move to t-based index.
-			_this.num_plant_history.push(ev.data.data.plant);
+			_this.num_plant_history.push(ev.data.data["plant"]);
+			_this.energy_history.push(ev.data.data["stored/E"]);
 			_this.updateGraph();
 
 			$('#info-chunk').text(JSON.stringify(ev.data.data, null, 2));
@@ -151,44 +153,62 @@ Bonsai.prototype.updateGraph = function() {
 	var ctx = this.chart;
 
 	ctx.clearRect(0, 0, width, height);
-	if(this.num_plant_history.length === 0) {
-		return;
-	}
 
-	// Plan layout
-	var scale = height / _.max(this.num_plant_history);
-	var scale_x = Math.min(2, width / this.num_plant_history.length);
 
-	// Draw horizontal line with label
-	_.each(_.range(_.max(this.num_plant_history) + 1), function(yv) {
-		var y = height - yv * scale;
-
-		ctx.beginPath();
-		ctx.moveTo(0, y);
-		ctx.lineTo(width, y);
-		ctx.strokeStyle = '#888';
-		ctx.lineWidth = 3;
-		ctx.stroke();
-
-		ctx.textAlign = 'right';
-		ctx.fillStyle = '#eee';
-		ctx.fillText(yv, 20, y);
-	});
-
-	// draw line segments
-	ctx.beginPath();
-	_.each(this.num_plant_history, function(data, ix) {
-		if(ix == 0) {
-			ctx.moveTo(ix * scale_x, height - data * scale);
-		} else {
-			ctx.lineTo(ix * scale_x, height - data * scale);
+	var serieses = [
+		{
+			show_label: true,
+			data: this.num_plant_history,
+			color: '#eee'
+		},
+		{
+			show_label: false,
+			data: this.energy_history,
+			color: '#e88'
 		}
-	});
-	ctx.lineWidth = 4;
-	ctx.strokeStyle = '#eee';
-	ctx.stroke();
+	];
 
-	// TODO: draw labels
+	_.each(serieses, function(series) {
+		if(series.data.length === 0) {
+			return;
+		}
+
+		// Plan layout
+		var scale = height / _.max(series.data);
+		var scale_x = Math.min(2, width / series.data.length);
+
+		// Draw horizontal line with label
+		if(series.show_label) {
+			_.each(_.range(_.max(series.data) + 1), function(yv) {
+				var y = height - yv * scale;
+
+				ctx.beginPath();
+				ctx.moveTo(0, y);
+				ctx.lineTo(width, y);
+				ctx.strokeStyle = '#888';
+				ctx.lineWidth = 3;
+				ctx.stroke();
+
+				ctx.textAlign = 'right';
+				ctx.fillStyle = '#eee';
+				ctx.fillText(yv, 20, y);
+			});
+		}
+
+		// draw line segments
+		ctx.beginPath();
+		_.each(series.data, function(data, ix) {
+			if(ix == 0) {
+				ctx.moveTo(ix * scale_x, height - data * scale);
+			} else {
+				ctx.lineTo(ix * scale_x, height - data * scale);
+			}
+		});
+		ctx.lineWidth = 2;
+		ctx.strokeStyle = series.color;
+		ctx.stroke();
+	});
+
 };
 
 // return :: ()
