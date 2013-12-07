@@ -159,6 +159,22 @@ Bonsai.prototype.updateGraph = function() {
 	var scale = height / _.max(this.num_plant_history);
 	var scale_x = Math.min(2, width / this.num_plant_history.length);
 
+	// Draw horizontal line with label
+	_.each(_.range(_.max(this.num_plant_history) + 1), function(yv) {
+		var y = height - yv * scale;
+
+		ctx.beginPath();
+		ctx.moveTo(0, y);
+		ctx.lineTo(width, y);
+		ctx.strokeStyle = '#888';
+		ctx.lineWidth = 3;
+		ctx.stroke();
+
+		ctx.textAlign = 'right';
+		ctx.fillStyle = '#eee';
+		ctx.fillText(yv, 20, y);
+	});
+
 	// draw line segments
 	ctx.beginPath();
 	_.each(this.num_plant_history, function(data, ix) {
@@ -168,11 +184,9 @@ Bonsai.prototype.updateGraph = function() {
 			ctx.lineTo(ix * scale_x, height - data * scale);
 		}
 	});
-	ctx.lineWidth = 2;
+	ctx.lineWidth = 4;
 	ctx.strokeStyle = '#eee';
 	ctx.stroke();
-
-	// TODO: draw grid
 
 	// TODO: draw labels
 };
