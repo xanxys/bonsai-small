@@ -44,6 +44,10 @@ var convertCellTypeToColor = function(type) {
 };
 
 
+var Genome = function() {
+};
+
+
 // Collections of cells that forms a "single" plant.
 // This is not biologically accurate depiction of plants,
 // (e.g. vegetative growth, physics)
@@ -227,6 +231,16 @@ Cell.prototype.step = function() {
 		this.sz += 3e-3 * this.plant.growth_factor();
 	}
 	
+	// Once we find simple rules that works, move them to Genome class.
+	//
+	// Cell growth:
+	// ???
+	//
+	// Cell division+differentiation:
+	// AND[SHOOT_END, GF, 1/2, 1/2, 1/2]: SHOOT + [ShCont(false), LeafCont]
+	// AND[SHOOT_END, GF, 1/2, 1/2]: SHOOT + [ShCont(false), ShCont(true)]
+	// AND[SHOOT_END, !GF]: FLOWER
+
 	// Divide.
 	var z_x = Math.random();
 	if(z_x < this.plant.growth_factor()) {
@@ -244,6 +258,14 @@ Cell.prototype.step = function() {
 		}
 	}
 
+
+
+	// Differentiate.
+	if(this.plant.growth_factor() < 0.1 && this.cell_type === CellType.SHOOT_END) {
+		this.cell_type = CellType.FLOWER;
+	}
+
+	// Physics
 	if(this.cell_type === CellType.FLOWER) {
 		// Disperse seed once in a while.
 		// TODO: this should be handled by physics, not biology.
@@ -251,18 +273,14 @@ Cell.prototype.step = function() {
 		if(Math.random() < 0.01) {
 			var seed_energy = Math.min(this.plant.energy, Math.pow(20e-3, 3) * 10);
 
-			this.plant.unsafe_chunk.add_plant(new THREE.Vector3(
-				this.plant.position.x + Math.random() * 1 - 0.5,
-				this.plant.position.y + Math.random() * 1 - 0.5,
-				0
+			// TODO: should be world coodinate of the flower
+			this.plant.unsafe_chunk.disperse_seed_from(new THREE.Vector3(
+				this.plant.position.x,
+				this.plant.position.y,
+				0.1
 				), seed_energy);
 			this.plant.energy -= seed_energy;
 		}
-	}
-
-	// Differentiate.
-	if(this.plant.growth_factor() < 0.1 && this.cell_type === CellType.SHOOT_END) {
-		this.cell_type = CellType.FLOWER;
 	}
 
 	// Update power
@@ -502,7 +520,7 @@ var Chunk = function(scene) {
 	this.children = [];
 };
 
-// pos :: THREE.Vector3
+// pos :: THREE.Vector3 (z must be 0)
 // return :: Plant
 Chunk.prototype.add_plant = function(pos, energy) {
 	console.assert(Math.abs(pos.z) < 1e-3);
@@ -518,6 +536,23 @@ Chunk.prototype.add_plant = function(pos, energy) {
 	this.children.push(shoot);
 
 	return shoot;
+};
+
+// pos :: THREE.Vector3
+// return :: ()
+Chunk.prototype.disperse_seed_from = function(pos, energy) {
+	console.assert(pos.z >= 0);
+	var angle = Math.PI / 3;
+
+	var sigma = Math.tan(angle) * pos.z;
+
+	// TODO: Use gaussian 
+	var dx = sigma * 2 * (Math.random() - 0.5);
+	var dy = sigma * 2 * (Math.random() - 0.5);
+
+	this.add_plant(
+		new THREE.Vector3(pos.x + dx, pos.y + dy, 0),
+		energy);
 };
 
 // Plant :: must be returned by add_plant
