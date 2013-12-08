@@ -12,7 +12,12 @@ var CellType = {
 	LEAF: 1,
 	SHOOT: 2,
 	SHOOT_END: 3,  // Corresponds to shoot apical meristem
-	FLOWER: 4  // self-pollinating, seed-dispersing
+	FLOWER: 4,  // self-pollinating, seed-dispersing
+
+	// This is not cell type
+	GROWTH_FACTOR: 5,
+	ANTI_GROWTH_FACTOR: 6,
+	HALF: 7
 };
 
 var convertCellTypeToKey = function(type) {
@@ -214,6 +219,7 @@ Cell.prototype._updatePowerForPlant = function() {
 
 // return :: ()
 Cell.prototype.step = function() {
+	var _this = this;
 	this.age += 1;
 
 	// Grow continually.
@@ -241,29 +247,62 @@ Cell.prototype.step = function() {
 	// AND[SHOOT_END, GF, 1/2, 1/2]: SHOOT + [ShCont(false), ShCont(true)]
 	// AND[SHOOT_END, !GF]: FLOWER
 
-	// Divide.
-	var z_x = Math.random();
-	if(z_x < this.plant.growth_factor()) {
-		if(this.cell_type === CellType.SHOOT_END) {
-			var z = Math.random();
-			if(z < 0.1) {
-				this.add_shoot_cont(false);
-				this.add_leaf_cont();
-				this.cell_type = CellType.SHOOT;
-			} else if(z < 0.2) {
-				this.add_shoot_cont(false);
-				this.add_shoot_cont(true);
-				this.cell_type = CellType.SHOOT;
+	var rule_differentiate = [
+		{
+			"tracer_desc": "Produce leaf.",
+			"when": [
+				CellType.SHOOT_END, CellType.GROWTH_FACTOR, CellType.HALF, CellType.HALF, CellType.HALF],
+			"become": CellType.SHOOT,
+			"produce": [
+				function() {_this.add_shoot_cont(false);},
+				function() {_this.add_leaf_cont();}
+			]
+		},
+		{
+			"tracer_desc": "Produce branch.",
+			"when": [
+				CellType.SHOOT_END, CellType.GROWTH_FACTOR, CellType.HALF, CellType.HALF],
+			"become": CellType.SHOOT,
+			"produce": [
+				function() {_this.add_shoot_cont(false);},
+				function() {_this.add_shoot_cont(true);},
+			],
+		},
+		{
+			"tracer_desc": "Stop growing and change to flower.",
+			"become": CellType.FLOWER,
+			"when": [
+				CellType.SHOOT_END, CellType.ANTI_GROWTH_FACTOR, CellType.HALF, CellType.HALF],
+			"produce": [],
+		},
+	];
+
+	function calc_prob(when) {
+		var prob = 1;
+		_.each(when, function(term) {
+			if(term === CellType.HALF) {
+				prob *= 0.5;
+			} else if(term === CellType.GROWTH_FACTOR) {
+				prob *= _this.plant.growth_factor();
+			} else if(term === CellType.ANTI_GROWTH_FACTOR) {
+				prob *= 1 - _this.plant.growth_factor();
+			} else if(term === _this.cell_type) {
+				prob *= 1;
+			} else {
+				prob *= 0;
 			}
+		});
+		return prob;
+	}
+
+	_.each(rule_differentiate, function(clause) {
+		if(calc_prob(clause['when']) > Math.random()) {
+			_.each(clause['produce'], function(fn) {
+				fn();
+			});
+			_this.cell_type = clause['become'];
 		}
-	}
-
-
-
-	// Differentiate.
-	if(this.plant.growth_factor() < 0.1 && this.cell_type === CellType.SHOOT_END) {
-		this.cell_type = CellType.FLOWER;
-	}
+	});
 
 	// Physics
 	if(this.cell_type === CellType.FLOWER) {
