@@ -294,6 +294,10 @@ Cell.prototype.materialize = function() {
 	if(this.photons === 0) {
 		color_diffuse.offsetHSL(0, 0, -0.2);
 	}
+	if(this.plant.energy < 1e-4) {
+		var t = 1 - this.plant.energy * 1e4;
+		color_diffuse.offsetHSL(0, -t, 0);
+	}
 
 	var geom_cube = new THREE.CubeGeometry(this.sx, this.sy, this.sz);
 	for(var i = 0; i < geom_cube.faces.length; i++) {
