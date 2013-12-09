@@ -205,6 +205,8 @@ Bonsai.prototype.init = function() {
 			$('#info-sim').text(JSON.stringify(ev.data.data, null, 2));
 		} else if(ev.data.type === 'stat-plant') {
 			$('#info-plant').text(JSON.stringify(ev.data.data.stat, null, 2));
+		} else if(ev.data.type === 'genome-plant') {
+			$('#genome-plant').text(JSON.stringify(ev.data.data.genome, null, 2));
 		}
 	}, false);
 
@@ -233,6 +235,13 @@ Bonsai.prototype.updateGraph = function() {
 Bonsai.prototype.requestPlantStatUpdate = function() {
 	this.isolated_chunk.postMessage({
 		type: 'stat-plant',
+		data: {
+			id: this.inspect_plant_id
+		}
+	});
+
+	this.isolated_chunk.postMessage({
+		type: 'genome-plant',
 		data: {
 			id: this.inspect_plant_id
 		}

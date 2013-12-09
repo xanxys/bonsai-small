@@ -48,6 +48,12 @@ var convertCellTypeToColor = function(type) {
 	}
 };
 
+var Differentiation = {
+	SHOOT_MAIN: 1,
+	SHOOT_SUB: 2,
+	LEAF: 3,
+};
+
 
 var Genome = function() {
 };
@@ -76,6 +82,37 @@ var Plant = function(position, unsafe_chunk, energy, plant_id) {
 	// biophysics
 	this.energy = energy;
 	this.seed = new Cell(this, CellType.SHOOT_END);
+
+	// genetics
+	this.genome = [
+		{
+			"tracer_desc": "Produce leaf.",
+			"when": [
+				CellType.SHOOT_END, CellType.GROWTH_FACTOR, CellType.HALF, CellType.HALF, CellType.HALF],
+			"become": CellType.SHOOT,
+			"produce": [
+				Differentiation.SHOOT_MAIN,
+				Differentiation.LEAF,
+			]
+		},
+		{
+			"tracer_desc": "Produce branch.",
+			"when": [
+				CellType.SHOOT_END, CellType.GROWTH_FACTOR, CellType.HALF, CellType.HALF],
+			"become": CellType.SHOOT,
+			"produce": [
+				Differentiation.SHOOT_MAIN,
+				Differentiation.SHOOT_SUB,
+			],
+		},
+		{
+			"tracer_desc": "Stop growing and change to flower.",
+			"become": CellType.FLOWER,
+			"when": [
+				CellType.SHOOT_END, CellType.ANTI_GROWTH_FACTOR, CellType.HALF, CellType.HALF],
+			"produce": [],
+		},
+	];
 };
 
 Plant.prototype.step = function() {
@@ -142,6 +179,10 @@ Plant.prototype.get_stat = function() {
 	stat['stored/E'] = this.energy;
 	stat['delta/(E/T)'] = this._powerForPlant();
 	return stat;
+};
+
+Plant.prototype.get_genome = function() {
+	return this.genome;
 };
 
 Plant.prototype._powerForPlant = function() {
@@ -245,35 +286,7 @@ Cell.prototype.step = function() {
 	// AND[SHOOT_END, GF, 1/2, 1/2]: SHOOT + [ShCont(false), ShCont(true)]
 	// AND[SHOOT_END, !GF]: FLOWER
 
-	var rule_differentiate = [
-		{
-			"tracer_desc": "Produce leaf.",
-			"when": [
-				CellType.SHOOT_END, CellType.GROWTH_FACTOR, CellType.HALF, CellType.HALF, CellType.HALF],
-			"become": CellType.SHOOT,
-			"produce": [
-				function() {_this.add_shoot_cont(false);},
-				function() {_this.add_leaf_cont();}
-			]
-		},
-		{
-			"tracer_desc": "Produce branch.",
-			"when": [
-				CellType.SHOOT_END, CellType.GROWTH_FACTOR, CellType.HALF, CellType.HALF],
-			"become": CellType.SHOOT,
-			"produce": [
-				function() {_this.add_shoot_cont(false);},
-				function() {_this.add_shoot_cont(true);},
-			],
-		},
-		{
-			"tracer_desc": "Stop growing and change to flower.",
-			"become": CellType.FLOWER,
-			"when": [
-				CellType.SHOOT_END, CellType.ANTI_GROWTH_FACTOR, CellType.HALF, CellType.HALF],
-			"produce": [],
-		},
-	];
+	var rule_differentiate = this.plant.genome;
 
 	function calc_prob(when) {
 		var prob = 1;
@@ -295,8 +308,14 @@ Cell.prototype.step = function() {
 
 	_.each(rule_differentiate, function(clause) {
 		if(calc_prob(clause['when']) > Math.random()) {
-			_.each(clause['produce'], function(fn) {
-				fn();
+			_.each(clause['produce'], function(diff) {
+				if(diff === Differentiation.SHOOT_MAIN) {
+					_this.add_shoot_cont(false);
+				} else if(diff === Differentiation.SHOOT_SUB) {
+					_this.add_shoot_cont(true);
+				} else if(diff === Differentiation.LEAF) {
+					_this.add_leaf_cont();
+				}
 			});
 			_this.cell_type = clause['become'];
 		}
@@ -626,6 +645,17 @@ Chunk.prototype.get_plant_stat = function(id) {
 		}
 	});
 	return stat;
+};
+
+// return :: array | null
+Chunk.prototype.get_plant_genome = function(id) {
+	var genome = null;
+	_.each(this.children, function(plant) {
+		if(plant.id === id) {
+			genome = plant.get_genome();
+		}
+	});
+	return genome;
 };
 
 // return :: object (stats)

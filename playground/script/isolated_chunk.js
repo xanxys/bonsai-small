@@ -37,6 +37,14 @@ var ChunkServer = function() {
 					stat: _this.chunk.get_plant_stat(ev.data.data.id)
 				}
 			});
+		} else if(ev.data.type === 'genome-plant') {
+			self.postMessage({
+				type: 'genome-plant',
+				data: {
+					id: ev.data.data.id,
+					genome: _this.chunk.get_plant_genome(ev.data.data.id)
+				}
+			});
 		}
 	});
 };
