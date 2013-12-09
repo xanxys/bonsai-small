@@ -223,6 +223,7 @@ Cell.prototype.step = function() {
 	this.age += 1;
 
 	// Grow continually.
+	// TODO: these should also be included in Genome, but keep it as is.
 	if(this.cell_type === CellType.FLOWER) {
 		this.sx = Math.min(10e-3, this.sx + 0.1e-3);
 		this.sy = Math.min(10e-3, this.sy + 0.1e-3);
@@ -238,9 +239,6 @@ Cell.prototype.step = function() {
 	}
 	
 	// Once we find simple rules that works, move them to Genome class.
-	//
-	// Cell growth:
-	// ???
 	//
 	// Cell division+differentiation:
 	// AND[SHOOT_END, GF, 1/2, 1/2, 1/2]: SHOOT + [ShCont(false), LeafCont]

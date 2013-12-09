@@ -14,6 +14,7 @@ RealtimePlot.prototype.update = function(dataset) {
 	var width = this.canvas.width;
 	var height = this.canvas.height;
 	var ctx = this.context;
+	var max_steps = 5;
 
 	ctx.clearRect(0, 0, width, height);
 
@@ -23,13 +24,23 @@ RealtimePlot.prototype.update = function(dataset) {
 		}
 
 		// Plan layout
-		var scale = height / _.max(series.data);
+		var scale_y = height / _.max(series.data);
 		var scale_x = Math.min(2, width / series.data.length);
 
 		// Draw horizontal line with label
 		if(series.show_label) {
-			_.each(_.range(_.max(series.data) + 1), function(yv) {
-				var y = height - yv * scale;
+			var step;
+			if(_.max(series.data) < max_steps) {
+				step = 1;
+			} else {
+				step = Math.floor(_.max(series.data) / max_steps);
+				if(step <= 0) {
+					step = series.data / max_steps;
+				}
+			}
+
+			_.each(_.range(0, _.max(series.data) + 1, step), function(yv) {
+				var y = height - yv * scale_y;
 
 				ctx.beginPath();
 				ctx.moveTo(0, y);
@@ -48,9 +59,9 @@ RealtimePlot.prototype.update = function(dataset) {
 		ctx.beginPath();
 		_.each(series.data, function(data, ix) {
 			if(ix == 0) {
-				ctx.moveTo(ix * scale_x, height - data * scale);
+				ctx.moveTo(ix * scale_x, height - data * scale_y);
 			} else {
-				ctx.lineTo(ix * scale_x, height - data * scale);
+				ctx.lineTo(ix * scale_x, height - data * scale_y);
 			}
 		});
 		ctx.lineWidth = 2;
