@@ -195,7 +195,6 @@ Bonsai.prototype.init = function() {
 			curr_proxy = proxy;
 			_this.scene.add(curr_proxy);
 		} else if(ev.data.type === 'stat-chunk') {
-			// TODO: this is super-fragile. Move to t-based index.
 			_this.num_plant_history.push(ev.data.data["plant"]);
 			_this.energy_history.push(ev.data.data["stored/E"]);
 			_this.updateGraph();

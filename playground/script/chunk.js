@@ -56,35 +56,7 @@ var Differentiation = {
 
 
 var Genome = function() {
-};
-
-
-// Collections of cells that forms a "single" plant.
-// This is not biologically accurate depiction of plants,
-// (e.g. vegetative growth, physics)
-// Most plants seems to have some kind of information sharing system within them
-// via transportation of regulation growth factors.
-//
-// 100% efficiency, 0-latency energy storage and transportation within Plant.
-// (n.b. energy = power * time)
-//
-// position :: THREE.Vector3<World>
-var Plant = function(position, unsafe_chunk, energy, plant_id) {
-	this.unsafe_chunk = unsafe_chunk;
-
-	// tracer
-	this.age = 0;
-	this.id = plant_id;
-
-	// physics
-	this.position = position;
-
-	// biophysics
-	this.energy = energy;
-	this.seed = new Cell(this, CellType.SHOOT_END);
-
-	// genetics
-	this.genome = [
+	this.discrete = [
 		{
 			"tracer_desc": "Produce leaf.",
 			"when": [
@@ -113,6 +85,41 @@ var Plant = function(position, unsafe_chunk, energy, plant_id) {
 			"produce": [],
 		},
 	];
+};
+
+// Clone "naturally" with mutations.
+// return :: Genome
+Genome.prototype.naturalClone = function() {
+	return this;
+};
+
+
+// Collections of cells that forms a "single" plant.
+// This is not biologically accurate depiction of plants,
+// (e.g. vegetative growth, physics)
+// Most plants seems to have some kind of information sharing system within them
+// via transportation of regulation growth factors.
+//
+// 100% efficiency, 0-latency energy storage and transportation within Plant.
+// (n.b. energy = power * time)
+//
+// position :: THREE.Vector3<World>
+var Plant = function(position, unsafe_chunk, energy, genome, plant_id) {
+	this.unsafe_chunk = unsafe_chunk;
+
+	// tracer
+	this.age = 0;
+	this.id = plant_id;
+
+	// physics
+	this.position = position;
+
+	// biophysics
+	this.energy = energy;
+	this.seed = new Cell(this, CellType.SHOOT_END);
+
+	// genetics
+	this.genome = genome;
 };
 
 Plant.prototype.step = function() {
@@ -182,7 +189,7 @@ Plant.prototype.get_stat = function() {
 };
 
 Plant.prototype.get_genome = function() {
-	return this.genome;
+	return this.genome.discrete;
 };
 
 Plant.prototype._powerForPlant = function() {
@@ -278,15 +285,8 @@ Cell.prototype.step = function() {
 		this.sy = Math.min(5e-3, this.sy + 0.1e-3 * this.plant.growth_factor());
 		this.sz += 3e-3 * this.plant.growth_factor();
 	}
-	
-	// Once we find simple rules that works, move them to Genome class.
-	//
-	// Cell division+differentiation:
-	// AND[SHOOT_END, GF, 1/2, 1/2, 1/2]: SHOOT + [ShCont(false), LeafCont]
-	// AND[SHOOT_END, GF, 1/2, 1/2]: SHOOT + [ShCont(false), ShCont(true)]
-	// AND[SHOOT_END, !GF]: FLOWER
 
-	var rule_differentiate = this.plant.genome;
+	var rule_differentiate = this.plant.genome.discrete;
 
 	function calc_prob(when) {
 		var prob = 1;
@@ -334,7 +334,7 @@ Cell.prototype.step = function() {
 				this.plant.position.x,
 				this.plant.position.y,
 				0.1
-				), seed_energy);
+				), seed_energy, this.plant.genome.naturalClone());
 			this.plant.energy -= seed_energy;
 		}
 	}
@@ -580,9 +580,19 @@ var Chunk = function(scene) {
 	this.children = [];
 };
 
+// Add standard plant seed.
+Chunk.prototype.add_default_plant = function(pos) {
+	return this.add_plant(
+		pos,
+		Math.pow(20e-3, 3) * 100, // allow 2cm cube for 100T)
+		new Genome());
+};
+
 // pos :: THREE.Vector3 (z must be 0)
+// energy :: Total starting energy for the new plant.
+// genome :: genome for new plant
 // return :: Plant
-Chunk.prototype.add_plant = function(pos, energy) {
+Chunk.prototype.add_plant = function(pos, energy, genome) {
 	console.assert(Math.abs(pos.z) < 1e-3);
 
 	// Torus-like boundary
@@ -591,7 +601,7 @@ Chunk.prototype.add_plant = function(pos, energy) {
 		(pos.y + 1.5 * this.size) % this.size - this.size / 2,
 		pos.z);
 
-	var shoot = new Plant(pos, this, energy, this.new_plant_id);
+	var shoot = new Plant(pos, this, energy, genome, this.new_plant_id);
 	this.new_plant_id += 1;
 	this.children.push(shoot);
 
@@ -600,7 +610,7 @@ Chunk.prototype.add_plant = function(pos, energy) {
 
 // pos :: THREE.Vector3
 // return :: ()
-Chunk.prototype.disperse_seed_from = function(pos, energy) {
+Chunk.prototype.disperse_seed_from = function(pos, energy, genome) {
 	console.assert(pos.z >= 0);
 	var angle = Math.PI / 3;
 
@@ -612,7 +622,8 @@ Chunk.prototype.disperse_seed_from = function(pos, energy) {
 
 	this.add_plant(
 		new THREE.Vector3(pos.x + dx, pos.y + dy, 0),
-		energy);
+		energy,
+		genome);
 };
 
 // Plant :: must be returned by add_plant
@@ -725,7 +736,9 @@ Chunk.prototype.serialize = function() {
 // xs :: [num]
 // return :: num
 function sum(xs) {
-	return _.reduce(xs, function(x, y) { return x + y; }, 0);
+	return _.reduce(xs, function(x, y) {
+		return x + y;
+	}, 0);
 }
 
 this.Chunk = Chunk;
