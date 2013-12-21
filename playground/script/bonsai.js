@@ -58,7 +58,7 @@ RealtimePlot.prototype.update = function(dataset) {
 		// draw line segments
 		ctx.beginPath();
 		_.each(series.data, function(data, ix) {
-			if(ix == 0) {
+			if(ix === 0) {
 				ctx.moveTo(ix * scale_x, height - data * scale_y);
 			} else {
 				ctx.lineTo(ix * scale_x, height - data * scale_y);
@@ -122,6 +122,9 @@ Bonsai.prototype.init = function() {
 	this.isolated_chunk = new Worker('script/isolated_chunk.js');
 	this.inspect_plant_id = null;
 
+	// 3D UI
+	var curr_selection = null;
+
 	// start canvas
 	this.renderer = new THREE.WebGLRenderer();
 	this.renderer.setSize(window.innerWidth, window.innerHeight);
@@ -140,7 +143,24 @@ Bonsai.prototype.init = function() {
 
 		if(intersections.length > 0 &&
 			intersections[0].object.plant_id !== undefined) {
-			_this.inspect_plant_id = intersections[0].object.plant_id;
+			var plant = intersections[0].object;
+
+			if(curr_selection !== null) {
+				_this.scene.remove(curr_selection);
+			}
+			var height = 0.2;
+			curr_selection = new THREE.Mesh(
+				new THREE.CubeGeometry(0.1, 0.1, height),
+				new THREE.MeshBasicMaterial({
+					wireframe: true,
+					color: new THREE.Color("rgb(173,127,168)"),
+					wireframeLinewidth: 2,
+
+				}));
+			curr_selection.position = plant.position.clone().add(new THREE.Vector3(0, 0, height / 2 + 1e-3));
+			_this.scene.add(curr_selection);
+
+			_this.inspect_plant_id = plant.plant_id;
 			_this.requestPlantStatUpdate();
 		}
 	};
