@@ -88,9 +88,68 @@ var Genome = function() {
 };
 
 // Clone "naturally" with mutations.
+// Since real bio is too complex, use a simple rule that can
+// diffuse into all states.
 // return :: Genome
 Genome.prototype.naturalClone = function() {
-	return this;
+	var _this = this;
+
+	var genome = new Genome();
+	genome.discrete = this._shuffle(this.discrete,
+		function(gene) {
+			return _this._naturalCloneGene(gene, '');
+		},
+		function(gene) {
+			return _this._naturalCloneGene(gene, '/Duplicated/');
+		});
+	return genome;
+};
+
+// flag :: A text to attach to description tracer.
+// return :: Genome.gene
+Genome.prototype._naturalCloneGene = function(gene_old, flag) {
+	var _this = this;
+
+	var gene = {};
+	
+	gene["when"] = this._shuffle(gene_old["when"],
+		function(ix) { return _this._naturalCloneId(ix); },
+		function(ix) { return _this._naturalCloneId(ix); });
+	gene["become"] = this._naturalCloneId(gene_old["become"]);
+	gene["produce"] = this._shuffle(gene_old["produce"],
+		function(ix_to) { return _this._naturalCloneId(ix_to); },
+		function(ix_to) { return _this._naturalCloneId(ix_to); });
+
+	gene["tracer_desc"] = flag + gene_old["tracer_desc"];
+	return gene;
+};
+
+Genome.prototype._naturalCloneId = function(id) {
+	if(Math.random() > 0.005) {
+		return id;
+	} else {
+		return Math.floor(Math.random() * 10);
+	}
+};
+
+Genome.prototype._shuffle = function(array, modifier_normal, modifier_dup) {
+	var result = [];
+
+	// 1st pass: Copy with occasional misses.
+	_.each(array, function(elem) {
+		if(Math.random() > 0.005) {
+			result.push(modifier_normal(elem));
+		}
+	});
+
+	// 2nd pass: Occasional duplications.
+	_.each(array, function(elem) {
+		if(Math.random() < 0.005) {
+			result.push(modifier_dup(elem));
+		}
+	});
+
+	return result;
 };
 
 
@@ -129,7 +188,13 @@ Plant.prototype.step = function() {
 		cell.step();
 		_.each(cell.children, step_cell_recursive);
 	}
-	step_cell_recursive(this.seed);
+	try {
+		step_cell_recursive(this.seed);
+	} catch(e) {
+		// Terminate invalid cell
+		// TODO: this shouldn't happen.
+		this.seed.energy = -1e-3;
+	}
 
 	console.assert(this.seed.age === this.age);
 
@@ -231,7 +296,11 @@ var Cell = function(plant, cell_type) {
 // sub_cell :: Cell
 // return :: ()
 Cell.prototype.add = function(sub_cell) {
-	this.children.push(sub_cell);
+	if(this === sub_cell) {
+		throw new Error("Tried to add itself as child.", sub_cell);
+	} else {
+		this.children.push(sub_cell);
+	}
 };
 
 // Return net usable power for Plant.
