@@ -125,7 +125,7 @@ Genome.prototype._naturalCloneGene = function(gene_old, flag) {
 };
 
 Genome.prototype._naturalCloneId = function(id) {
-	if(Math.random() > 0.005) {
+	if(Math.random() > 0.01) {
 		return id;
 	} else {
 		return Math.floor(Math.random() * 10);
@@ -137,14 +137,14 @@ Genome.prototype._shuffle = function(array, modifier_normal, modifier_dup) {
 
 	// 1st pass: Copy with occasional misses.
 	_.each(array, function(elem) {
-		if(Math.random() > 0.005) {
+		if(Math.random() > 0.01) {
 			result.push(modifier_normal(elem));
 		}
 	});
 
 	// 2nd pass: Occasional duplications.
 	_.each(array, function(elem) {
-		if(Math.random() < 0.005) {
+		if(Math.random() < 0.01) {
 			result.push(modifier_dup(elem));
 		}
 	});
