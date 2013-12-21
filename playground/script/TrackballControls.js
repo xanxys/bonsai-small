@@ -403,9 +403,6 @@ var TrackballControls = function ( object, domElement ) {
 
 		if ( _this.enabled === false ) return;
 
-		event.preventDefault();
-		event.stopPropagation();
-
 		if ( _state === STATE.ROTATE && !_this.noRotate ) {
 			_rotate_moved = true;
 			_rotateEnd = _this.getMouseProjectionOnBall( event.clientX, event.clientY );
@@ -414,7 +411,6 @@ var TrackballControls = function ( object, domElement ) {
 		} else if ( _state === STATE.PAN && !_this.noPan ) {
 			_panEnd = _this.getMouseOnScreen( event.clientX, event.clientY );
 		}
-
 	}
 
 	function mouseup( event ) {

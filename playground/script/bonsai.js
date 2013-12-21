@@ -225,34 +225,85 @@ Bonsai.prototype.init = function() {
 		} else if(ev.data.type === 'stat-plant') {
 			$('#info-plant').text(JSON.stringify(ev.data.data.stat, null, 2));
 		} else if(ev.data.type === 'genome-plant') {
-			var target = $('#genome-plant');
-			target.empty();
-			_.each(ev.data.data.genome, function(gene) {
-				var gene_vis = $('<div/>').attr('class', 'gene');
-
-				gene_vis.append(gene["tracer_desc"]);
-				gene_vis.append($('<br/>'));
-				_.each(gene["when"], function(cond) {
-					gene_vis.append($('<span/>').text(cond));
-				});
-				gene_vis.append("->");
-				gene_vis.append($('<span/>').text(gene['become']));
-				gene_vis.append("+");
-				_.each(gene["produce"], function(cond) {
-					gene_vis.append($('<span/>').text(cond));
-				});
-
-
-				//gene_vis.append(text(JSON.stringify(gene, null, 2));
-				target.append(gene_vis);
-			});
+			_this.updateGenomeView(ev.data.data.genome);
 		}
 	}, false);
 
 	this.isolated_chunk.postMessage({
 		type: 'serialize'
 	});
-}
+};
+
+Bonsai.prototype.updateGenomeView = function(genome) {
+	var CellType = {
+		LEAF: 1,
+		SHOOT: 2,
+		SHOOT_END: 3,  // Corresponds to shoot apical meristem
+		FLOWER: 4,  // self-pollinating, seed-dispersing
+
+		// This is not cell type
+		GROWTH_FACTOR: 5,
+		ANTI_GROWTH_FACTOR: 6,
+		HALF: 7
+	};
+
+	var RvCT = {
+		1: "Leaf",
+		2: "Shoot",
+		3: "ShootApex",
+		4: "Flower",
+		5: "Growth",
+		6: "!Growth",
+		7: "1/2",
+	};
+
+	var RvCTShort = {
+		1: "Lf",
+		2: "Sh",
+		3: "ShAx",
+		4: "Flr",
+		5: "Gr",
+		6: "!Gr",
+		7: "/",
+	};
+
+	function visualizeCT(ix) {
+		var element = $('<span/>');
+		if(RvCT[ix]) {
+			element
+				.text(RvCTShort[ix])
+				.attr('title', RvCT[ix]);
+		} else {
+			element
+				.text('?')
+				.attr('class', 'ct-broken');
+		}
+		if(RvCT[ix] === "Half" || RvCT[ix] === 'Growth' || RvCT[ix] === '!Growth') {
+			element.attr('class', 'ct-factor');
+		}
+		return element;
+	}
+
+	var target = $('#genome-plant');
+	target.empty();
+	_.each(genome, function(gene) {
+		var gene_vis = $('<div/>').attr('class', 'gene');
+
+		gene_vis.append(gene["tracer_desc"]);
+		gene_vis.append($('<br/>'));
+		_.each(gene["when"], function(cond) {
+			gene_vis.append(visualizeCT(cond));
+		});
+		gene_vis.append("->");
+		gene_vis.append(visualizeCT(gene['become']));
+		gene_vis.append("+");
+		_.each(gene["produce"], function(cond) {
+			gene_vis.append(visualizeCT(cond));
+		});
+
+		target.append(gene_vis);
+	});
+};
 
 // return :: ()
 Bonsai.prototype.updateGraph = function() {

@@ -6,6 +6,10 @@
 	top: 0;
 }
 
+#main {
+	z-index: -1;
+}
+
 .logo-text {
 	font-size: 50px;
 	position: relative;
@@ -19,6 +23,10 @@ body {
 }
 
 .pane-top-left {
+	width: 200px;
+	position: absolute;
+	z-index: 0;
+
 	background-color: rgba(0,0,0,0.3);
 	padding: 1em;
 	padding-left: 0;
@@ -81,4 +89,13 @@ body {
 .gene span {
 	margin: 1px;
 	background-color: #868;
+	font-size: 50%;
+}
+
+.gene span.ct-factor {
+	background-color: #341;
+}
+
+.gene span.ct-broken {
+	background-color: #a33;
 }
