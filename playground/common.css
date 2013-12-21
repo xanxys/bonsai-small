@@ -1,13 +1,20 @@
 @import url(http://fonts.googleapis.com/css?family=Clicker+Script);
 
-#base_timestamp {
-	position: absolute;
-	left: 50%;
-	top: 0;
+html, body {
+	margin: 0;
+	padding: 0;
+	height: 100%;
+	overflow: hidden;
 }
 
 #main {
 	z-index: -1;
+	margin: 0;
+	padding: 0;
+}
+
+canvas {
+	display: block;
 }
 
 .logo-text {
@@ -18,13 +25,11 @@
 	color: #eeffaa;
 }
 
-body {
-	margin: 0;
-}
-
 .pane-top-left {
 	width: 200px;
 	position: absolute;
+	left: 0;
+	top: 0;
 	z-index: 0;
 
 	background-color: rgba(0,0,0,0.3);
@@ -33,7 +38,7 @@ body {
 	margin-left: 0;
 	margin-top: 0;
 	color: white;
-	height: 95%;
+	height: 100%;
 }
 
 .pane-top-left > #info {
@@ -79,7 +84,8 @@ body {
 /* difference from pane-panel */
 .long-panel {
 	position: absolute;
-	bottom: 0;
+	bottom: 40px;
+	margin: 0;
 	border-left: 1em solid rgba(238, 255, 170, 0.8);
 	background-color: rgba(0, 0, 0, 0.5);
 	height: 110px;
