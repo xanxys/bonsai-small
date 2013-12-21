@@ -176,6 +176,7 @@ var Plant = function(position, unsafe_chunk, energy, genome, plant_id) {
 	// biophysics
 	this.energy = energy;
 	this.seed = new Cell(this, CellType.SHOOT_END);
+	//this.seed.loc_to_parent = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.random() * 2 * Math.PI);
 
 	// genetics
 	this.genome = genome;
@@ -640,6 +641,7 @@ var Chunk = function(scene) {
 
 	// Soil (Cell sim)
 	this.soil = new Soil(this, this.size);
+	this.seeds = [];
 
 	// Light
 	this.light = new Light(this, this.size);
@@ -681,6 +683,11 @@ Chunk.prototype.add_plant = function(pos, energy, genome) {
 // return :: ()
 Chunk.prototype.disperse_seed_from = function(pos, energy, genome) {
 	console.assert(pos.z >= 0);
+	// Discard seeds thrown from too low altitude.
+	if(pos.z < 0.01) {
+		return;
+	}
+
 	var angle = Math.PI / 3;
 
 	var sigma = Math.tan(angle) * pos.z;
@@ -689,10 +696,11 @@ Chunk.prototype.disperse_seed_from = function(pos, energy, genome) {
 	var dx = sigma * 2 * (Math.random() - 0.5);
 	var dy = sigma * 2 * (Math.random() - 0.5);
 
-	this.add_plant(
-		new THREE.Vector3(pos.x + dx, pos.y + dy, 0),
-		energy,
-		genome);
+	this.seeds.push({
+		pos: new THREE.Vector3(pos.x + dx, pos.y + dy, 0),
+		energy: energy,
+		genome: genome
+	});
 };
 
 // Plant :: must be returned by add_plant
@@ -749,6 +757,11 @@ Chunk.prototype.step = function() {
 	_.each(this.children, function(plant) {
 		plant.step();
 	}, this);
+
+	_.each(this.seeds, function(seed) {
+		this.add_plant(seed.pos, seed.energy, seed.genome);
+	}, this);
+	this.seeds = [];
 	sim_stats['plant/ms'] = now() - t0;
 
 	t0 = now();

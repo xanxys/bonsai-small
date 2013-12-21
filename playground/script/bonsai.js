@@ -365,7 +365,7 @@ Bonsai.prototype.deserialize = function(data) {
 			data_plant.position.x,
 			data_plant.position.y,
 			data_plant.position.z);
-
+		
 		mesh.plant_id = data_plant.id;
 		proxy.add(mesh);
 	});
