@@ -11,21 +11,21 @@ var RealtimePlot = function(canvas) {
 };
 
 RealtimePlot.prototype.update = function(dataset) {
-	var width = this.canvas.width;
-	var height = this.canvas.height;
 	var ctx = this.context;
 	var max_steps = 5;
 
-	ctx.clearRect(0, 0, width, height);
+	ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
+	var width_main = this.canvas.width - 50;
+	var height_main = this.canvas.height;
 	_.each(dataset, function(series) {
 		if(series.data.length === 0) {
 			return;
 		}
 
 		// Plan layout
-		var scale_y = height / _.max(series.data);
-		var scale_x = Math.min(2, width / series.data.length);
+		var scale_y = height_main / _.max(series.data);
+		var scale_x = Math.min(2, width_main / series.data.length);
 
 		// Draw horizontal line with label
 		if(series.show_label) {
@@ -40,11 +40,11 @@ RealtimePlot.prototype.update = function(dataset) {
 			}
 
 			_.each(_.range(0, _.max(series.data) + 1, step), function(yv) {
-				var y = height - yv * scale_y;
+				var y = height_main - yv * scale_y;
 
 				ctx.beginPath();
 				ctx.moveTo(0, y);
-				ctx.lineTo(width, y);
+				ctx.lineTo(width_main, y);
 				ctx.strokeStyle = '#888';
 				ctx.lineWidth = 3;
 				ctx.stroke();
@@ -59,14 +59,21 @@ RealtimePlot.prototype.update = function(dataset) {
 		ctx.beginPath();
 		_.each(series.data, function(data, ix) {
 			if(ix === 0) {
-				ctx.moveTo(ix * scale_x, height - data * scale_y);
+				ctx.moveTo(ix * scale_x, height_main - data * scale_y);
 			} else {
-				ctx.lineTo(ix * scale_x, height - data * scale_y);
+				ctx.lineTo(ix * scale_x, height_main - data * scale_y);
 			}
 		});
 		ctx.lineWidth = 2;
 		ctx.strokeStyle = series.color;
 		ctx.stroke();
+
+		ctx.textAlign = 'left';
+		ctx.fillStyle = series.color;
+		ctx.fillText(
+			series.label,
+			series.data.length * scale_x,
+			height_main - series.data[series.data.length - 1] * scale_y + 10);
 	});
 };
 
@@ -311,12 +318,14 @@ Bonsai.prototype.updateGraph = function() {
 		{
 			show_label: true,
 			data: this.num_plant_history,
-			color: '#eee'
+			color: '#eee',
+			label: 'Num Plants',
 		},
 		{
 			show_label: false,
 			data: this.energy_history,
-			color: '#e88'
+			color: '#e88',
+			label: 'Total Energy',
 		}
 	]);
 };
