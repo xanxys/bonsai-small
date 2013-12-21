@@ -57,6 +57,12 @@ body {
 	margin-bottom: 1px;
 }
 
+.pane-panel h2 {
+	font-size: 80%;
+	margin-top: 1px;
+	margin-bottom: 1px;
+}
+
 .pane-panel pre {
 	margin-top: 0;
 	margin-bottom: 0;
@@ -70,4 +76,9 @@ body {
 	background-color: rgba(0, 0, 0, 0.5);
 	height: 110px;
 	width: 500px;
+}
+
+.gene span {
+	margin: 1px;
+	background-color: #868;
 }

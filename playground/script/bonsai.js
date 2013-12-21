@@ -206,7 +206,27 @@ Bonsai.prototype.init = function() {
 		} else if(ev.data.type === 'stat-plant') {
 			$('#info-plant').text(JSON.stringify(ev.data.data.stat, null, 2));
 		} else if(ev.data.type === 'genome-plant') {
-			$('#genome-plant').text(JSON.stringify(ev.data.data.genome, null, 2));
+			var target = $('#genome-plant');
+			target.empty();
+			_.each(ev.data.data.genome, function(gene) {
+				var gene_vis = $('<div/>').attr('class', 'gene');
+
+				gene_vis.append(gene["tracer_desc"]);
+				gene_vis.append($('<br/>'));
+				_.each(gene["when"], function(cond) {
+					gene_vis.append($('<span/>').text(cond));
+				});
+				gene_vis.append("->");
+				gene_vis.append($('<span/>').text(gene['become']));
+				gene_vis.append("+");
+				_.each(gene["produce"], function(cond) {
+					gene_vis.append($('<span/>').text(cond));
+				});
+
+
+				//gene_vis.append(text(JSON.stringify(gene, null, 2));
+				target.append(gene_vis);
+			});
 		}
 	}, false);
 
