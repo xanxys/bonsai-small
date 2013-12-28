@@ -125,11 +125,10 @@ Bonsai.prototype.init = function() {
 
 	// new, web worker API
 	var curr_proxy = null;
-
 	this.isolated_chunk = new Worker('script/isolated_chunk.js');
-	this.inspect_plant_id = null;
 
-	// 3D UI
+	// Selection
+	this.inspect_plant_id = null;
 	var curr_selection = null;
 
 	// start canvas
@@ -151,23 +150,13 @@ Bonsai.prototype.init = function() {
 		if(intersections.length > 0 &&
 			intersections[0].object.plant_id !== undefined) {
 			var plant = intersections[0].object;
+			_this.inspect_plant_id = plant.plant_id;
 
 			if(curr_selection !== null) {
 				_this.scene.remove(curr_selection);
 			}
-			var height = 0.2;
-			curr_selection = new THREE.Mesh(
-				new THREE.CubeGeometry(0.1, 0.1, height),
-				new THREE.MeshBasicMaterial({
-					wireframe: true,
-					color: new THREE.Color("rgb(173,127,168)"),
-					wireframeLinewidth: 2,
-
-				}));
-			curr_selection.position = plant.position.clone().add(new THREE.Vector3(0, 0, height / 2 + 1e-3));
+			curr_selection = _this.serializeSelection(plant.plant_data);
 			_this.scene.add(curr_selection);
-
-			_this.inspect_plant_id = plant.plant_id;
 			_this.requestPlantStatUpdate();
 		}
 	};
@@ -216,11 +205,25 @@ Bonsai.prototype.init = function() {
 		if(ev.data.type === 'serialize') {
 			var proxy = _this.deserialize(ev.data.data);
 			
+			// Update chunk proxy.
 			if(curr_proxy) {
 				_this.scene.remove(curr_proxy);
 			}
 			curr_proxy = proxy;
 			_this.scene.add(curr_proxy);
+
+			// Update selection proxy if exists.
+			if(curr_selection !== null) {
+				_this.scene.remove(curr_selection);
+				curr_selection = null;
+			}
+			var target_plant_data = _.find(ev.data.data.plants, function(dp) {
+				return dp.id === _this.inspect_plant_id;
+			});
+			if(target_plant_data !== undefined) {
+				curr_selection = _this.serializeSelection(target_plant_data);
+				_this.scene.add(curr_selection);
+			}
 		} else if(ev.data.type === 'stat-chunk') {
 			_this.num_plant_history.push(ev.data.data["plant"]);
 			_this.energy_history.push(ev.data.data["stored/E"]);
@@ -349,6 +352,47 @@ Bonsai.prototype.requestPlantStatUpdate = function() {
 	});
 };
 
+// data :: PlantData
+// return :: THREE.Object3D
+Bonsai.prototype.serializeSelection = function(data_plant) {
+	var padding = new THREE.Vector3(5e-3, 5e-3, 5e-3);
+
+	// Calculate AABB of the plant.
+	var v_min = new THREE.Vector3(0, 0, 0);
+	var v_max = new THREE.Vector3(0, 0, 0);
+	_.each(data_plant.vertices, function(data_vertex) {
+		var vertex = new THREE.Vector3().copy(data_vertex);
+		v_min.min(vertex);
+		v_max.max(vertex);
+	});
+
+	// Create proxy.
+	v_min.sub(padding);
+	v_max.add(padding);
+
+	var proxy_size = v_max.clone().sub(v_min);
+	var proxy_center = v_max.clone().add(v_min).multiplyScalar(0.5);
+
+	var proxy = new THREE.Mesh(
+		new THREE.CubeGeometry(proxy_size.x, proxy_size.y, proxy_size.z),
+		new THREE.MeshBasicMaterial({
+			wireframe: true,
+			color: new THREE.Color("rgb(173,127,168)"),
+			wireframeLinewidth: 2,
+
+		}));
+
+	proxy.position = new THREE.Vector3(
+		data_plant.position.x,
+		data_plant.position.y,
+		data_plant.position.z)
+		.add(proxy_center)
+		.add(new THREE.Vector3(0, 0, 5e-3 + 1e-3));
+
+	return proxy;
+};
+
+// data :: ChunkData
 // return :: THREE.Object3D
 Bonsai.prototype.deserialize = function(data) {
 	var proxy = new THREE.Object3D();
@@ -369,6 +413,7 @@ Bonsai.prototype.deserialize = function(data) {
 			data_plant.position.z);
 		
 		mesh.plant_id = data_plant.id;
+		mesh.plant_data = data_plant;
 		proxy.add(mesh);
 	});
 
