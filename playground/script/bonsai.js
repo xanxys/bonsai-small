@@ -233,6 +233,8 @@ Bonsai.prototype.init = function() {
 			$('#info-plant').text(JSON.stringify(ev.data.data.stat, null, 2));
 		} else if(ev.data.type === 'genome-plant') {
 			_this.updateGenomeView(ev.data.data.genome);
+		} else if(ev.data.type === 'exception') {
+			console.log('Exception ocurred in isolated chunk:', ev.data.data);
 		}
 	}, false);
 

@@ -182,21 +182,26 @@ var Plant = function(position, unsafe_chunk, energy, genome, plant_id) {
 	this.genome = genome;
 };
 
-Plant.prototype.step = function() {
-	// Step cells
-	this.age += 1;
-	var step_cell_recursive = function(cell) {
-		cell.step();
-		_.each(cell.children, step_cell_recursive);
-	}
-	try {
-		step_cell_recursive(this.seed);
-	} catch(e) {
-		// Terminate invalid cell
-		// TODO: this shouldn't happen.
-		this.seed.energy = -1e-3;
-	}
+Plant.prototype._validate_depth = function() {
+	return this.seed._depth(0, []);
+};
 
+Plant.prototype.step = function() {
+	//this._validate_depth();
+
+	// Step cells (w/o collecting/stepping separation, infinite growth will occur)
+	this.age += 1;
+	var all_cells = [];
+	var collect_cell_recursive = function(cell) {
+		all_cells.push(cell);
+		_.each(cell.children, collect_cell_recursive);
+	}
+	collect_cell_recursive(this.seed);
+
+	_.each(all_cells, function(cell) {
+		cell.step();
+	});
+	
 	console.assert(this.seed.age === this.age);
 
 	// Consume/store in-Plant energy.
@@ -292,6 +297,44 @@ var Cell = function(plant, cell_type) {
 	this.plant = plant;
 	this.children = [];
 	this.power = 0;
+};
+
+Cell.prototype._depth = function(i, ls) {
+	// Cycle check.
+	_.each(ls, function(l) {
+		if(l === this) {
+			this.children = ['Truncated'];
+
+			throw {
+				message: {
+					text: 'Cyclic Plant. Aborting.',
+					id: this.plant.id,
+					genome: this.plant.genome,
+					plant: this.plant,
+				}
+			};
+		}
+	}, this);
+
+	// Depth check.
+	if(i > 100) {
+		this.children = ['Truncated'];
+
+		throw {
+			message: {
+				text: 'Too deep Plant. Aborting.',
+				id: this.plant.id,
+				genome: this.plant.genome,
+				plant: this.plant,
+			}
+		};
+	}
+
+	ls.push(this);
+
+	_.each(this.children, function(cell) {
+		return cell._depth(i + 1, ls);
+	});
 };
 
 // sub_cell :: Cell

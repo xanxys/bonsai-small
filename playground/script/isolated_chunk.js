@@ -11,37 +11,44 @@ var ChunkServer = function() {
 
 	var _this = this;
 	self.addEventListener('message', function(ev) {
-		if(ev.data.type === 'step') {
-			var sim_stat = _this.chunk.step();
+		try {
+			if(ev.data.type === 'step') {
+				var sim_stat = _this.chunk.step();
+				self.postMessage({
+					type: 'stat-sim',
+					data: sim_stat
+				});
+			} else if(ev.data.type === 'serialize') {
+				self.postMessage({
+					type: 'serialize',
+					data: _this.chunk.serialize()
+				});
+			} else if(ev.data.type === 'stat') {
+				self.postMessage({
+					type: 'stat-chunk',
+					data: _this.chunk.get_stat()
+				});
+			} else if(ev.data.type === 'stat-plant') {
+				self.postMessage({
+					type: 'stat-plant',
+					data: {
+						id: ev.data.data.id,
+						stat: _this.chunk.get_plant_stat(ev.data.data.id)
+					}
+				});
+			} else if(ev.data.type === 'genome-plant') {
+				self.postMessage({
+					type: 'genome-plant',
+					data: {
+						id: ev.data.data.id,
+						genome: _this.chunk.get_plant_genome(ev.data.data.id)
+					}
+				});
+			}
+		} catch(e) {
 			self.postMessage({
-				type: 'stat-sim',
-				data: sim_stat
-			});
-		} else if(ev.data.type === 'serialize') {
-			self.postMessage({
-				type: 'serialize',
-				data: _this.chunk.serialize()
-			});
-		} else if(ev.data.type === 'stat') {
-			self.postMessage({
-				type: 'stat-chunk',
-				data: _this.chunk.get_stat()
-			});
-		} else if(ev.data.type === 'stat-plant') {
-			self.postMessage({
-				type: 'stat-plant',
-				data: {
-					id: ev.data.data.id,
-					stat: _this.chunk.get_plant_stat(ev.data.data.id)
-				}
-			});
-		} else if(ev.data.type === 'genome-plant') {
-			self.postMessage({
-				type: 'genome-plant',
-				data: {
-					id: ev.data.data.id,
-					genome: _this.chunk.get_plant_genome(ev.data.data.id)
-				}
+				type: 'exception',
+				data: e.message
 			});
 		}
 	});
