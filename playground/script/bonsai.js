@@ -143,7 +143,9 @@ Bonsai.prototype.init = function() {
 	var curr_selection = null;
 
 	// start canvas
-	this.renderer = new THREE.WebGLRenderer();
+	this.renderer = new THREE.WebGLRenderer({
+		antialias: true
+	});
 	this.renderer.setSize(window.innerWidth, window.innerHeight);
 	this.renderer.setClearColor('#eee');
 	$('#main').append(this.renderer.domElement);
@@ -252,7 +254,9 @@ Bonsai.prototype.init = function() {
 		} else if(ev.data.type === 'stat-sim') {
 			$('#info-sim').text(JSON.stringify(ev.data.data, null, 2));
 			if(_this.playing) {
-				_this.handle_step(1);
+				setTimeout(function() {
+					_this.handle_step(1);
+				}, 50);
 			}
 		} else if(ev.data.type === 'stat-plant') {
 			$('#info-plant').text(JSON.stringify(ev.data.data.stat, null, 2));
