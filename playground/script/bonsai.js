@@ -165,6 +165,21 @@ Bonsai.prototype.init = function() {
 		}
 	};
 
+	$('.column-buttons button').on('click', function(ev) {
+		var target = $(ev.currentTarget);
+
+		var button_window_table = {
+			button_toggle_time: 'bg-time',
+			button_toggle_chunk: 'bg-chunk',
+			button_toggle_chart: 'bg-chart',
+			button_toggle_plant: 'bg-plant',
+			button_toggle_genome: 'bg-genome',
+		};
+
+		target.toggleClass('active');
+		$('.' + button_window_table[target[0].id]).toggle();
+	});
+
 	$('#button_play').on('click', function() {
 		if(_this.playing) {
 			_this.playing = false;

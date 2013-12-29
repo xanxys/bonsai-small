@@ -18,50 +18,69 @@
 		<script src="script/bonsai.js"></script>
 	</head>
 	<body>
-		<div class="pane-top-left">
-			<div>
-				<img src="favicon.png" width="50px" height="50px"/>
-				<span class="logo-text">Bonsai</span>
-			</div>
+		<div class="logo">
+			<span class="logo-text">Bonsai</span>
+		</div>
 
-			<div class="pane-panel">
+		<div class="column-buttons">
+			<button id="button_toggle_time">
+				<img src="icon_time.png"/>
+			</button>
+			<button id="button_toggle_chunk">
+				<img src="icon_chunk.png"/>
+			</button>
+			<button id="button_toggle_chart">
+				<img src="icon_chart.png"/>
+			</button>
+
+			<hr/>
+
+			<button id="button_toggle_plant">
+				<img src="icon_plant.png"/>
+			</button>
+			<button id="button_toggle_genome">
+				<img src="icon_genome.png"/>
+			</button>
+		</div>
+
+		<div class="column-windows">
+			<div class="pane-panel bg-time">
 				<h1>Time</h1>
 				<button id="button_play">&#x25b6;</button>
-				<br/>
-				
 				<button id="button_step1">+1 T</button>
 				<button id="button_step10">+10 T</button>
 				<button id="button_step50">+50 T</button>
 			</div>
 
-			<div class="pane-panel">
-				<h1>Plant</h1>
-				<h2>Stats</h2>
-				<pre id="info-plant"></pre>
-				<h2>Genome</h2>
-				<pre id="genome-plant"></pre>
-			</div>
-
-			<div class="pane-panel">
+			<div class="pane-panel bg-chunk">
 				<h1>Chunk</h1>
 				<pre id="info-chunk"></pre>
 			</div>
 
-			<div class="pane-panel debug">
+			<div class="pane-panel bg-chunk debug">
 				<h1>Simulation</h1>
 				<pre id="info-sim"></pre>
 			</div>
 
-			<div class="pane-panel long-panel">
+			<div class="pane-panel bg-chart">
 				<h1>History</h1>
-				<canvas width="500" height="80" id="history"></div>
+				<div class="figure">
+					<canvas width="380" height="80" id="history"></canvas>
+				</div>
+			</div>
+
+			<div class="pane-panel bg-plant">
+				<h1>Plant</h1>
+				<pre id="info-plant"></pre>
+			</div>
+
+			<div class="pane-panel bg-genome">
+				<h1>Genome</h1>
+				<div class="figure">
+					<pre id="genome-plant"></pre>
+				</div>
 			</div>
 		</div>
-
-		<div id="credit">
-		</div>
-
-		<span class="credit">Credits</span>
 
 		<div id="main"></div>
 

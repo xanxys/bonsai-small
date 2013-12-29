@@ -1,5 +1,5 @@
 @import url(http://fonts.googleapis.com/css?family=Clicker+Script);
-@import url(http://fonts.googleapis.com/css?family=Nunito:400,700);
+@import url(http://fonts.googleapis.com/css?family=Alegreya+Sans:800);
 
 html, body {
 	margin: 0;
@@ -18,69 +18,130 @@ canvas {
 	display: block;
 }
 
+/* Colors
+#ad7fa8
+#cfbf72
+#729fcf
+#cf7274
+#72cf89
+
+*/
+
+.bg-genome {
+	background-color: #ad7fa8;
+}
+
+.bg-time {
+	background-color: #72cf89;
+}
+
+.bg-chunk {
+	background-color: #729fcf;
+}
+
+.bg-plant {
+	background-color: #cfbf72;
+}
+
+.bg-chart {
+	background-color: #cf7274;
+}
+
+
+
+/* Basic structure (logo + two columns) */
+.logo {
+	position: absolute;
+	right: 0;
+	bottom: 0;
+}
+
 .logo-text {
 	font-size: 50px;
 	position: relative;
-	bottom: 7px;
 	font-family: 'Clicker Script', cursive;
-	color: #eeffaa;
+	color: #784;
+	margin-right: 10px;
+	margin-bottom: 10px;
+
+	text-shadow: 0 0 5px #eee;
+
+	-webkit-touch-callout: none;
+	-webkit-user-select: none;
+	-khtml-user-select: none;
+	-moz-user-select: none;
+	-ms-user-select: none;
+	user-select: none;
 }
 
-.pane-top-left {
-	width: 200px;
+.column-buttons {
 	position: absolute;
 	left: 0;
 	top: 0;
-	z-index: 0;
-
-	background-color: rgba(0,0,0,0.3);
-	padding: 1em;
-	padding-left: 0;
-	margin-left: 0;
-	margin-top: 0;
-	color: white;
+	width: 50px;
 	height: 100%;
+
+	background-color: #666;
 }
 
-.pane-top-left > #info {
-	color: white;
+.column-windows {
+	position: absolute;
+	left: 50px;
+	top: 0;
+	width: 400px;
+	height: 100%;	
 }
 
-.pane-top-left button {
-	border: solid 1px white;
-	border-radius: 1px;
-	font-weight: bold;
+
+/* Buttons */
+.column-buttons button {
+	background: none;
+	border: none;
+	padding: 0;
+	margin: 0;
 }
 
-.pane-top-left label {
-	display: block;
+.column-buttons button:focus {
+	outline: none;
 }
 
+.column-buttons button img {
+	-webkit-filter: grayscale(100%);
+	-moz-filter: grayscale(100%);
+	filter: grayscale(100%);
+}
+
+.column-buttons button.active img {
+	-webkit-filter: grayscale(0%);
+	-moz-filter: grayscale(0%);
+	filter: grayscale(0%);
+}
+
+
+/* Windows */
 .debug {
 	display: none;
 }
 
-/* pane-panels */
 .pane-panel {
-	background-color: rgba(0,0,0,0.2);
-	border-left: 1em solid rgba(173, 127, 168, 0.8);
-	margin-bottom: 0.5em;
-	padding-left: 0.25em;
+	margin-bottom: 0;
+	padding-left: 10px;
+
 	overflow: hidden;
+	width: 400px;
+	display: none;
+	margin-bottom: 10px;
+	min-height: 50px;
+	opacity: 0.9;
 }
 
 .pane-panel h1 {
-	font-size: 100%;
+	font-size: 150%;
 	margin-top: 1px;
 	margin-bottom: 1px;
-	font-family: 'Nunito', sans-serif;
-}
-
-.pane-panel h2 {
-	font-size: 80%;
-	margin-top: 1px;
-	margin-bottom: 1px;
-	font-family: 'Nunito', sans-serif;
+	font-family: 'Alegreya Sans', sans-serif;
+	font-weight: 800;
+	color: #eee;
 }
 
 .pane-panel pre {
@@ -88,17 +149,12 @@ canvas {
 	margin-bottom: 0;
 }
 
-/* difference from pane-panel */
-.long-panel {
-	position: absolute;
-	bottom: 40px;
-	margin: 0;
-	border-left: 1em solid rgba(238, 255, 170, 0.8);
-	background-color: rgba(0, 0, 0, 0.5);
-	height: 110px;
-	width: 500px;
+.figure {
+	background-color: #222;
+	color: #eee;
 }
 
+/* difference from pane-panel */
 .gene span {
 	margin: 1px;
 	background-color: #868;
