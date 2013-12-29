@@ -133,6 +133,7 @@ canvas {
 .pane-panel {
 	margin-bottom: 0;
 	padding-left: 10px;
+	padding-bottom: 10px;
 
 	overflow: hidden;
 	width: 400px;
