@@ -106,6 +106,7 @@ Bonsai.prototype.add_stats = function() {
 Bonsai.prototype.init = function() {
 	this.chart = new RealtimePlot($('#history')[0]);
 
+	this.age = 0;
 
 	this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.005, 15);
 	this.camera.up = new THREE.Vector3(0, 0, 1);
@@ -481,6 +482,9 @@ Bonsai.prototype.handle_step = function(n) {
 	this.isolated_chunk.postMessage({
 		type: 'serialize'
 	});
+	this.age += n;
+
+	$('#ui_abs_time').text(this.age + ' T');
 };
 
 /* UI Utils */
