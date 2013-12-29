@@ -640,9 +640,13 @@ var Light = function(chunk, size) {
 };
 
 Light.prototype.step = function() {
+	var t0 = now();
 	this.updateShadowMap();
+	console.log('Before', now() - t0);
 
-
+	t0 = now();
+	this.updateShadowMapH();
+	console.log('After', now() - t0);
 };
 
 Light.prototype.updateShadowMap = function() {
@@ -674,6 +678,71 @@ Light.prototype.updateShadowMap = function() {
 		}
 	}
 };
+
+Light.prototype.updateShadowMapH = function() {
+	var dummy = new THREE.Scene();
+	_.each(this.chunk.children, function(plant) {
+		// Calculate AABB.
+		var mesh = plant.materialize(true);
+		if(mesh.geometry.vertices.length === 0) {
+			return;
+		}
+
+		var v_min = new THREE.Vector3(1e3, 1e3, 1e3);
+		var v_max = new THREE.Vector3(-1e3, -1e3, -1e3);
+		_.each(mesh.geometry.vertices, function(vertex) {
+			v_min.min(vertex);
+			v_max.max(vertex);
+		});
+
+		// Attach AABB.
+		// TODO: this code doesn't work when plant object contains rotation.
+		var object = plant.materialize(false);
+		object.aabb = [v_min.add(object.position), v_max.add(object.position)];
+		dummy.add(object);
+	});
+	// We need this call since dummy doesn't belong to render path,
+	// so world matrix (used by raycaster) isn't automatically updated.
+	dummy.updateMatrixWorld();
+
+	function intersectDown(origin, near, far) {
+		var objects = _.filter(dummy.children, function(object) {
+			var v_min = object.aabb[0];
+			var v_max = object.aabb[1];
+
+			return (v_min.x <= origin.x && origin.x <= v_max.x) &&
+				(v_min.y <= origin.y && origin.y <= v_max.y);
+		});
+
+		return new THREE.Raycaster(origin, new THREE.Vector3(0, 0, -1), near, far)
+			.intersectObjects(objects, true);
+	}
+
+	for(var i = 0; i < this.n; i++) {
+		for(var j = 0; j < this.n; j++) {
+			var isect = intersectDown(
+				new THREE.Vector3(
+					(i / this.n - 0.5) * this.size,
+					(j / this.n - 0.5) * this.size,
+					10),
+				0.1,
+				1e2);
+
+			if(isect.length > 0) {
+				isect[0].object.cell.givePhoton();
+				var newz = isect[0].point.z;
+				var oldz = this.shadow_map[i + j * this.n];
+				if(Math.abs(oldz - newz) > 1e-3) {
+					console.log('Depth mismatch', oldz, newz);
+				}
+				this.shadow_map[i + j * this.n] = isect[0].point.z;
+			} else {
+				this.shadow_map[i + j * this.n] = 0;
+			}
+		}
+	}
+};
+
 
 
 
