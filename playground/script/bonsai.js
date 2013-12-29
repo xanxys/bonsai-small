@@ -84,6 +84,8 @@ RealtimePlot.prototype.update = function(dataset) {
 // 1': 3D GUI class
 // 2. Panel GUI class
 var Bonsai = function() {
+	this.debug = (location.hash === '#debug');
+
 	this.add_stats();
 	this.init();
 };
@@ -102,14 +104,10 @@ Bonsai.prototype.add_stats = function() {
 
 // return :: ()
 Bonsai.prototype.init = function() {
-	if(location.hash === '#debug') {
-		$('.debug').css('display', 'block');
-	}
-
 	this.chart = new RealtimePlot($('#history')[0]);
 
 
-	this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.005, 10);
+	this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.005, 15);
 	this.camera.up = new THREE.Vector3(0, 0, 1);
 	this.camera.position = new THREE.Vector3(0.3, 0.3, 0.4);
 	this.camera.lookAt(new THREE.Vector3(0, 0, 0));
@@ -121,6 +119,14 @@ Bonsai.prototype.init = function() {
 	this.scene.add(sunlight);
 
 	this.scene.add(new THREE.AmbientLight(0x333333));
+
+	var bg = new THREE.Mesh(
+		new THREE.IcosahedronGeometry(8, 1),
+		new THREE.MeshBasicMaterial({
+			wireframe: true,
+			color: '#ccc'
+		}));
+	this.scene.add(bg);
 
 	// UI state
 	this.playing = null;
@@ -177,7 +183,11 @@ Bonsai.prototype.init = function() {
 		};
 
 		target.toggleClass('active');
-		$('.' + button_window_table[target[0].id]).toggle();
+		if(_this.debug) {
+			$('.' + button_window_table[target[0].id]).toggle();
+		} else {
+			$('.' + button_window_table[target[0].id] + ':not(.debug)').toggle();
+		}
 	});
 
 	$('#button_play').on('click', function() {

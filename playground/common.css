@@ -82,6 +82,13 @@ canvas {
 	height: 100%;
 
 	background-color: #666;
+	box-shadow: 3px 0 3px 0px rgba(0, 0, 0, 0.4);
+	z-index: 3;
+}
+
+.column-buttons hr {
+	border: none;
+	border-bottom: 2px solid rgba(0, 0, 0, 0.2);
 }
 
 .column-windows {
