@@ -640,46 +640,10 @@ var Light = function(chunk, size) {
 };
 
 Light.prototype.step = function() {
-	var t0 = now();
-	this.updateShadowMap();
-	console.log('Before', now() - t0);
-
-	t0 = now();
-	this.updateShadowMapH();
-	console.log('After', now() - t0);
+	this.updateShadowMapHierarchical();
 };
 
-Light.prototype.updateShadowMap = function() {
-	var dummy = new THREE.Scene();
-	_.each(this.chunk.children, function(plant) {
-		dummy.add(plant.materialize(false));
-	});
-	// We need this call since dummy doesn't belong to render path,
-	// so world matrix (used by raycaster) isn't automatically updated.
-	dummy.updateMatrixWorld();
-
-	for(var i = 0; i < this.n; i++) {
-		for(var j = 0; j < this.n; j++) {
-			var isect = new THREE.Raycaster(
-				new THREE.Vector3(
-					(i / this.n - 0.5) * this.size,
-					(j / this.n - 0.5) * this.size,
-					10),
-				new THREE.Vector3(0, 0, -1),
-				0.1,
-				1e2).intersectObject(dummy, true);
-
-			if(isect.length > 0) {
-				isect[0].object.cell.givePhoton();
-				this.shadow_map[i + j * this.n] = isect[0].point.z;
-			} else {
-				this.shadow_map[i + j * this.n] = 0;
-			}
-		}
-	}
-};
-
-Light.prototype.updateShadowMapH = function() {
+Light.prototype.updateShadowMapHierarchical = function() {
 	var dummy = new THREE.Scene();
 	_.each(this.chunk.children, function(plant) {
 		// Calculate AABB.
@@ -730,11 +694,6 @@ Light.prototype.updateShadowMapH = function() {
 
 			if(isect.length > 0) {
 				isect[0].object.cell.givePhoton();
-				var newz = isect[0].point.z;
-				var oldz = this.shadow_map[i + j * this.n];
-				if(Math.abs(oldz - newz) > 1e-3) {
-					console.log('Depth mismatch', oldz, newz);
-				}
 				this.shadow_map[i + j * this.n] = isect[0].point.z;
 			} else {
 				this.shadow_map[i + j * this.n] = 0;
@@ -742,8 +701,6 @@ Light.prototype.updateShadowMapH = function() {
 		}
 	}
 };
-
-
 
 
 // Chunk world class. There's no interaction between bonsai instances,
