@@ -102,6 +102,10 @@ Bonsai.prototype.add_stats = function() {
 
 // return :: ()
 Bonsai.prototype.init = function() {
+	if(location.hash === '#debug') {
+		$('.debug').css('display', 'block');
+	}
+
 	this.chart = new RealtimePlot($('#history')[0]);
 
 
@@ -162,42 +166,31 @@ Bonsai.prototype.init = function() {
 	};
 
 	$('#button_play').on('click', function() {
-		if(_this.playing !== null) {
-			clearInterval(_this.playing);
-			_this.playing = null;
+		if(_this.playing) {
+			_this.playing = false;
 			$('#button_play').html('&#x25b6;'); // play symbol
 		} else {
-			_this.playing = setInterval(function() {
-				_this.handle_step(1);
-			}, 500);
+			_this.playing = true;
+			_this.handle_step(1);
 			$('#button_play').html('&#x25a0;'); // stop symbol
 		}
 	});
 
 	$('#button_step1').on('click', function() {
-		if(_this.playing !== null) {
-			clearInterval(_this.playing);
-			_this.playing = null;
-			$('#button_play').html('&#x25b6;'); // play symbol
-		}
+		_this.playing = false;
+		$('#button_play').html('&#x25b6;'); // play symbol
 		_this.handle_step(1);
 	});
 
 	$('#button_step10').on('click', function() {
-		if(_this.playing !== null) {
-			clearInterval(_this.playing);
-			_this.playing = null;
-			$('#button_play').html('&#x25b6;'); // play symbol
-		}
+		_this.playing = false;
+		$('#button_play').html('&#x25b6;'); // play symbol
 		_this.handle_step(10);
 	});
 
 	$('#button_step50').on('click', function() {
-		if(_this.playing !== null) {
-			clearInterval(_this.playing);
-			_this.playing = null;
-			$('#button_play').html('&#x25b6;'); // play symbol
-		}
+		_this.playing = false;
+		$('#button_play').html('&#x25b6;'); // play symbol
 		_this.handle_step(50);
 	});
 
@@ -232,6 +225,9 @@ Bonsai.prototype.init = function() {
 			$('#info-chunk').text(JSON.stringify(ev.data.data, null, 2));
 		} else if(ev.data.type === 'stat-sim') {
 			$('#info-sim').text(JSON.stringify(ev.data.data, null, 2));
+			if(_this.playing) {
+				_this.handle_step(1);
+			}
 		} else if(ev.data.type === 'stat-plant') {
 			$('#info-plant').text(JSON.stringify(ev.data.data.stat, null, 2));
 		} else if(ev.data.type === 'genome-plant') {
