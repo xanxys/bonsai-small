@@ -87,6 +87,17 @@ var Genome = function() {
 	];
 };
 
+// return :: int
+Genome.prototype.getComplexity = function() {
+	return sum(_.map(this.discrete, function(gene) {
+		return
+			2 +  // "TATA box"
+			gene["when"].length +
+			1 +  // become
+			gene["produce"].length;
+	}));
+};
+
 // Clone "naturally" with mutations.
 // Since real bio is too complex, use a simple rule that can
 // diffuse into all states.
@@ -360,8 +371,11 @@ Cell.prototype._updatePowerForPlant = function() {
 		total += this.photons * 1e-9 * 3000;
 	}
 
-	// basic consumption (stands for DNA-related func.)
+	// basic consumption (stands for common func.)
 	total -= 1e-9;
+
+	// DNA consumption
+	total -= 1e-9 * this.plant.genome.getComplexity();
 
 	// linear-volume consumption (stands for cell substrate maintainance)
 	var volume_consumption = 1.0;
