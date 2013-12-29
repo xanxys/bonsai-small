@@ -90,8 +90,7 @@ var Genome = function() {
 // return :: int
 Genome.prototype.getComplexity = function() {
 	return sum(_.map(this.discrete, function(gene) {
-		return
-			2 +  // "TATA box"
+		return 2 +  // "TATA box"
 			gene["when"].length +
 			1 +  // become
 			gene["produce"].length;
