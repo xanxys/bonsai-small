@@ -212,7 +212,7 @@ Cell.prototype._updatePowerForPlant = function() {
 	var total = 0;
 
 	if(this.cell_type === CellType.LEAF) {
-		total += this.photons * 1e-9 * 8000;
+		total += this.photons * 1e-9 * 4000;
 	}
 
 	// basic consumption (stands for common func.)
@@ -256,9 +256,9 @@ Cell.prototype.step = function() {
 
 	_.each(rule_growth, function(clause) {
 		if(clause["when"] === _this.cell_type) {
-			_this.sx = Math.min(clause["mx"], _this.sx + calc_growth(clause["dx"]));
-			_this.sy = Math.min(clause["my"], _this.sy + calc_growth(clause["dy"]));
-			_this.sz = Math.min(clause["mz"], _this.sz + calc_growth(clause["dz"]));
+			_this.sx = Math.min(0.1e-3 * clause["mx"], _this.sx + calc_growth(clause["dx"]));
+			_this.sy = Math.min(0.1e-3 * clause["my"], _this.sy + calc_growth(clause["dy"]));
+			_this.sz = Math.min(0.1e-3 * clause["mz"], _this.sz + calc_growth(clause["dz"]));
 		}
 	});
 
@@ -286,13 +286,7 @@ Cell.prototype.step = function() {
 	_.each(rule_differentiate, function(clause) {
 		if(calc_prob(clause['when']) > Math.random()) {
 			_.each(clause['produce'], function(diff) {
-				if(diff === Differentiation.SHOOT_MAIN) {
-					_this.add_shoot_cont(false);
-				} else if(diff === Differentiation.SHOOT_SUB) {
-					_this.add_shoot_cont(true);
-				} else if(diff === Differentiation.LEAF) {
-					_this.add_leaf_cont();
-				}
+				_this.add_cont(diff);
 			});
 			_this.cell_type = clause['become'];
 		}
@@ -391,30 +385,39 @@ Cell.prototype.count_type = function(counter) {
 	return counter;
 };
 
-// Add infinitesimal shoot cell.
-// side :: boolean
+// diff :: Differentiation
 // return :: ()
-Cell.prototype.add_shoot_cont = function(side) {
-	var shoot = new Cell(this.plant, CellType.SHOOT_END);
+Cell.prototype.add_cont = function(diff) {
+	function calc_rot(desc) {
+		if(desc === "R1") {
+			return (Math.random() - 0.5);
+		} else if(desc === "RH") {
+			return (Math.random() - 0.5) * 0.5;
+		} else if(desc === "Zero") {
+			return 0;
+		} else if(desc === "-H") {
+			return -Math.PI / 2;
+		} else {
+			return 0;
+		}
+	}
 
-	var cone_angle = side ? 1.0 : 0.5;
-	shoot.loc_to_parent = new THREE.Quaternion().setFromEuler(new THREE.Euler(
-		(Math.random() - 0.5) * cone_angle,
-		(Math.random() - 0.5) * cone_angle,
-		0));
+	_.each(this.plant.genome.positional, function(clause) {
+		if(clause.when !== diff) {
+			return;
+		}
 
-	this.add(shoot);
+		var new_cell = new Cell(this.plant, clause.produce);
+		new_cell.loc_to_parent = new THREE.Quaternion().setFromEuler(
+			new THREE.Euler(
+				calc_rot(clause.rx),
+				calc_rot(clause.ry),
+				calc_rot(clause.rz))
+			);
+		
+		this.add(new_cell);
+	}, this);
 };
-
-// shoot_base :: Cell
-// return :: ()
-Cell.prototype.add_leaf_cont = function() {
-	var leaf = new Cell(this.plant, CellType.LEAF);
-
-	leaf.loc_to_parent = new THREE.Quaternion().setFromEuler(new THREE.Euler(- Math.PI * 0.5, 0, 0));
-	this.add(leaf);
-};
-
 
 // Represents soil surface state by a grid.
 // parent :: Chunk

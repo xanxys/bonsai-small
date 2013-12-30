@@ -86,6 +86,31 @@ var Genome = function() {
 			dz: "Gr30",
 		}
 	];
+
+	this.positional = [
+		{
+			when: Differentiation.SHOOT_MAIN,
+			produce: CellType.SHOOT_END,
+			rx: "R1",
+			ry: "R1",
+			rz: "Zero"
+		},
+		{
+			when: Differentiation.SHOOT_SUB,
+			produce: CellType.SHOOT_END,
+			rx: "RH",
+			ry: "RH",
+			rz: "Zero",
+		},
+		{
+			when: Differentiation.LEAF,
+			produce: CellType.LEAF,
+			rx: "-H",
+			ry: "Zero",
+			rz: "Zero"
+		}
+	];
+
 	
 	this.discrete = [
 		{
@@ -136,6 +161,11 @@ Genome.prototype.naturalClone = function() {
 	var _this = this;
 
 	var genome = new Genome();
+
+	// TODO: mutate them
+	genome.continuous = this.continuous;
+	genome.positional = this.positional;
+
 	genome.discrete = this._shuffle(this.discrete,
 		function(gene) {
 			return _this._naturalCloneGene(gene, '');
@@ -143,6 +173,7 @@ Genome.prototype.naturalClone = function() {
 		function(gene) {
 			return _this._naturalCloneGene(gene, '/Duplicated/');
 		});
+
 	return genome;
 };
 
