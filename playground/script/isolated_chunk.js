@@ -1,6 +1,7 @@
 importScripts('./underscore.js');
 importScripts('./three.js');
 importScripts('./chunk.js');
+importScripts('./genome.js');
 
 var ChunkServer = function() {
 	var scene = new THREE.Scene();

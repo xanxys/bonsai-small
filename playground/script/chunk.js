@@ -8,161 +8,6 @@ var now = function() {
 	}
 };
 
-var CellType = {
-	LEAF: 1,
-	SHOOT: 2,
-	SHOOT_END: 3,  // Corresponds to shoot apical meristem
-	FLOWER: 4,  // self-pollinating, seed-dispersing
-
-	// This is not cell type
-	GROWTH_FACTOR: 5,
-	ANTI_GROWTH_FACTOR: 6,
-	HALF: 7
-};
-
-var convertCellTypeToKey = function(type) {
-	if(type === CellType.LEAF) {
-		return 'leaf';
-	} else if(type === CellType.SHOOT) {
-		return 'shoot';
-	} else if(type === CellType.SHOOT_END) {
-		return 'shoot_apex';
-	} else if(type === CellType.FLOWER) {
-		return 'flower';
-	} else {
-		return 'unknown';
-	}
-};
-
-var convertCellTypeToColor = function(type) {
-	if(type === CellType.LEAF) {
-		return 'green';
-	} else if(type === CellType.SHOOT) {
-		return 'brown';
-	} else if(type === CellType.SHOOT_END) {
-		return 'brown';
-	} else if(type === CellType.FLOWER) {
-		return 'red';
-	} else {
-		return 'white';
-	}
-};
-
-var Differentiation = {
-	SHOOT_MAIN: 1,
-	SHOOT_SUB: 2,
-	LEAF: 3,
-};
-
-
-var Genome = function() {
-	this.discrete = [
-		{
-			"tracer_desc": "Produce leaf.",
-			"when": [
-				CellType.SHOOT_END, CellType.GROWTH_FACTOR, CellType.HALF, CellType.HALF, CellType.HALF],
-			"become": CellType.SHOOT,
-			"produce": [
-				Differentiation.SHOOT_MAIN,
-				Differentiation.LEAF,
-			]
-		},
-		{
-			"tracer_desc": "Produce branch.",
-			"when": [
-				CellType.SHOOT_END, CellType.GROWTH_FACTOR, CellType.HALF, CellType.HALF],
-			"become": CellType.SHOOT,
-			"produce": [
-				Differentiation.SHOOT_MAIN,
-				Differentiation.SHOOT_SUB,
-			],
-		},
-		{
-			"tracer_desc": "Stop growing and change to flower.",
-			"become": CellType.FLOWER,
-			"when": [
-				CellType.SHOOT_END, CellType.ANTI_GROWTH_FACTOR, CellType.HALF, CellType.HALF],
-			"produce": [],
-		},
-	];
-};
-
-// return :: int
-Genome.prototype.getComplexity = function() {
-	return sum(_.map(this.discrete, function(gene) {
-		return 2 +  // "TATA box"
-			gene["when"].length +
-			1 +  // become
-			gene["produce"].length;
-	}));
-};
-
-// Clone "naturally" with mutations.
-// Since real bio is too complex, use a simple rule that can
-// diffuse into all states.
-// return :: Genome
-Genome.prototype.naturalClone = function() {
-	var _this = this;
-
-	var genome = new Genome();
-	genome.discrete = this._shuffle(this.discrete,
-		function(gene) {
-			return _this._naturalCloneGene(gene, '');
-		},
-		function(gene) {
-			return _this._naturalCloneGene(gene, '/Duplicated/');
-		});
-	return genome;
-};
-
-// flag :: A text to attach to description tracer.
-// return :: Genome.gene
-Genome.prototype._naturalCloneGene = function(gene_old, flag) {
-	var _this = this;
-
-	var gene = {};
-	
-	gene["when"] = this._shuffle(gene_old["when"],
-		function(ix) { return _this._naturalCloneId(ix); },
-		function(ix) { return _this._naturalCloneId(ix); });
-	gene["become"] = this._naturalCloneId(gene_old["become"]);
-	gene["produce"] = this._shuffle(gene_old["produce"],
-		function(ix_to) { return _this._naturalCloneId(ix_to); },
-		function(ix_to) { return _this._naturalCloneId(ix_to); });
-
-	gene["tracer_desc"] = flag + gene_old["tracer_desc"];
-	return gene;
-};
-
-Genome.prototype._naturalCloneId = function(id) {
-	if(Math.random() > 0.01) {
-		return id;
-	} else {
-		return Math.floor(Math.random() * 10);
-	}
-};
-
-Genome.prototype._shuffle = function(array, modifier_normal, modifier_dup) {
-	var result = [];
-
-	// 1st pass: Copy with occasional misses.
-	_.each(array, function(elem) {
-		if(Math.random() > 0.01) {
-			result.push(modifier_normal(elem));
-		}
-	});
-
-	// 2nd pass: Occasional duplications.
-	_.each(array, function(elem) {
-		if(Math.random() < 0.01) {
-			result.push(modifier_dup(elem));
-		}
-	});
-
-	return result;
-};
-
-
 // Collections of cells that forms a "single" plant.
 // This is not biologically accurate depiction of plants,
 // (e.g. vegetative growth, physics)
@@ -397,44 +242,7 @@ Cell.prototype.step = function() {
 	this.age += 1;
 
 	// Grow continually.
-	var rule_growth = [
-		{
-			when: CellType.FLOWER,
-			mx: 100,
-			my: 100,
-			mz: 50,
-			dx: 1,
-			dy: 1,
-			dz: 1
-		},
-		{
-			when: CellType.LEAF,
-			mx: 150,
-			my: 20,
-			mz: 400,
-			dx: 5,
-			dy: 1,
-			dz: 20
-		},
-		{
-			when: CellType.SHOOT,
-			mx: 50,
-			my: 50,
-			mz: 500,
-			dx: "Gr",
-			dy: "Gr",
-			dz: "Gr30",
-		},
-		{
-			when: CellType.SHOOT_END,
-			mx: 50,
-			my: 50,
-			mz: 500,
-			dx: "Gr",
-			dy: "Gr",
-			dz: "Gr30",
-		}
-	];
+	var rule_growth = this.plant.genome.continuous;
 
 	function calc_growth(desc) {
 		if(desc === "Gr") {
@@ -453,7 +261,7 @@ Cell.prototype.step = function() {
 			_this.sz = Math.min(clause["mz"], _this.sz + calc_growth(clause["dz"]));
 		}
 	});
-	
+
 
 	var rule_differentiate = this.plant.genome.discrete;
 
@@ -515,7 +323,7 @@ Cell.prototype.step = function() {
 // return :: THREE.Object3D
 Cell.prototype.materialize = function() {
 	// Create cell object [-sx/2,sx/2] * [-sy/2,sy/2] * [0, sz]
-	var color_diffuse = new THREE.Color(convertCellTypeToColor(this.cell_type));
+	var color_diffuse = new THREE.Color(CellType.convertToColor(this.cell_type));
 	if(this.photons === 0) {
 		color_diffuse.offsetHSL(0, 0, -0.2);
 	}
@@ -572,7 +380,7 @@ Cell.prototype.get_age = function() {
 // counter :: dict(string, int)
 // return :: dict(string, int)
 Cell.prototype.count_type = function(counter) {
-	var key = convertCellTypeToKey(this.cell_type);
+	var key = CellType.convertToKey(this.cell_type);
 
 	counter[key] = 1 + (_.has(counter, key) ? counter[key] : 0);
 
