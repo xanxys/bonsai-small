@@ -19,6 +19,41 @@ var CellType = {
 	HALF: 7
 };
 
+// return :: {long :: str, short :: str}
+CellType.convertToSignalName = function(type) {
+	var RvCT = {
+		1: "Leaf",
+		2: "Shoot",
+		3: "ShootApex",
+		4: "Flower",
+		5: "Growth",
+		6: "!Growth",
+		7: "1/2",
+	};
+
+	var RvCTShort = {
+		1: "Lf",
+		2: "Sh",
+		3: "ShAx",
+		4: "Flr",
+		5: "Gr",
+		6: "!Gr",
+		7: "/",
+	};
+
+	if(RvCT[type]) {
+		return {
+			long: RvCT[type],
+			short: RvCTShort[type]
+		};
+	} else {
+		return {
+			long: "?",
+			short: "?"
+		};
+	}
+};
+
 CellType.convertToKey = function(type) {
 	if(type === CellType.LEAF) {
 		return 'leaf';

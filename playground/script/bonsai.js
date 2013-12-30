@@ -273,50 +273,16 @@ Bonsai.prototype.init = function() {
 };
 
 Bonsai.prototype.updateGenomeView = function(genome) {
-	var CellType = {
-		LEAF: 1,
-		SHOOT: 2,
-		SHOOT_END: 3,  // Corresponds to shoot apical meristem
-		FLOWER: 4,  // self-pollinating, seed-dispersing
-
-		// This is not cell type
-		GROWTH_FACTOR: 5,
-		ANTI_GROWTH_FACTOR: 6,
-		HALF: 7
-	};
-
-	var RvCT = {
-		1: "Leaf",
-		2: "Shoot",
-		3: "ShootApex",
-		4: "Flower",
-		5: "Growth",
-		6: "!Growth",
-		7: "1/2",
-	};
-
-	var RvCTShort = {
-		1: "Lf",
-		2: "Sh",
-		3: "ShAx",
-		4: "Flr",
-		5: "Gr",
-		6: "!Gr",
-		7: "/",
-	};
-
 	function visualizeCT(ix) {
-		var element = $('<span/>');
-		if(RvCT[ix]) {
-			element
-				.text(RvCTShort[ix])
-				.attr('title', RvCT[ix]);
-		} else {
-			element
-				.text('?')
-				.attr('class', 'ct-broken');
-		}
-		if(RvCT[ix] === "Half" || RvCT[ix] === 'Growth' || RvCT[ix] === '!Growth') {
+		var sig_name = CellType.convertToSignalName(ix);
+
+		var element = $('<span/>')
+			.text(sig_name.short)
+			.attr('title', sig_name.long);
+
+		if(sig_name.long === "?") {
+			element.attr('class', 'ct-broken');
+		} else if(sig_name.long === "Half" || sig_name.long === 'Growth' || sig_name.long === '!Growth') {
 			element.attr('class', 'ct-factor');
 		}
 		return element;
@@ -324,7 +290,11 @@ Bonsai.prototype.updateGenomeView = function(genome) {
 
 	var target = $('#genome-plant');
 	target.empty();
-	_.each(genome, function(gene) {
+	if(genome === null) {
+		return;
+	}
+
+	_.each(genome.discrete, function(gene) {
 		var gene_vis = $('<div/>').attr('class', 'gene');
 
 		gene_vis.append(gene["tracer_desc"]);
@@ -338,6 +308,26 @@ Bonsai.prototype.updateGenomeView = function(genome) {
 		_.each(gene["produce"], function(cond) {
 			gene_vis.append(visualizeCT(cond));
 		});
+
+		target.append(gene_vis);
+	});
+
+	_.each(genome.continuous, function(gene) {
+		var gene_vis = $('<div/>').attr('class', 'gene');
+		gene_vis.append(gene["when"]);
+		gene_vis.append(":");
+		gene_vis.append("+[" + gene.dx + "," + gene.dy + "," + gene.dz + "] / ");
+		gene_vis.append("[" + gene.mx + "," + gene.my + "," + gene.mz + "]");
+
+		target.append(gene_vis);
+	});
+
+	_.each(genome.positional, function(gene) {
+		var gene_vis = $('<div/>').attr('class', 'gene');
+		gene_vis.append(gene["when"]);
+		gene_vis.append("->");
+		gene_vis.append(gene.produce);
+		gene_vis.append("*[" + gene.rx + "," + gene.ry + "," + gene.rz + "]");
 
 		target.append(gene_vis);
 	});

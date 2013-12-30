@@ -115,7 +115,7 @@ Plant.prototype.get_stat = function() {
 };
 
 Plant.prototype.get_genome = function() {
-	return this.genome.discrete;
+	return this.genome;
 };
 
 Plant.prototype._powerForPlant = function() {
