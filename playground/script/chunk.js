@@ -367,7 +367,7 @@ Cell.prototype._updatePowerForPlant = function() {
 	var total = 0;
 
 	if(this.cell_type === CellType.LEAF) {
-		total += this.photons * 1e-9 * 3000;
+		total += this.photons * 1e-9 * 8000;
 	}
 
 	// basic consumption (stands for common func.)
@@ -397,20 +397,63 @@ Cell.prototype.step = function() {
 	this.age += 1;
 
 	// Grow continually.
-	// TODO: these should also be included in Genome, but keep it as is.
-	if(this.cell_type === CellType.FLOWER) {
-		this.sx = Math.min(10e-3, this.sx + 0.1e-3);
-		this.sy = Math.min(10e-3, this.sy + 0.1e-3);
-		this.sz = Math.min(5e-3, this.sz + 0.1e-3);
-	} else if(this.cell_type === CellType.LEAF) {
-		this.sx = Math.min(15e-3, this.sx + 0.5e-3);
-		this.sy = Math.min(2e-3, this.sy + 0.1e-3);
-		this.sz = Math.min(40e-3, this.sz + 2e-3);
-	} else {
-		this.sx = Math.min(5e-3, this.sx + 0.1e-3 * this.plant.growth_factor());
-		this.sy = Math.min(5e-3, this.sy + 0.1e-3 * this.plant.growth_factor());
-		this.sz += 3e-3 * this.plant.growth_factor();
+	var rule_growth = [
+		{
+			when: CellType.FLOWER,
+			mx: 100,
+			my: 100,
+			mz: 50,
+			dx: 1,
+			dy: 1,
+			dz: 1
+		},
+		{
+			when: CellType.LEAF,
+			mx: 150,
+			my: 20,
+			mz: 400,
+			dx: 5,
+			dy: 1,
+			dz: 20
+		},
+		{
+			when: CellType.SHOOT,
+			mx: 50,
+			my: 50,
+			mz: 500,
+			dx: "Gr",
+			dy: "Gr",
+			dz: "Gr30",
+		},
+		{
+			when: CellType.SHOOT_END,
+			mx: 50,
+			my: 50,
+			mz: 500,
+			dx: "Gr",
+			dy: "Gr",
+			dz: "Gr30",
+		}
+	];
+
+	function calc_growth(desc) {
+		if(desc === "Gr") {
+			return 0.1e-3 * _this.plant.growth_factor();
+		} else if(desc === "Gr30") {
+			return 0.1e-3 * 30 * _this.plant.growth_factor();
+		} else {
+			return 0.1e-3 * desc;
+		}
 	}
+
+	_.each(rule_growth, function(clause) {
+		if(clause["when"] === _this.cell_type) {
+			_this.sx = Math.min(clause["mx"], _this.sx + calc_growth(clause["dx"]));
+			_this.sy = Math.min(clause["my"], _this.sy + calc_growth(clause["dy"]));
+			_this.sz = Math.min(clause["mz"], _this.sz + calc_growth(clause["dz"]));
+		}
+	});
+	
 
 	var rule_differentiate = this.plant.genome.discrete;
 
