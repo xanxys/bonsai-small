@@ -273,7 +273,7 @@ Bonsai.prototype.init = function() {
 };
 
 Bonsai.prototype.updateGenomeView = function(genome) {
-	function visualizeCT(ix) {
+	function visualizeCellTag(ix) {
 		var sig_name = CellType.convertToSignalName(ix);
 
 		var element = $('<span/>')
@@ -284,6 +284,32 @@ Bonsai.prototype.updateGenomeView = function(genome) {
 			element.attr('class', 'ct-broken');
 		} else if(sig_name.long === "Half" || sig_name.long === 'Growth' || sig_name.long === '!Growth') {
 			element.attr('class', 'ct-factor');
+		}
+		return element;
+	}
+
+	function visualizeDifferentiationTag(ix) {
+		var sig_name = Differentiation.convertToSignalName(ix);
+
+		var element = $('<span/>')
+			.text(sig_name.short)
+			.attr('title', sig_name.long);
+
+		if(sig_name.long === "?") {
+			element.attr('class', 'ct-broken');
+		}
+		return element;
+	}
+
+	function visualizeRotationTag(ix) {
+		var sig_name = Rotation.convertToSignalName(ix);
+
+		var element = $('<span/>')
+			.text(sig_name.short)
+			.attr('title', sig_name.long);
+
+		if(sig_name.long === "?") {
+			element.attr('class', 'ct-broken');
 		}
 		return element;
 	}
@@ -300,13 +326,13 @@ Bonsai.prototype.updateGenomeView = function(genome) {
 		gene_vis.append(gene["tracer_desc"]);
 		gene_vis.append($('<br/>'));
 		_.each(gene["when"], function(cond) {
-			gene_vis.append(visualizeCT(cond));
+			gene_vis.append(visualizeCellTag(cond));
 		});
 		gene_vis.append("->");
-		gene_vis.append(visualizeCT(gene['become']));
+		gene_vis.append(visualizeCellTag(gene['become']));
 		gene_vis.append("+");
 		_.each(gene["produce"], function(cond) {
-			gene_vis.append(visualizeCT(cond));
+			gene_vis.append(visualizeDifferentiationTag(cond));
 		});
 
 		target.append(gene_vis);
@@ -324,10 +350,14 @@ Bonsai.prototype.updateGenomeView = function(genome) {
 
 	_.each(genome.positional, function(gene) {
 		var gene_vis = $('<div/>').attr('class', 'gene');
-		gene_vis.append(gene["when"]);
+
+		gene_vis.append(gene["tracer_desc"]);
+		gene_vis.append($('<br/>'));
+		gene_vis.append(visualizeDifferentiationTag(gene["when"]));
 		gene_vis.append("->");
-		gene_vis.append(gene.produce);
-		gene_vis.append("*" + gene.rot);
+		gene_vis.append(visualizeCellTag(gene.produce));
+		gene_vis.append("*");
+		gene_vis.append(visualizeRotationTag(gene.rot));
 
 		target.append(gene_vis);
 	});

@@ -389,21 +389,26 @@ Cell.prototype.count_type = function(counter) {
 // return :: ()
 Cell.prototype.add_cont = function(diff) {
 	function calc_rot(desc) {
-		if(desc === "Rs1") {
+		if(desc === Rotation.CONICAL) {
 			return new THREE.Quaternion().setFromEuler(new THREE.Euler(
 				Math.random() - 0.5,
 				Math.random() - 0.5,
 				0));
-		} else if(desc === "Rs/") {
+		} else if(desc === Rotation.HALF_CONICAL) {
 			return new THREE.Quaternion().setFromEuler(new THREE.Euler(
 				(Math.random() - 0.5) * 0.5,
 				(Math.random() - 0.5) * 0.5,
 				0));
-		} else if(desc === "-H") {
+		} else if(desc === Rotation.FLIP) {
 			return new THREE.Quaternion().setFromEuler(new THREE.Euler(
 				-Math.PI / 2,
 				0,
 				0));
+		} else if(desc === Rotation.TWIST) {
+			return new THREE.Quaternion().setFromEuler(new THREE.Euler(
+				0,
+				0,
+				(Math.random() - 0.5) * 1));
 		} else {
 			return new THREE.Quaternion();
 		}

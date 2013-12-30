@@ -1,10 +1,43 @@
 (function() {
 
+var Rotation = {
+	CONICAL: 1,
+	HALF_CONICAL: 2,
+	FLIP : 3,
+	TWIST: 4
+};
+
+Rotation.convertToSignalName = function(type) {
+	if(type === Rotation.CONICAL) {
+		return {long: "Conical", short: "Con"};
+	} else if(type === Rotation.HALF_CONICAL) {
+		return {long: "Conical/2", short: "Con/"};
+	} else if(type === Rotation.FLIP) {
+		return {long: "Flip", short: "Flp"};
+	} else if(type === Rotation.TWIST) {
+		return {long: "Twist", short: "Tw"};
+	} else {
+		return {long: "?", short: "?"};
+	}
+}
+
 var Differentiation = {
 	SHOOT_MAIN: 1,
 	SHOOT_SUB: 2,
 	LEAF: 3,
 };
+
+Differentiation.convertToSignalName = function(type) {
+	if(type === Differentiation.SHOOT_MAIN) {
+		return {long: "DShootMain", short: "DShM"};
+	} else if(type === Differentiation.SHOOT_SUB) {
+		return {long: "DShootSub", short: "DShS"};
+	} else if(type === Differentiation.LEAF) {
+		return {long: "DLeaf", short: "DLf"};
+	} else {
+		return {long: "?", short: "?"};
+	}
+}
 
 // This is an instance, not a class.
 var CellType = {
@@ -124,19 +157,22 @@ var Genome = function() {
 
 	this.positional = [
 		{
+			tracer_desc: "Branch tilting.",
 			when: Differentiation.SHOOT_MAIN,
 			produce: CellType.SHOOT_END,
-			rot: "Rs1"
+			rot: Rotation.CONICAL
 		},
 		{
+			tracer_desc: "Main shoot.",
 			when: Differentiation.SHOOT_SUB,
 			produce: CellType.SHOOT_END,
-			rot: "Rs/"
+			rot: Rotation.HALF_CONICAL
 		},
 		{
+			tracer_desc: "Leaf direction.",
 			when: Differentiation.LEAF,
 			produce: CellType.LEAF,
-			rot: "-H"
+			rot: Rotation.FLIP
 		}
 	];
 
@@ -193,7 +229,13 @@ Genome.prototype.naturalClone = function() {
 
 	// TODO: mutate them
 	genome.continuous = this.continuous;
-	genome.positional = this.positional;
+	genome.positional = this._shuffle(this.positional,
+		function(gene) {
+			return _this._naturalClonePositionalGene(gene, '');
+		},
+		function(gene) {
+			return _this._naturalClonePositionalGene(gene, '/Duplicated/');
+		});
 
 	genome.discrete = this._shuffle(this.discrete,
 		function(gene) {
@@ -223,6 +265,17 @@ Genome.prototype._naturalCloneGene = function(gene_old, flag) {
 
 	gene["tracer_desc"] = flag + gene_old["tracer_desc"];
 	return gene;
+};
+
+Genome.prototype._naturalClonePositionalGene = function(gene_old, flag) {
+	var gene = {};
+
+	gene["tracer_desc"] = flag + gene_old["tracer_desc"];
+	gene["when"] = this._naturalCloneId(gene_old["when"]);
+	gene["produce"] = this._naturalCloneId(gene_old["produce"]);
+	gene["rot"] = this._naturalCloneId(gene_old["rot"]);
+
+	return gene;	
 };
 
 Genome.prototype._naturalCloneId = function(id) {
@@ -262,6 +315,7 @@ function sum(xs) {
 }
 
 this.CellType = CellType;
+this.Rotation = Rotation;
 this.Differentiation = Differentiation;
 this.Genome = Genome;
 
