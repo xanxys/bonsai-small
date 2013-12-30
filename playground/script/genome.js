@@ -126,23 +126,17 @@ var Genome = function() {
 		{
 			when: Differentiation.SHOOT_MAIN,
 			produce: CellType.SHOOT_END,
-			rx: "R1",
-			ry: "R1",
-			rz: "Zero"
+			rot: "Rs1"
 		},
 		{
 			when: Differentiation.SHOOT_SUB,
 			produce: CellType.SHOOT_END,
-			rx: "RH",
-			ry: "RH",
-			rz: "Zero",
+			rot: "Rs/"
 		},
 		{
 			when: Differentiation.LEAF,
 			produce: CellType.LEAF,
-			rx: "-H",
-			ry: "Zero",
-			rz: "Zero"
+			rot: "-H"
 		}
 	];
 

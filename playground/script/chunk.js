@@ -389,16 +389,23 @@ Cell.prototype.count_type = function(counter) {
 // return :: ()
 Cell.prototype.add_cont = function(diff) {
 	function calc_rot(desc) {
-		if(desc === "R1") {
-			return (Math.random() - 0.5);
-		} else if(desc === "RH") {
-			return (Math.random() - 0.5) * 0.5;
-		} else if(desc === "Zero") {
-			return 0;
+		if(desc === "Rs1") {
+			return new THREE.Quaternion().setFromEuler(new THREE.Euler(
+				Math.random() - 0.5,
+				Math.random() - 0.5,
+				0));
+		} else if(desc === "Rs/") {
+			return new THREE.Quaternion().setFromEuler(new THREE.Euler(
+				(Math.random() - 0.5) * 0.5,
+				(Math.random() - 0.5) * 0.5,
+				0));
 		} else if(desc === "-H") {
-			return -Math.PI / 2;
+			return new THREE.Quaternion().setFromEuler(new THREE.Euler(
+				-Math.PI / 2,
+				0,
+				0));
 		} else {
-			return 0;
+			return new THREE.Quaternion();
 		}
 	}
 
@@ -408,12 +415,7 @@ Cell.prototype.add_cont = function(diff) {
 		}
 
 		var new_cell = new Cell(this.plant, clause.produce);
-		new_cell.loc_to_parent = new THREE.Quaternion().setFromEuler(
-			new THREE.Euler(
-				calc_rot(clause.rx),
-				calc_rot(clause.ry),
-				calc_rot(clause.rz))
-			);
+		new_cell.loc_to_parent = calc_rot(clause.rot);
 		
 		this.add(new_cell);
 	}, this);

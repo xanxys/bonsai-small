@@ -327,7 +327,7 @@ Bonsai.prototype.updateGenomeView = function(genome) {
 		gene_vis.append(gene["when"]);
 		gene_vis.append("->");
 		gene_vis.append(gene.produce);
-		gene_vis.append("*[" + gene.rx + "," + gene.ry + "," + gene.rz + "]");
+		gene_vis.append("*" + gene.rot);
 
 		target.append(gene_vis);
 	});
