@@ -508,7 +508,7 @@ Bonsai.prototype.handle_step = function(n) {
 	});
 	this.age += n;
 
-	$('#ui_abs_time').text(this.age + ' T');
+	$('#ui_abs_time').text(this.age + 'T');
 };
 
 /* UI Utils */

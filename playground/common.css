@@ -1,5 +1,6 @@
 @import url(http://fonts.googleapis.com/css?family=Clicker+Script);
 @import url(http://fonts.googleapis.com/css?family=Alegreya+Sans:800);
+@import url(http://fonts.googleapis.com/css?family=Inconsolata);
 
 html, body {
 	margin: 0;
@@ -142,6 +143,8 @@ canvas {
 	margin-bottom: 10px;
 	min-height: 50px;
 	opacity: 0.9;
+
+	font-family: "Inconsolata", sans-serif;
 }
 
 .pane-panel h1 {
@@ -161,6 +164,30 @@ canvas {
 .figure {
 	background-color: #222;
 	color: #eee;
+}
+
+/* Time Panel */
+.bg-time button {
+	border: #eee solid 2px;
+
+	height: 2em;
+
+	background: none;
+	border-radius: 1px;
+	color: white;
+
+	font-family: 'Alegreya Sans', sans-serif;
+	font-weight: 800;
+}
+
+#ui_abs_time {
+	font-size: 150%;
+}
+
+#button_play {
+	width: 2em;
+	height: 2em;
+	font-family: sans-serif;
 }
 
 /* difference from pane-panel */
