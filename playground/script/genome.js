@@ -21,6 +21,43 @@ Rotation.convertToSignalName = function(type) {
 	}
 }
 
+// protein: carrier of information and matter.
+// Codon, amino acids: Roman character
+var Signal = {
+	// Intrinsic signals.
+	GROWTH: 'g',
+
+	// Transcription modifiers.
+	HALF: 'p',
+	INVERT: 'i',
+
+	// Intrisinc functionals.
+	CHLOROPLAST: 'k',
+	G_DX: 'x',
+	G_DY: 'y',
+	G_DZ: 'z',
+	DIFF: 'd', // comound: d12 (1:initial signal 2:locator)
+	REMOVER: 'r',  // compound: r[1] ([1]: signal to be removed)
+
+	// Positional modifiers.
+	CONICAL: 'c',
+	HALF_CONICAL: 'h',
+	FLIP: 'f',
+	TWIST: 't',
+
+	// Cell types.
+	LEAF: 'l',
+	SHOOT: 's',
+	SHOOT_END: 'a',
+	FLOWER: 'w',
+
+	// Compounds
+	DIFF_SHM: 'dac',
+	DIFF_SHS: 'dah',
+	DIFF_LF: 'dlf',
+};
+
+
 var Differentiation = {
 	SHOOT_MAIN: 1,
 	SHOOT_SUB: 2,
@@ -194,6 +231,71 @@ var Genome = function() {
 			"produce": [],
 		},
 	];
+
+	this.unity = [
+		// Topological
+		{
+			"tracer_desc": "Diff: Produce leaf.",
+			"when": [
+				Signal.SHOOT_END, Signal.GROWTH, Signal.HALF, Signal.HALF, Signal.HALF
+				],
+			"emit": [
+				Signal.SHOOT, Signal.DIFF_SHM, Signal.DIFF_LF,
+				Signal.REMOVER + Signal.SHOOT_END
+				]
+		},
+		{
+			"tracer_desc": "Diff: Produce branch.",
+			"when": [
+				Signal.SHOOT_END, Signal.GROWTH, Signal.HALF, Signal.HALF],
+			"emit": [
+				Signal.SHOOT, Signal.DIFF_SHM, Signal.DIFF_SHS,
+				Signal.REMOVER + Signal.SHOOT_END
+				]
+		},
+		{
+			"tracer_desc": "Diff: Produce flower.",
+			"when": [
+				Signal.SHOOT_END, Signal.INVERT + Signal.GROWTH, Signal.HALF, Signal.HALF],
+			"emit": [
+				Signal.FLOWER,
+				Signal.REMOVER + Signal.SHOOT_END]
+		},
+		// Growth
+		{
+			"tracer_desc": "Flower growth.",
+			"when": [
+				Signal.FLOWER, Signal.HALF, Signal.HALF],
+			"emit": [
+				Signal.G_DX, Signal.G_DY, Signal.G_DZ]
+		},
+		{
+			"tracer_desc": "Leaf elongation.",
+			"when": [
+				Signal.LEAF],
+			"emit": [
+				Signal.G_DZ],
+		},
+		{
+			"tracer_desc": "Leaf shape adjustment.",
+			"when": [
+				Signal.LEAF, Signal.HALF, Signal.HALF, Signal.HALF, Signal.HALF],
+			"emit": [
+				Signal.G_DX, Signal.G_DX, Signal.G_DX, Signal.G_DX, Signal.G_DX, Signal.G_DX, Signal.G_DY]
+		},
+		{
+			"tracer_desc": "Shoot (end) elongation.",
+			"when": [
+				Signal.SHOOT],
+			"emit": [Signal.G_DZ]
+		},
+		{
+			"tracer_desc": "Shoot thickening.",
+			"when": [
+				Signal.SHOOT_END, Signal.HALF, Signal.HALF, Signal.HALF],
+			"emit": [Signal.G_DX, Signal.G_DY]
+		}
+	];
 };
 
 // return :: int
@@ -232,6 +334,7 @@ Genome.prototype.naturalClone = function() {
 		function(gene) {
 			return _this._naturalCloneGene(gene, '/Duplicated/');
 		});
+	genome.unity = this.unity;
 
 	return genome;
 };
@@ -306,5 +409,6 @@ this.CellType = CellType;
 this.Rotation = Rotation;
 this.Differentiation = Differentiation;
 this.Genome = Genome;
+this.Signal = Signal;
 
 })(this);

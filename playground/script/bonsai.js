@@ -314,12 +314,18 @@ Bonsai.prototype.updateGenomeView = function(genome) {
 		return element;
 	}
 
+	function visualizeSignal(t) {
+		var element = $('<span/>').text(t);
+		return element;
+	}
+
 	var target = $('#genome-plant');
 	target.empty();
 	if(genome === null) {
 		return;
 	}
 
+	/*
 	_.each(genome.discrete, function(gene) {
 		var gene_vis = $('<div/>').attr('class', 'gene');
 
@@ -357,6 +363,19 @@ Bonsai.prototype.updateGenomeView = function(genome) {
 		gene_vis.append(visualizeCellTag(gene.produce));
 		gene_vis.append("*");
 		gene_vis.append(visualizeRotationTag(gene.rot));
+
+		target.append(gene_vis);
+	});
+	*/
+
+	_.each(genome.unity, function(gene) {
+		var gene_vis = $('<div/>').attr('class', 'gene');
+
+		gene_vis.append(gene["tracer_desc"]);
+		gene_vis.append($('<br/>'));
+		gene_vis.append(_.map(gene["when"], visualizeSignal));
+		gene_vis.append("->");
+		gene_vis.append(_.map(gene["emit"], visualizeSignal));
 
 		target.append(gene_vis);
 	});
