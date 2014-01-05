@@ -316,25 +316,13 @@ Genome.prototype.naturalClone = function() {
 	var _this = this;
 
 	var genome = new Genome();
-
-	// TODO: mutate them
-	genome.continuous = this.continuous;
-	genome.positional = this._shuffle(this.positional,
-		function(gene) {
-			return _this._naturalClonePositionalGene(gene, '');
-		},
-		function(gene) {
-			return _this._naturalClonePositionalGene(gene, '/Duplicated/');
-		});
-
-	genome.discrete = this._shuffle(this.discrete,
+	genome.unity = this._shuffle(this.unity,
 		function(gene) {
 			return _this._naturalCloneGene(gene, '');
 		},
 		function(gene) {
 			return _this._naturalCloneGene(gene, '/Duplicated/');
 		});
-	genome.unity = this.unity;
 
 	return genome;
 };
@@ -347,33 +335,32 @@ Genome.prototype._naturalCloneGene = function(gene_old, flag) {
 	var gene = {};
 	
 	gene["when"] = this._shuffle(gene_old["when"],
-		function(ix) { return _this._naturalCloneId(ix); },
-		function(ix) { return _this._naturalCloneId(ix); });
-	gene["become"] = this._naturalCloneId(gene_old["become"]);
-	gene["produce"] = this._shuffle(gene_old["produce"],
-		function(ix_to) { return _this._naturalCloneId(ix_to); },
-		function(ix_to) { return _this._naturalCloneId(ix_to); });
+		function(sig) { return _this._naturalCloneSignal(sig); },
+		function(sig) { return _this._naturalCloneSignal(sig); });
+	gene["emit"] = this._shuffle(gene_old["emit"],
+		function(sig) { return _this._naturalCloneSignal(sig); },
+		function(sig) { return _this._naturalCloneSignal(sig); });
 
 	gene["tracer_desc"] = flag + gene_old["tracer_desc"];
 	return gene;
 };
 
-Genome.prototype._naturalClonePositionalGene = function(gene_old, flag) {
-	var gene = {};
 
-	gene["tracer_desc"] = flag + gene_old["tracer_desc"];
-	gene["when"] = this._naturalCloneId(gene_old["when"]);
-	gene["produce"] = this._naturalCloneId(gene_old["produce"]);
-	gene["rot"] = this._naturalCloneId(gene_old["rot"]);
+Genome.prototype._naturalCloneSignal = function(sig) {
+	function random_sig1() {
+		var set = 'abcdefghijklmnopqrstuvwxyz';
+		return set[Math.floor(Math.random() * set.length)];
+	}
 
-	return gene;	
-};
-
-Genome.prototype._naturalCloneId = function(id) {
 	if(Math.random() > 0.01) {
-		return id;
+		return sig;
 	} else {
-		return Math.floor(Math.random() * 10);
+		var sig = '';
+		do {
+			sig += random_sig1();
+		} while(Math.random() < 0.1);
+
+		return sig;
 	}
 };
 
