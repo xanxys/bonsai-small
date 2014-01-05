@@ -59,10 +59,12 @@ Plant.prototype.step = function() {
 	
 	console.assert(this.seed.age === this.age);
 
+	var mech_valid = this.seed.checkMechanics();
+
 	// Consume/store in-Plant energy.
 	this.energy += this._powerForPlant() * 1;
 
-	if(this.energy <= 0) {
+	if(this.energy <= 0 || !mech_valid) {
 		// die
 		this.unsafe_chunk.remove_plant(this);
 	}
@@ -207,6 +209,43 @@ Cell.prototype._depth = function(i, ls) {
 	_.each(this.children, function(cell) {
 		return cell._depth(i + 1, ls);
 	});
+};
+
+// Run pseudo-mechanical stability test based solely
+// on mass and cross-section.
+// return :: valid :: bool
+Cell.prototype.checkMechanics = function() {
+	return this._checkMass().valid;
+};
+
+// return: {valid: bool, total_mass: num}
+Cell.prototype._checkMass = function() {
+	var mass = 1e3 * this.sx * this.sy * this.sz;  // kg
+
+	var total_mass = mass;
+	var valid = true;
+	_.each(this.children, function(cell) {
+		var child_result = cell._checkMass();
+		total_mass += child_result.total_mass;
+		valid &= child_result.valid;
+	});
+
+	// 4mm:30g max
+	// mass[kg] / cross_section[m^2] = 7500.
+	if(total_mass / (this.sx * this.sy) > 7500 * 5) {
+		valid = false;
+	}
+
+	// 4mm:30g * 1cm max
+	// mass[kg]*length[m] / cross_section[m^2] = 75
+	if(total_mass * this.sz / (this.sx * this.sy) > 75 * 5) {
+		valid = false;
+	}
+
+	return {
+		valid: valid,
+		total_mass: total_mass
+	};
 };
 
 // sub_cell :: Cell
