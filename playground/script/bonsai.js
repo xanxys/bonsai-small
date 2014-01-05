@@ -342,8 +342,7 @@ Bonsai.prototype.updateGenomeView = function(genome) {
 		var gene_vis = $('<div/>').attr('class', 'gene');
 		gene_vis.append(visualizeCellTag(gene["when"]));
 		gene_vis.append(":");
-		gene_vis.append("+[" + gene.dx + "," + gene.dy + "," + gene.dz + "] / ");
-		gene_vis.append("[" + gene.mx + "," + gene.my + "," + gene.mz + "]");
+		gene_vis.append("+[" + gene.dx + "," + gene.dy + "," + gene.dz + "]");
 
 		target.append(gene_vis);
 	});

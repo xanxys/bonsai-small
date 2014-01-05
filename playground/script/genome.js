@@ -119,36 +119,24 @@ var Genome = function() {
 	this.continuous = [
 		{
 			when: CellType.FLOWER,
-			mx: 100,
-			my: 100,
-			mz: 50,
-			dx: 1,
-			dy: 1,
-			dz: 1
+			dx: "Gr5",
+			dy: "Gr5",
+			dz: "Gr5"
 		},
 		{
 			when: CellType.LEAF,
-			mx: 150,
-			my: 20,
-			mz: 400,
-			dx: 5,
-			dy: 1,
-			dz: 20
+			dx: "Gr5",
+			dy: "Gr",
+			dz: "Gr30",
 		},
 		{
 			when: CellType.SHOOT,
-			mx: 50,
-			my: 50,
-			mz: 500,
 			dx: "Gr",
 			dy: "Gr",
 			dz: "Gr30",
 		},
 		{
 			when: CellType.SHOOT_END,
-			mx: 50,
-			my: 50,
-			mz: 500,
 			dx: "Gr",
 			dy: "Gr",
 			dz: "Gr30",

@@ -247,6 +247,8 @@ Cell.prototype.step = function() {
 	function calc_growth(desc) {
 		if(desc === "Gr") {
 			return 0.1e-3 * _this.plant.growth_factor();
+		} else if(desc === "Gr5") {
+			return 0.1e-3 * 5 * _this.plant.growth_factor();
 		} else if(desc === "Gr30") {
 			return 0.1e-3 * 30 * _this.plant.growth_factor();
 		} else {
@@ -256,9 +258,9 @@ Cell.prototype.step = function() {
 
 	_.each(rule_growth, function(clause) {
 		if(clause["when"] === _this.cell_type) {
-			_this.sx = Math.min(0.1e-3 * clause["mx"], _this.sx + calc_growth(clause["dx"]));
-			_this.sy = Math.min(0.1e-3 * clause["my"], _this.sy + calc_growth(clause["dy"]));
-			_this.sz = Math.min(0.1e-3 * clause["mz"], _this.sz + calc_growth(clause["dz"]));
+			_this.sx += calc_growth(clause["dx"]);
+			_this.sy += calc_growth(clause["dy"]);
+			_this.sz += calc_growth(clause["dz"]);
 		}
 	});
 
