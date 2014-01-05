@@ -32,7 +32,7 @@ var Signal = {
 	INVERT: 'i',
 
 	// Intrisinc functionals.
-	CHLOROPLAST: 'k',
+	CHLOROPLAST: 'chlr',
 	G_DX: 'x',
 	G_DY: 'y',
 	G_DZ: 'z',
@@ -153,85 +153,6 @@ CellType.convertToColor = function(type) {
 };
 
 var Genome = function() {
-	this.continuous = [
-		{
-			when: CellType.FLOWER,
-			dx: "Gr5",
-			dy: "Gr5",
-			dz: "Gr5"
-		},
-		{
-			when: CellType.LEAF,
-			dx: "Gr5",
-			dy: "Gr",
-			dz: "Gr30",
-		},
-		{
-			when: CellType.SHOOT,
-			dx: "Gr",
-			dy: "Gr",
-			dz: "Gr30",
-		},
-		{
-			when: CellType.SHOOT_END,
-			dx: "Gr",
-			dy: "Gr",
-			dz: "Gr30",
-		}
-	];
-
-	this.positional = [
-		{
-			tracer_desc: "Branch tilting.",
-			when: Differentiation.SHOOT_MAIN,
-			produce: CellType.SHOOT_END,
-			rot: Rotation.CONICAL
-		},
-		{
-			tracer_desc: "Main shoot.",
-			when: Differentiation.SHOOT_SUB,
-			produce: CellType.SHOOT_END,
-			rot: Rotation.HALF_CONICAL
-		},
-		{
-			tracer_desc: "Leaf direction.",
-			when: Differentiation.LEAF,
-			produce: CellType.LEAF,
-			rot: Rotation.FLIP
-		}
-	];
-
-	
-	this.discrete = [
-		{
-			"tracer_desc": "Produce leaf.",
-			"when": [
-				CellType.SHOOT_END, CellType.GROWTH_FACTOR, CellType.HALF, CellType.HALF, CellType.HALF],
-			"become": CellType.SHOOT,
-			"produce": [
-				Differentiation.SHOOT_MAIN,
-				Differentiation.LEAF,
-			]
-		},
-		{
-			"tracer_desc": "Produce branch.",
-			"when": [
-				CellType.SHOOT_END, CellType.GROWTH_FACTOR, CellType.HALF, CellType.HALF],
-			"become": CellType.SHOOT,
-			"produce": [
-				Differentiation.SHOOT_MAIN,
-				Differentiation.SHOOT_SUB,
-			],
-		},
-		{
-			"tracer_desc": "Stop growing and change to flower.",
-			"become": CellType.FLOWER,
-			"when": [
-				CellType.SHOOT_END, CellType.ANTI_GROWTH_FACTOR, CellType.HALF, CellType.HALF],
-			"produce": [],
-		},
-	];
-
 	this.unity = [
 		// Topological
 		{
@@ -294,6 +215,13 @@ var Genome = function() {
 			"when": [
 				Signal.SHOOT_END, Signal.HALF, Signal.HALF, Signal.HALF],
 			"emit": [Signal.G_DX, Signal.G_DY]
+		},
+		{
+			"tracer_desc": "Chloroplast generation.",
+			"when": [
+				Signal.LEAF, Signal.HALF, Signal.HALF, Signal.HALF],
+			"emit": [
+				Signal.CHLOROPLAST]
 		}
 	];
 };

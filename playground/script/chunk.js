@@ -228,24 +228,32 @@ Cell.prototype.powerForPlant = function() {
 Cell.prototype._updatePowerForPlant = function() {
 	var total = 0;
 
-	// TODO: replace to Signal.CHLOROPLAST
-	if(_.contains(this.signals, Signal.LEAF)) {
-		total += this.photons * 1e-9 * 4000;
-	}
+	// +: photo synthesis
+	var efficiency = this._getPhotoSynthesisEfficiency();
+	total += this.photons * 1e-9 * 6000 * efficiency;
 
-	// basic consumption (stands for common func.)
+	// -: basic consumption (stands for common func.)
 	total -= 1e-9;
 
-	// DNA consumption
+	// -: DNA consumption
 	total -= 1e-9 * this.plant.genome.getComplexity();
 
-	// linear-volume consumption (stands for cell substrate maintainance)
+	// -: linear-volume consumption (stands for cell substrate maintainance)
 	var volume_consumption = 1.0;
 	total -= this.sx * this.sy * this.sz * volume_consumption;
 	
 	this.power = total;
 	this.photons = 0;
 };
+
+Cell.prototype._getPhotoSynthesisEfficiency = function() {
+	// 1:1/2, 2:3/4, etc...
+	var num_chl = sum(_.map(this.signals, function(sig) {
+		return (sig === Signal.CHLOROPLAST) ? 1 : 0;
+	}));
+
+	return 1 - Math.pow(0.5, num_chl);
+}
 
 // return :: ()
 Cell.prototype.step = function() {
@@ -334,14 +342,14 @@ Cell.prototype.step = function() {
 // return :: THREE.Object3D
 Cell.prototype.materialize = function() {
 	// Create cell object [-sx/2,sx/2] * [-sy/2,sy/2] * [0, sz]
-	var color_diffuse = new THREE.Color('white');
-	if(_.contains(this.signals, Signal.SHOOT) || _.contains(this.signals, Signal.SHOOT_END)) {
-		color_diffuse = new THREE.Color('brown');
-	} else if(_.contains(this.signals, Signal.FLOWER)) {
-		color_diffuse = new THREE.Color('red');
-	} else if(_.contains(this.signals, Signal.LEAF)) {
-		color_diffuse = new THREE.Color('green');
-	}
+	var flr_ratio = (_.contains(this.signals, Signal.FLOWER)) ? 0.5 : 1;
+	var chl_ratio = 1 - this._getPhotoSynthesisEfficiency();
+
+	var color_diffuse = new THREE.Color();
+	color_diffuse.setRGB(
+		chl_ratio,
+		flr_ratio,
+		flr_ratio * chl_ratio);
 
 	if(this.photons === 0) {
 		color_diffuse.offsetHSL(0, 0, -0.2);
