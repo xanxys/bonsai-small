@@ -272,7 +272,7 @@ Cell.prototype._updatePowerForPlant = function() {
 	total += this.photons * 1e-9 * 6000 * efficiency;
 
 	// -: basic consumption (stands for common func.)
-	total -= 1e-9;
+	total -= 10 * 1e-9;
 
 	// -: DNA consumption
 	total -= 1e-9 * this.plant.genome.getComplexity();
