@@ -259,7 +259,7 @@ Bonsai.prototype.init = function() {
 				}, 50);
 			}
 		} else if(ev.data.type === 'stat-plant') {
-			$('#info-plant').text(JSON.stringify(ev.data.data.stat, null, 2));
+			_this.updatePlantView(ev.data.data.stat);
 		} else if(ev.data.type === 'genome-plant') {
 			_this.updateGenomeView(ev.data.data.genome);
 		} else if(ev.data.type === 'exception') {
@@ -270,6 +270,21 @@ Bonsai.prototype.init = function() {
 	this.isolated_chunk.postMessage({
 		type: 'serialize'
 	});
+};
+
+Bonsai.prototype.updatePlantView = function(stat) {
+	$('#info-plant').empty();
+	$('#info-plant').append(JSON.stringify(_.omit(stat, 'cells'), null, 2));
+	$('#info-plant').append($('<br/>'));
+	
+	if(stat !== null) {
+		_.each(stat['cells'], function(cell_stat, ix) {
+			$('#info-plant').append($('<span/>').text(JSON.stringify(cell_stat)));
+			if(ix % 3 === 0) {
+				$('#info-plant').append($('<br/>'));
+			}
+		});
+	}
 };
 
 Bonsai.prototype.updateGenomeView = function(genome) {
