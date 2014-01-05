@@ -614,8 +614,8 @@ Light.prototype.updateShadowMapHierarchical = function() {
 		for(var j = 0; j < this.n; j++) {
 			var isect = intersectDown(
 				new THREE.Vector3(
-					(i / this.n - 0.5) * this.size,
-					(j / this.n - 0.5) * this.size,
+					((i + Math.random() - 0.5) / this.n - 0.5) * this.size,
+					((j + Math.random() - 0.5) / this.n - 0.5) * this.size,
 					10),
 				0.1,
 				1e2);
