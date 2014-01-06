@@ -278,11 +278,35 @@ Bonsai.prototype.updatePlantView = function(stat) {
 	$('#info-plant').append($('<br/>'));
 
 	if(stat !== null) {
+		var table = $('<table/>');
+		$('#info-plant').append(table);
+
+		var n_cols = 5;
+		var curr_row = null;
 		_.each(stat['cells'], function(cell_stat, ix) {
-			$('#info-plant').append($('<span/>').text(JSON.stringify(cell_stat)));
-			if(ix % 3 === 0) {
-				$('#info-plant').append($('<br/>'));
+			if(ix % n_cols === 0) {
+				curr_row = $('<tr/>');
+				table.append(curr_row);
 			}
+
+			var stat = {};
+			_.each(cell_stat, function(sig) {
+				if(stat[sig] !== undefined) {
+					stat[sig] += 1;
+				} else {
+					stat[sig] = 1;
+				}
+			});
+
+			var cell_info = $('<div/>');
+			_.each(stat, function(n, sig) {
+				var mult = '';
+				if(n > 1) {
+					mult = '*' + n;
+				}
+				cell_info.append($('<span/>').text(sig + mult));
+			});
+			curr_row.append($('<td/>').append(cell_info));
 		});
 	}
 };
@@ -310,19 +334,6 @@ Bonsai.prototype.updateGenomeView = function(genome) {
 			}
 			descs.append(e_desc);
 		});
-
-
-		/*
-
-		var element = $('<span/>');
-		element.append($('<span/>').addClass('raw').text(desc.raw));
-		element.append($('<span/>').addClass('desc').text(desc.long));
-
-
-		if(!desc.known) {
-			element.addClass('ct-broken');
-		}
-		*/
 
 		var element = $('<table/>');
 		element.append(raws);

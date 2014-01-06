@@ -190,6 +190,21 @@ canvas {
 	font-family: sans-serif;
 }
 
+/* Plant Panel */
+.bg-plant span {
+	background-color: #ccc;
+	margin-right: 2px;
+
+	font-family: "Inconsolata", sans-serif;
+	font-weight: 700;
+	font-size: 10px;
+}
+
+.bg-plant {
+	max-height: 500px;
+	overflow: auto;
+}
+
 /* Genome Panel */
 .bg-genome table {
 	border-right: 2px solid #ccc;
