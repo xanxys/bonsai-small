@@ -46,17 +46,68 @@ var parseIntrinsicSignal = function(sig) {
 		Signal.HALF, Signal.CHLOROPLAST,
 		Signal.G_DX, Signal.G_DY, Signal.G_DZ];
 
+	var signals_standard = [Signal.LEAF,
+		Signal.SHOOT, Signal.SHOOT_END, Signal.FLOWER];
+
 	if(_.contains(signals_simple, sig)) {
 		return {
 			long: inv_table[sig],
 			raw: sig,
-			known: true
+			type: 'intrinsic'
 		};
+	} else if(_.contains(signals_standard, sig)) {
+		return {
+			long: inv_table[sig],
+			raw: sig,
+			type: 'standard'
+		};
+	} else if(sig[0] === Signal.DIFF) {
+		if(sig.length === 3) {
+			return {
+				long: 'DIFF(' + sig[1] + ',' + sig[2] + ')',
+				raw: sig,
+				type: 'compound'
+			};
+		} else {
+			return {
+				long: 'DIFF(?)',
+				raw: sig,
+				type: 'unknown'
+			};
+		}
+	} else if(sig[0] === Signal.INVERT) {
+		if(sig.length >= 2) {
+			return {
+				long: '!' + sig.substr(1),
+				raw: sig,
+				type: 'compound'
+			};
+		} else {
+			return {
+				long: '!',
+				raw: sig,
+				type: 'unknown'
+			};
+		}
+	} else if(sig[0] === Signal.REMOVER) {
+		if(sig.length >= 2) {
+			return {
+				long: 'DEL(' + sig.substr(1) + ')',
+				raw: sig,
+				type: 'compound'
+			};
+		} else {
+			return {
+				long: 'DEL',
+				raw: sig,
+				type: 'unknown'
+			};
+		}
 	} else {
 		return {
 			long: '',
 			raw: sig,
-			known: false
+			type: 'unknown'
 		};
 	}
 };

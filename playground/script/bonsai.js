@@ -321,11 +321,7 @@ Bonsai.prototype.updateGenomeView = function(genome) {
 			var desc = parseIntrinsicSignal(sig);
 
 			var e_raw = $('<td/>').text(desc.raw);
-			if(!desc.known) {
-				e_raw.addClass('ct-broken');
-			} else {
-				e_raw.addClass('ct-factor');
-			}
+			e_raw.addClass('ct-' + desc.type);
 			raws.append(e_raw);
 
 			var e_desc = $('<td/>').text(desc.long);

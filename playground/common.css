@@ -228,11 +228,19 @@ canvas {
 	font-size: 8px;
 }
 
-.ct-factor {
+.ct-intrinsic {
 	background-color: #341;
 }
 
-.ct-broken {
+.ct-compound {
+	background-color: #79c;
+}
+
+.ct-standard {
+	background-color: #673;
+}
+
+.ct-unknown {
 	background-color: #a33;
 }
 
