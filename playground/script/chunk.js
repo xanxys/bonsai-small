@@ -264,25 +264,51 @@ Cell.prototype.powerForPlant = function() {
 	return this.power;
 };
 
-Cell.prototype._updatePowerForPlant = function() {
-	var total = 0;
+Cell.prototype._beginUsePower = function() {
+	this.power = 0;
+};
+
+// return :: bool
+Cell.prototype._withdrawEnergy = function(amount) {
+	if(this.plant.energy > amount) {
+		this.plant.energy -= amount;
+		this.power -= amount;
+
+		return true;
+	} else {
+		return false;
+	}
+}
+
+Cell.prototype._withdrawVariableEnergy = function(max_amount) {
+	var amount = Math.min(Math.max(0, this.plant.energy), max_amount);
+	this.plant.energy -= amount;
+	this.power -= amount;
+	return amount;
+}
+
+Cell.prototype._withdrawStaticEnergy = function() {
+	var delta_static = 0;
 
 	// +: photo synthesis
 	var efficiency = this._getPhotoSynthesisEfficiency();
-	total += this.photons * 1e-9 * 6000 * efficiency;
+	delta_static += this.photons * 1e-9 * 6000 * efficiency;
 
 	// -: basic consumption (stands for common func.)
-	total -= 10 * 1e-9;
-
-	// -: DNA consumption
-	total -= 1e-9 * this.plant.genome.getComplexity();
+	delta_static -= 10 * 1e-9;
 
 	// -: linear-volume consumption (stands for cell substrate maintainance)
 	var volume_consumption = 1.0;
-	total -= this.sx * this.sy * this.sz * volume_consumption;
+	delta_static -= this.sx * this.sy * this.sz * volume_consumption;
 	
-	this.power = total;
 	this.photons = 0;
+
+	if(this.plant.energy < delta_static) {
+		this.plant.energy = -1e-3;  // set death flag (TODO: implicit value encoding is bad idea)
+	} else {
+		this.power += delta_static;
+		this.plant.energy += delta_static;
+	}
 };
 
 Cell.prototype._getPhotoSynthesisEfficiency = function() {
@@ -298,6 +324,8 @@ Cell.prototype._getPhotoSynthesisEfficiency = function() {
 Cell.prototype.step = function() {
 	var _this = this;
 	this.age += 1;
+	this._beginUsePower();
+	this._withdrawStaticEnergy();
 
 	// Unified genome.
 	function unity_calc_prob_term(signal) {
@@ -318,14 +346,21 @@ Cell.prototype.step = function() {
 		return product(_.map(when, unity_calc_prob_term));
 	}
 	
+	// Gene expression and transcription.
 	_.each(this.plant.genome.unity, function(gene) {
 		if(unity_calc_prob(gene['when']) > Math.random()) {
-			_this.signals = _this.signals.concat(gene['emit']);
+			var num_codon = sum(_.map(gene['emit'], function(sig) {
+				return sig.length
+			}));
+
+			if(_this._withdrawEnergy(num_codon * 1e-10)) {
+				_this.signals = _this.signals.concat(gene['emit']);
+			}
 		}
 	});
 
 	// Bio-physics.
-	// TODO: defined remover semantics.
+	// TODO: define remover semantics.
 	var removers = {};
 	_.each(this.signals, function(signal) {
 		if(signal.length >= 2 && signal[0] === Signal.REMOVER) {
@@ -362,7 +397,7 @@ Cell.prototype.step = function() {
 		// TODO: this should be handled by physics, not biology.
 		// Maybe dead cells with stored energy survives when fallen off.
 		if(Math.random() < 0.01) {
-			var seed_energy = Math.min(this.plant.energy, Math.pow(20e-3, 3) * 10);
+			var seed_energy = _this._withdrawVariableEnergy(Math.pow(20e-3, 3) * 10);
 
 			// TODO: should be world coodinate of the flower
 			this.plant.unsafe_chunk.disperse_seed_from(new THREE.Vector3(
@@ -370,12 +405,8 @@ Cell.prototype.step = function() {
 				this.plant.position.y,
 				0.1
 				), seed_energy, this.plant.genome.naturalClone());
-			this.plant.energy -= seed_energy;
 		}
 	}
-
-	// Update power
-	this._updatePowerForPlant();
 };
 
 // return :: THREE.Object3D
