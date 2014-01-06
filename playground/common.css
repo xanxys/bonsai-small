@@ -1,6 +1,6 @@
 @import url(http://fonts.googleapis.com/css?family=Clicker+Script);
-@import url(http://fonts.googleapis.com/css?family=Alegreya+Sans:800);
-@import url(http://fonts.googleapis.com/css?family=Inconsolata);
+@import url(http://fonts.googleapis.com/css?family=Alegreya+Sans:300,800);
+@import url(http://fonts.googleapis.com/css?family=Inconsolata:400,700);
 
 html, body {
 	margin: 0;
@@ -190,18 +190,34 @@ canvas {
 	font-family: sans-serif;
 }
 
-/* difference from pane-panel */
-.gene span {
-	margin: 1px;
-	background-color: #868;
-	font-size: 50%;
+/* Genome Panel */
+.bg-genome table {
+	border-right: 2px solid #ccc;
+	display: inline-block;
 }
 
-.gene span.ct-factor {
+.bg-genome td {
+	padding-top: 0;
+	padding-bottom: 0;
+}
+
+.bg-genome table tr:first-child {
+	font-family: "Inconsolata", sans-serif;
+	font-weight: 700;
+	font-size: 10px;
+}
+
+.bg-genome table tr:not(first-child) {
+	font-family: 'Alegreya Sans', sans-serif;
+	font-weight: 300;
+	font-size: 8px;
+}
+
+.ct-factor {
 	background-color: #341;
 }
 
-.gene span.ct-broken {
+.ct-broken {
 	background-color: #a33;
 }
 

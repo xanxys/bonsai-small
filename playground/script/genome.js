@@ -1,26 +1,5 @@
 (function() {
 
-var Rotation = {
-	CONICAL: 1,
-	HALF_CONICAL: 2,
-	FLIP : 3,
-	TWIST: 4
-};
-
-Rotation.convertToSignalName = function(type) {
-	if(type === Rotation.CONICAL) {
-		return {long: "Conical", short: "Con"};
-	} else if(type === Rotation.HALF_CONICAL) {
-		return {long: "Conical/2", short: "Con/"};
-	} else if(type === Rotation.FLIP) {
-		return {long: "Flip", short: "Flp"};
-	} else if(type === Rotation.TWIST) {
-		return {long: "Twist", short: "Tw"};
-	} else {
-		return {long: "?", short: "?"};
-	}
-}
-
 // protein: carrier of information and matter.
 // Codon, amino acids: Roman character
 var Signal = {
@@ -57,100 +36,31 @@ var Signal = {
 	DIFF_LF: 'dlf',
 };
 
+var parseIntrinsicSignal = function(sig) {
+	var inv_table = {};
+	_.each(Signal, function(signal, name) {
+		inv_table[signal] = name;
+	});
 
-var Differentiation = {
-	SHOOT_MAIN: 1,
-	SHOOT_SUB: 2,
-	LEAF: 3,
-};
+	var signals_simple = [Signal.GROWTH,
+		Signal.HALF, Signal.CHLOROPLAST,
+		Signal.G_DX, Signal.G_DY, Signal.G_DZ];
 
-Differentiation.convertToSignalName = function(type) {
-	if(type === Differentiation.SHOOT_MAIN) {
-		return {long: "DShootMain", short: "DShM"};
-	} else if(type === Differentiation.SHOOT_SUB) {
-		return {long: "DShootSub", short: "DShS"};
-	} else if(type === Differentiation.LEAF) {
-		return {long: "DLeaf", short: "DLf"};
-	} else {
-		return {long: "?", short: "?"};
-	}
-}
-
-// This is an instance, not a class.
-var CellType = {
-	LEAF: 1,
-	SHOOT: 2,
-	SHOOT_END: 3,  // Corresponds to shoot apical meristem
-	FLOWER: 4,  // self-pollinating, seed-dispersing
-
-	// This is not cell type
-	GROWTH_FACTOR: 5,
-	ANTI_GROWTH_FACTOR: 6,
-	HALF: 7
-};
-
-// return :: {long :: str, short :: str}
-CellType.convertToSignalName = function(type) {
-	var RvCT = {
-		1: "Leaf",
-		2: "Shoot",
-		3: "ShootApex",
-		4: "Flower",
-		5: "Growth",
-		6: "!Growth",
-		7: "1/2",
-	};
-
-	var RvCTShort = {
-		1: "Lf",
-		2: "Sh",
-		3: "ShAx",
-		4: "Flr",
-		5: "Gr",
-		6: "!Gr",
-		7: "/",
-	};
-
-	if(RvCT[type]) {
+	if(_.contains(signals_simple, sig)) {
 		return {
-			long: RvCT[type],
-			short: RvCTShort[type]
+			long: inv_table[sig],
+			raw: sig,
+			known: true
 		};
 	} else {
 		return {
-			long: "?",
-			short: "?"
+			long: '',
+			raw: sig,
+			known: false
 		};
 	}
 };
 
-CellType.convertToKey = function(type) {
-	if(type === CellType.LEAF) {
-		return 'leaf';
-	} else if(type === CellType.SHOOT) {
-		return 'shoot';
-	} else if(type === CellType.SHOOT_END) {
-		return 'shoot_apex';
-	} else if(type === CellType.FLOWER) {
-		return 'flower';
-	} else {
-		return 'unknown';
-	}
-};
-
-CellType.convertToColor = function(type) {
-	if(type === CellType.LEAF) {
-		return 'green';
-	} else if(type === CellType.SHOOT) {
-		return 'brown';
-	} else if(type === CellType.SHOOT_END) {
-		return 'brown';
-	} else if(type === CellType.FLOWER) {
-		return 'red';
-	} else {
-		return 'white';
-	}
-};
 
 var Genome = function() {
 	this.unity = [
@@ -310,10 +220,8 @@ function sum(xs) {
 	}, 0);
 }
 
-this.CellType = CellType;
-this.Rotation = Rotation;
-this.Differentiation = Differentiation;
 this.Genome = Genome;
+this.parseIntrinsicSignal = parseIntrinsicSignal;
 this.Signal = Signal;
 
 })(this);
