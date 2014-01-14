@@ -84,7 +84,7 @@ canvas {
 
 	background: url("dirty_darkgray.png");
 
-	box-shadow: 3px 0 3px 0px rgba(0, 0, 0, 0.4);
+	box-shadow: 3px 0 3px 0 rgba(0, 0, 0, 0.4);
 	z-index: 3;
 }
 
@@ -97,8 +97,8 @@ canvas {
 	position: absolute;
 	left: 50px;
 	top: 0;
-	width: 400px;
-	height: 100%;	
+	width: 5px;
+	height: 100%;
 }
 
 
