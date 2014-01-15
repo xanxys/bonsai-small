@@ -572,7 +572,16 @@ Light.prototype.step = function() {
 };
 
 Light.prototype.updateShadowMapHierarchical = function() {
-	var dummy = new THREE.Scene();
+	var _this = this;
+
+	// Put Plants to all overlapping 2D uniform grid cells.
+	var ng = 15;
+	var grid = _.map(_.range(0, ng), function(ix) {
+		return _.map(_.range(0, ng), function(iy) {
+			return [];
+		});
+	});
+	
 	_.each(this.chunk.children, function(plant) {
 		// Calculate AABB.
 		var mesh = plant.materialize(true);
@@ -587,34 +596,52 @@ Light.prototype.updateShadowMapHierarchical = function() {
 			v_max.max(vertex);
 		});
 
-		// Attach AABB.
+		// Store to grid.
 		var object = plant.materialize(false);
-		object.aabb = [v_min, v_max];
-		dummy.add(object);
+		object.updateMatrixWorld();
+
+		var vi0 = toIxV_unsafe(v_min);
+		var vi1 = toIxV_unsafe(v_max);
+
+		var ix0 = Math.max(0, Math.floor(vi0.x));
+		var iy0 = Math.max(0, Math.floor(vi0.y));
+		var ix1 = Math.min(ng, Math.ceil(vi1.x));
+		var iy1 = Math.min(ng, Math.ceil(vi1.y));
+
+		for(var ix = ix0; ix < ix1; ix++) {
+			for(var iy = iy0; iy < iy1; iy++) {
+				grid[ix][iy].push(object);
+			}
+		}
 	});
-	// We need this call since dummy doesn't belong to render path,
-	// so world matrix (used by raycaster) isn't automatically updated.
-	dummy.updateMatrixWorld();
 
+	function toIxV_unsafe(v3) {
+		v3.multiplyScalar(ng / _this.size);
+		v3.x += ng * 0.5;
+		v3.y += ng * 0.5;
+		return v3;
+	}
+
+	// Accelerated ray tracing w/ the uniform grid.
 	function intersectDown(origin, near, far) {
-		var objects = _.filter(dummy.children, function(object) {
-			var v_min = object.aabb[0];
-			var v_max = object.aabb[1];
+		var i = toIxV_unsafe(origin.clone());
+		var ix = Math.floor(i.x);
+		var iy = Math.floor(i.y);
 
-			return (v_min.x <= origin.x && origin.x <= v_max.x) &&
-				(v_min.y <= origin.y && origin.y <= v_max.y);
-		});
-
+		if(ix < 0 || iy < 0 || ix >= ng || iy >= ng) {
+			return [];
+		}
+		
 		return new THREE.Raycaster(origin, new THREE.Vector3(0, 0, -1), near, far)
-			.intersectObjects(objects, true);
+			.intersectObjects(grid[ix][iy], true);
 	}
 
 	for(var i = 0; i < this.n; i++) {
 		for(var j = 0; j < this.n; j++) {
 			var isect = intersectDown(
 				new THREE.Vector3(
-					((i + Math.random() - 0.5) / this.n - 0.5) * this.size,
-					((j + Math.random() - 0.5) / this.n - 0.5) * this.size,
+					((i + Math.random()) / this.n - 0.5) * this.size,
+					((j + Math.random()) / this.n - 0.5) * this.size,
 					10),
 				0.1,
 				1e2);
@@ -655,8 +682,7 @@ var Chunk = function(scene) {
 	// Light
 	this.light = new Light(this, this.size);
 
-	// Cells (Cell sim)
-	// TODO: rename to Cells for easier access from soil and light_volume.
+	// Plants (bio-phys)
 	this.children = [];
 };
 
