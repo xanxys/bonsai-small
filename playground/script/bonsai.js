@@ -396,8 +396,8 @@ Bonsai.prototype.serializeSelection = function(data_plant) {
 	var padding = new THREE.Vector3(5e-3, 5e-3, 5e-3);
 
 	// Calculate AABB of the plant.
-	var v_min = new THREE.Vector3(0, 0, 0);
-	var v_max = new THREE.Vector3(0, 0, 0);
+	var v_min = new THREE.Vector3(1e3, 1e3, 1e3);
+	var v_max = new THREE.Vector3(-1e3, -1e3, -1e3);
 	_.each(data_plant.vertices, function(data_vertex) {
 		var vertex = new THREE.Vector3().copy(data_vertex);
 		v_min.min(vertex);
@@ -420,11 +420,8 @@ Bonsai.prototype.serializeSelection = function(data_plant) {
 
 		}));
 
-	proxy.position = new THREE.Vector3(
-		data_plant.position.x,
-		data_plant.position.y,
-		data_plant.position.z)
-		.add(proxy_center)
+	proxy.position = proxy_center
+		.clone()
 		.add(new THREE.Vector3(0, 0, 5e-3 + 1e-3));
 
 	return proxy;
@@ -444,11 +441,6 @@ Bonsai.prototype.deserialize = function(data) {
 		var mesh = new THREE.Mesh(geom,
 			new THREE.MeshLambertMaterial({
 				vertexColors: THREE.VertexColors}));
-
-		mesh.position = new THREE.Vector3(
-			data_plant.position.x,
-			data_plant.position.y,
-			data_plant.position.z);
 		
 		mesh.plant_id = data_plant.id;
 		mesh.plant_data = data_plant;

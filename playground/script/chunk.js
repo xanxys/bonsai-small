@@ -34,12 +34,15 @@ var Plant = function(position, unsafe_chunk, energy, genome, plant_id) {
 	this.id = plant_id;
 
 	// physics
+	this.seed_innode_to_world = new THREE.Matrix4().compose(
+		position,
+		new THREE.Quaternion(),
+		new THREE.Vector3(1, 1, 1));
 	this.position = position;
 
 	// biophysics
 	this.energy = energy;
 	this.seed = new Cell(this, Signal.SHOOT_END);
-	//this.seed.loc_to_parent = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.random() * 2 * Math.PI);
 
 	// genetics
 	this.genome = genome;
@@ -55,7 +58,7 @@ Plant.prototype.step = function() {
 	console.assert(this.seed.age === this.age);
 
 	var mech_valid = this.seed.checkMechanics();
-	this.seed.updatePose();
+	this.seed.updatePose(this.seed_innode_to_world);
 
 	// Consume/store in-Plant energy.
 	this.energy += this._powerForPlant() * 1;
@@ -99,14 +102,12 @@ Plant.prototype.materialize = function(merge) {
 			merged_geom,
 			new THREE.MeshLambertMaterial({vertexColors: THREE.VertexColors}));
 
-		merged_plant.position = this.position;
 		return merged_plant;
 	} else {
 		var three_plant = new THREE.Object3D();
 		_.each(proxies, function(proxy) {
 			three_plant.add(proxy);
 		});
-		three_plant.position = this.position;
 		return three_plant;
 	}
 };
@@ -377,15 +378,8 @@ Cell.prototype.step = function() {
 };
 
 Cell.prototype.updatePose = function(innode_to_world) {
-	if(innode_to_world === undefined) {
-		innode_to_world = new THREE.Matrix4();
-	}
-
 	// Update this.
-	var parent_to_loc = new THREE.Quaternion();
-	if(this.loc_to_parent !== undefined) {
-		parent_to_loc = this.loc_to_parent.clone().inverse();
-	}
+	var parent_to_loc = this.loc_to_parent.clone().inverse();
 
 	var innode_to_center = new THREE.Matrix4().compose(
 		new THREE.Vector3(0, 0, -this.sz / 2),
@@ -441,32 +435,6 @@ Cell.prototype.materializeSingle = function() {
 		geom_cube,
 		new THREE.MeshLambertMaterial({
 			vertexColors: THREE.VertexColors}));
-};
-
-// return :: THREE.Object3D
-Cell.prototype.materialize = function() {
-	var object_cell = this.materializeSingle();
-	object_cell.position.z = this.sz / 2;
-
-	// Create children coordinates frame.
-	var object_frame_children = new THREE.Object3D();
-	object_frame_children.position.z += this.sz;
-
-	// Create cell coordinates frame.
-	var object_frame = new THREE.Object3D();
-	object_frame.quaternion = this.loc_to_parent.clone();  // TODO: is this ok?
-	object_frame.add(object_cell);
-	object_frame.add(object_frame_children);
-
-	// Add children.
-	_.each(this.children, function(child) {
-		object_frame_children.add(child.materialize());
-	}, this);
-
-	// Add cell interaction slot.
-	object_cell.cell = this;
-
-	return object_frame;
 };
 
 Cell.prototype.givePhoton = function() {
@@ -626,7 +594,7 @@ Light.prototype.updateShadowMapHierarchical = function() {
 		// Attach AABB.
 		// TODO: this code doesn't work when plant object contains rotation.
 		var object = plant.materialize(false);
-		object.aabb = [v_min.add(object.position), v_max.add(object.position)];
+		object.aabb = [v_min, v_max];
 		dummy.add(object);
 	});
 	// We need this call since dummy doesn't belong to render path,
@@ -848,12 +816,7 @@ Chunk.prototype.serialize = function() {
 		return {
 			'id': plant.id,
 			'vertices': mesh.geometry.vertices,
-			'faces': mesh.geometry.faces,
-			'position': {
-				x: mesh.position.x,
-				y: mesh.position.y,
-				z: mesh.position.z
-			}
+			'faces': mesh.geometry.faces
 		};
 	}, this);
 	ser['soil'] = this.soil.serialize();
