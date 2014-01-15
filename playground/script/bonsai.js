@@ -99,7 +99,9 @@ Bonsai.prototype.add_stats = function() {
 	this.stats.domElement.style.right = '0px';
 	this.stats.domElement.style.top = '0px';
 
-	document.body.appendChild(this.stats.domElement);
+	if(this.debug) {
+		document.body.appendChild(this.stats.domElement);
+	}
 }
 
 // return :: ()
