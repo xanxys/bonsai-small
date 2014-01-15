@@ -8,6 +8,14 @@ var now = function() {
 	}
 };
 
+// m :: Matrix4 (m * local = world)
+var CellProxy = function(m, sx, sy, sz) {
+	this.pose = m;
+	this.sx = sx;
+	this.sy = sy;
+	this.sz = sz;
+};
+
 // Collections of cells that forms a "single" plant.
 // This is not biologically accurate depiction of plants,
 // (e.g. vegetative growth, physics)
@@ -42,8 +50,6 @@ Plant.prototype._validate_depth = function() {
 };
 
 Plant.prototype.step = function() {
-	//this._validate_depth();
-
 	// Step cells (w/o collecting/stepping separation, infinite growth will occur)
 	this.age += 1;
 	var all_cells = [];
@@ -60,6 +66,7 @@ Plant.prototype.step = function() {
 	console.assert(this.seed.age === this.age);
 
 	var mech_valid = this.seed.checkMechanics();
+	this.seed.updatePose();
 
 	// Consume/store in-Plant energy.
 	this.energy += this._powerForPlant() * 1;
@@ -82,19 +89,24 @@ Plant.prototype.materialize = function(merge) {
 	var three_plant = this.seed.materialize();
 
 	// TODO: maybe merge should be moved to Chunk, since it's UI-specific.
+	var cell_proxies = [];
 	if(merge) {
 		// Merge everything
 		var merged_geom = new THREE.Geometry();
 		three_plant.traverse(function(child) {
-			if(child.parent){
+			if(child.parent) {
 				child.updateMatrixWorld();
 				child.applyMatrix(child.parent.matrixWorld);    
 			}
 
 			if(child instanceof THREE.Mesh) {
+				cell_proxies.push(new CellProxy(child.matrix,
+					child.cell.sx, child.cell.sy, child.cell.sz));
 				THREE.GeometryUtils.merge(merged_geom, child);
 			}
 		});
+
+		//console.log(cell_proxies);
 
 		var merged_plant = new THREE.Mesh(
 			merged_geom,
@@ -163,10 +175,11 @@ var Cell = function(plant, initial_signal) {
 	this.sx = 1e-3;
 	this.sy = 1e-3;
 	this.sz = 1e-3;
+	this.loc_to_world = new THREE.Matrix4();
 
 	// in-sim (bio)
 	this.plant = plant;
-	this.children = [];
+	this.children = [];  // out_conn
 	this.power = 0;
 
 	// in-sim (genetics)
@@ -407,6 +420,40 @@ Cell.prototype.step = function() {
 				), seed_energy, this.plant.genome.naturalClone());
 		}
 	}
+};
+
+Cell.prototype.updatePose = function(innode_to_world) {
+	if(innode_to_world === undefined) {
+		innode_to_world = new THREE.Matrix4();
+	}
+
+	// Update this.
+	var parent_to_loc = new THREE.Matrix4();
+	if(this.loc_to_parent !== undefined) {
+		parent_to_loc.makeRotationFromQuaternion(
+			this.loc_to_parent.clone().inverse());
+	}
+
+	var innode_to_center = new THREE.Matrix4().compose(
+		new THREE.Vector3(0, 0, this.sz / 2),
+		parent_to_loc,
+		new THREE.Vector3(1, 1, 1));
+	var center_to_innode = new THREE.Matrix4().getInverse(innode_to_center);
+	this.loc_to_world = innode_to_world.clone().multiply(
+		center_to_innode);
+
+	var innode_to_outnode = new THREE.Matrix4().compose(
+		new THREE.Vector3(0, 0, this.sz),
+		parent_to_loc,
+		new THREE.Vector3(1, 1, 1));
+
+	var world_to_innode = new THREE.Matrix4().getInverse(innode_to_world);
+	var outnode_to_world = innode_to_world.clone().multiply(
+		world_to_innode);
+
+	_.each(this.children, function(child) {
+		child.updatePose(outnode_to_world);
+	});
 };
 
 // return :: THREE.Object3D

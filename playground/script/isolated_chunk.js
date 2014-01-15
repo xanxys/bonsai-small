@@ -9,8 +9,8 @@ var ChunkServer = function() {
 	var scene = new THREE.Scene();
 	this.chunk = new Chunk(scene);
 
-	_.each(_.range(-1, 2), function(ix) {
-		_.each(_.range(-1, 2), function(iy) {
+	_.each(_.range(-2, 3), function(ix) {
+		_.each(_.range(-2, 3), function(iy) {
 			this.current_plant = _this.chunk.add_default_plant(
 				new THREE.Vector3(ix * 0.1, iy * 0.1, 0));
 		});
