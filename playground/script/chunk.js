@@ -499,7 +499,7 @@ Cell.prototype.add_cont = function(initial, locator) {
 var Soil = function(parent, size) {
 	this.parent = parent;
 
-	this.n = 25;
+	this.n = 35;
 	this.size = size;
 };
 
@@ -561,7 +561,7 @@ Soil.prototype._generateTexture = function() {
 var Light = function(chunk, size) {
 	this.chunk = chunk;
 
-	this.n = 25;
+	this.n = 35;
 	this.size = size;
 
 	this.shadow_map = new Float32Array(this.n * this.n);

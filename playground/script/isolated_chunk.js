@@ -10,10 +10,10 @@ var ChunkServer = function() {
 	this.chunk = new Chunk(scene);
 
 	
-	_.each(_.range(-2, 3), function(ix) {
-		_.each(_.range(-2, 3), function(iy) {
+	_.each(_.range(-2, 4), function(ix) {
+		_.each(_.range(-2, 4), function(iy) {
 			this.current_plant = _this.chunk.add_default_plant(
-				new THREE.Vector3(ix * 0.1, iy * 0.1, 0));
+				new THREE.Vector3(ix * 0.07, iy * 0.07, 0));
 		});
 	});
 
