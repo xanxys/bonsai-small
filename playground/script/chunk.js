@@ -8,13 +8,6 @@ var now = function() {
 	}
 };
 
-// m :: Matrix4 (m * local = world)
-var CellProxy = function(m, sx, sy, sz) {
-	this.pose = m;
-	this.sx = sx;
-	this.sy = sy;
-	this.sz = sz;
-};
 
 // Collections of cells that forms a "single" plant.
 // This is not biologically accurate depiction of plants,
@@ -36,7 +29,7 @@ var Plant = function(position, unsafe_chunk, energy, genome, plant_id) {
 	// physics
 	this.seed_innode_to_world = new THREE.Matrix4().compose(
 		position,
-		new THREE.Quaternion(),
+		new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.random() * 2 * Math.PI),
 		new THREE.Vector3(1, 1, 1));
 	this.position = position;
 
@@ -367,12 +360,15 @@ Cell.prototype.step = function() {
 		if(Math.random() < 0.01) {
 			var seed_energy = _this._withdrawVariableEnergy(Math.pow(20e-3, 3) * 10);
 
+			// Get world coordinates.
+			var trans = new THREE.Vector3();
+			var _rot = new THREE.Quaternion();
+			var _scale = new THREE.Vector3();
+			this.loc_to_world.decompose(trans, _rot, _scale);
+
 			// TODO: should be world coodinate of the flower
-			this.plant.unsafe_chunk.disperse_seed_from(new THREE.Vector3(
-				this.plant.position.x,
-				this.plant.position.y,
-				0.1
-				), seed_energy, this.plant.genome.naturalClone());
+			this.plant.unsafe_chunk.disperse_seed_from(
+				trans, seed_energy, this.plant.genome.naturalClone());
 		}
 	}
 };
@@ -592,7 +588,6 @@ Light.prototype.updateShadowMapHierarchical = function() {
 		});
 
 		// Attach AABB.
-		// TODO: this code doesn't work when plant object contains rotation.
 		var object = plant.materialize(false);
 		object.aabb = [v_min, v_max];
 		dummy.add(object);
