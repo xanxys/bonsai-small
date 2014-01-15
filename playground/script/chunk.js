@@ -86,27 +86,25 @@ Plant.prototype.growth_factor = function() {
 
 // return :: THREE.Object3D<world>
 Plant.prototype.materialize = function(merge) {
-	var three_plant = this.seed.materialize();
+	var proxies = _.map(this.collectCells(), function(cell) {
+		var m = cell.materializeSingle();
 
-	// TODO: maybe merge should be moved to Chunk, since it's UI-specific.
-	var cell_proxies = [];
+		var trans = new THREE.Vector3();
+		var q = new THREE.Quaternion();
+		var s = new THREE.Vector3();
+		cell.loc_to_world.decompose(trans, q, s);
+
+		m.cell = cell;
+		m.position = trans;
+		m.quaternion = q;
+		return m;
+	});
+
 	if(merge) {
-		// Merge everything
 		var merged_geom = new THREE.Geometry();
-		three_plant.traverse(function(child) {
-			if(child.parent) {
-				child.updateMatrixWorld();
-				child.applyMatrix(child.parent.matrixWorld);    
-			}
-
-			if(child instanceof THREE.Mesh) {
-				cell_proxies.push(new CellProxy(child.matrix,
-					child.cell.sx, child.cell.sy, child.cell.sz));
-				THREE.GeometryUtils.merge(merged_geom, child);
-			}
+		_.each(proxies, function(proxy) {
+			THREE.GeometryUtils.merge(merged_geom, proxy);
 		});
-
-		//console.log(cell_proxies);
 
 		var merged_plant = new THREE.Mesh(
 			merged_geom,
@@ -115,24 +113,29 @@ Plant.prototype.materialize = function(merge) {
 		merged_plant.position = this.position;
 		return merged_plant;
 	} else {
+		var three_plant = new THREE.Object3D();
+		_.each(proxies, function(proxy) {
+			three_plant.add(proxy);
+		});
 		three_plant.position = this.position;
 		return three_plant;
 	}
 };
 
-Plant.prototype.get_stat = function() {
+Plant.prototype.collectCells = function() {
 	var all_cells = [];
 	var collect_cell_recursive = function(cell) {
 		all_cells.push(cell);
 		_.each(cell.children, collect_cell_recursive);
 	}
 	collect_cell_recursive(this.seed);
+	return all_cells;
+};
 
-	var stat_cells = [];
-	_.each(all_cells, function(cell) {
-		stat_cells.push(cell.signals);
+Plant.prototype.get_stat = function() {
+	var stat_cells = _.map(this.collectCells(), function(cell) {
+		return cell.signals;
 	});
-	
 
 	var stat = {};
 	stat["#cells"] = stat_cells.length;
@@ -428,14 +431,13 @@ Cell.prototype.updatePose = function(innode_to_world) {
 	}
 
 	// Update this.
-	var parent_to_loc = new THREE.Matrix4();
+	var parent_to_loc = new THREE.Quaternion();
 	if(this.loc_to_parent !== undefined) {
-		parent_to_loc.makeRotationFromQuaternion(
-			this.loc_to_parent.clone().inverse());
+		parent_to_loc = this.loc_to_parent.clone().inverse();
 	}
 
 	var innode_to_center = new THREE.Matrix4().compose(
-		new THREE.Vector3(0, 0, this.sz / 2),
+		new THREE.Vector3(0, 0, -this.sz / 2),
 		parent_to_loc,
 		new THREE.Vector3(1, 1, 1));
 	var center_to_innode = new THREE.Matrix4().getInverse(innode_to_center);
@@ -443,21 +445,22 @@ Cell.prototype.updatePose = function(innode_to_world) {
 		center_to_innode);
 
 	var innode_to_outnode = new THREE.Matrix4().compose(
-		new THREE.Vector3(0, 0, this.sz),
+		new THREE.Vector3(0, 0, -this.sz),
 		parent_to_loc,
 		new THREE.Vector3(1, 1, 1));
 
-	var world_to_innode = new THREE.Matrix4().getInverse(innode_to_world);
+	var outnode_to_innode = new THREE.Matrix4().getInverse(innode_to_outnode);
 	var outnode_to_world = innode_to_world.clone().multiply(
-		world_to_innode);
+		outnode_to_innode);
 
 	_.each(this.children, function(child) {
 		child.updatePose(outnode_to_world);
 	});
 };
 
-// return :: THREE.Object3D
-Cell.prototype.materialize = function() {
+// Create origin-centered, colored AABB for this Cell.
+// return :: THREE.Mesh
+Cell.prototype.materializeSingle = function() {
 	// Create cell object [-sx/2,sx/2] * [-sy/2,sy/2] * [0, sz]
 	var flr_ratio = (_.contains(this.signals, Signal.FLOWER)) ? 0.5 : 1;
 	var chl_ratio = 1 - this._getPhotoSynthesisEfficiency();
@@ -483,11 +486,15 @@ Cell.prototype.materialize = function() {
 		}
 	}
 
-	var object_cell = new THREE.Mesh(
+	return new THREE.Mesh(
 		geom_cube,
 		new THREE.MeshLambertMaterial({
 			vertexColors: THREE.VertexColors}));
+};
 
+// return :: THREE.Object3D
+Cell.prototype.materialize = function() {
+	var object_cell = this.materializeSingle();
 	object_cell.position.z = this.sz / 2;
 
 	// Create children coordinates frame.
