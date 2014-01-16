@@ -253,7 +253,7 @@ Cell.prototype._withdrawStaticEnergy = function() {
 
 	// +: photo synthesis
 	var efficiency = this._getPhotoSynthesisEfficiency();
-	delta_static += this.photons * 1e-9 * 6000 * efficiency;
+	delta_static += this.photons * 1e-9 * 15000 * efficiency;
 
 	// -: basic consumption (stands for common func.)
 	delta_static -= 10 * 1e-9;
@@ -299,7 +299,7 @@ Cell.prototype.step = function() {
 		} else if(_.contains(_this.signals, signal)) {
 			return 1;
 		} else {
-			return 0;
+			return 0.001;
 		}
 	}
 
