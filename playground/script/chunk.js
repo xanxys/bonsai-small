@@ -586,11 +586,13 @@ Light.prototype.updateShadowMapHierarchical = function() {
 		var object = plant.materialize(false);
 		object.updateMatrixWorld();
 
+		var v_min = new THREE.Vector3();
+		var v_max = new THREE.Vector3();
+		var v_temp = new THREE.Vector3();
 		_.each(object.children, function(child) {
 			// Calculate AABB.
-			var v_min = new THREE.Vector3(1e3, 1e3, 1e3);
-			var v_max = new THREE.Vector3(-1e3, -1e3, -1e3);
-			var v_temp = new THREE.Vector3();
+			v_min.set(1e3, 1e3, 1e3);
+			v_max.set(-1e3, -1e3, -1e3);
 			_.each(child.geometry.vertices, function(vertex) {
 				v_temp.set(vertex.x, vertex.y, vertex.z);
 				child.localToWorld(v_temp);
