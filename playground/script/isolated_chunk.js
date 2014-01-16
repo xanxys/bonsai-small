@@ -9,25 +9,22 @@ var ChunkServer = function() {
 	var scene = new THREE.Scene();
 	this.chunk = new Chunk(scene);
 
-	
-	_.each(_.range(-2, 4), function(ix) {
-		_.each(_.range(-2, 4), function(iy) {
-			this.current_plant = _this.chunk.add_default_plant(
-				new THREE.Vector3(ix * 0.07, iy * 0.07, 0));
+	var stress = false;
+	if(!stress) {
+		_.each(_.range(-2, 4), function(ix) {
+			_.each(_.range(-2, 4), function(iy) {
+				this.current_plant = _this.chunk.add_default_plant(
+					new THREE.Vector3(ix * 0.07, iy * 0.07, 0));
+			});
 		});
-	});
-
-
-	// Stress test
-	/*
-	_.each(_.range(-15, 16), function(ix) {
-		_.each(_.range(-15, 16), function(iy) {
-			this.current_plant = _this.chunk.add_default_plant(
-				new THREE.Vector3(ix * 0.01, iy * 0.01, 0));
+	} else {
+		_.each(_.range(-15, 16), function(ix) {
+			_.each(_.range(-15, 16), function(iy) {
+				this.current_plant = _this.chunk.add_default_plant(
+					new THREE.Vector3(ix * 0.01, iy * 0.01, 0));
+			});
 		});
-	});
-*/
-
+	}
 
 	self.addEventListener('message', function(ev) {
 		try {
