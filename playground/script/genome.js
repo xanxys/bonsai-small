@@ -231,16 +231,16 @@ Genome.prototype._naturalCloneSignal = function(sig) {
 		return set[Math.floor(Math.random() * set.length)];
 	}
 
-	if(Math.random() > 0.01) {
-		return sig;
-	} else {
-		var sig = '';
-		do {
-			sig += random_sig1();
-		} while(Math.random() < 0.1);
-
-		return sig;
+	var new_sig = '';
+	for(var i = 0; i < sig.length; i++) {
+		if(Math.random() > 0.01) {
+			new_sig += sig[i];
+		}
+		if(Math.random() < 0.01) {
+			new_sig += random_sig1();
+		}
 	}
+	return new_sig;
 };
 
 Genome.prototype._shuffle = function(array, modifier_normal, modifier_dup) {
