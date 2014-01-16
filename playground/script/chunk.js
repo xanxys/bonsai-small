@@ -583,36 +583,36 @@ Light.prototype.updateShadowMapHierarchical = function() {
 	});
 	
 	_.each(this.chunk.children, function(plant) {
-		// Calculate AABB.
-		var mesh = plant.materialize(true);
-		if(mesh.geometry.vertices.length === 0) {
-			return;
-		}
-
-		var v_min = new THREE.Vector3(1e3, 1e3, 1e3);
-		var v_max = new THREE.Vector3(-1e3, -1e3, -1e3);
-		_.each(mesh.geometry.vertices, function(vertex) {
-			v_min.min(vertex);
-			v_max.max(vertex);
-		});
-
-		// Store to grid.
 		var object = plant.materialize(false);
 		object.updateMatrixWorld();
 
-		var vi0 = toIxV_unsafe(v_min);
-		var vi1 = toIxV_unsafe(v_max);
+		_.each(object.children, function(child) {
+			// Calculate AABB.
+			var v_min = new THREE.Vector3(1e3, 1e3, 1e3);
+			var v_max = new THREE.Vector3(-1e3, -1e3, -1e3);
+			var v_temp = new THREE.Vector3();
+			_.each(child.geometry.vertices, function(vertex) {
+				v_temp.set(vertex.x, vertex.y, vertex.z);
+				child.localToWorld(v_temp);
+				v_min.min(v_temp);
+				v_max.max(v_temp);
+			});
 
-		var ix0 = Math.max(0, Math.floor(vi0.x));
-		var iy0 = Math.max(0, Math.floor(vi0.y));
-		var ix1 = Math.min(ng, Math.ceil(vi1.x));
-		var iy1 = Math.min(ng, Math.ceil(vi1.y));
+			// Store to uniform grid.
+			var vi0 = toIxV_unsafe(v_min);
+			var vi1 = toIxV_unsafe(v_max);
 
-		for(var ix = ix0; ix < ix1; ix++) {
-			for(var iy = iy0; iy < iy1; iy++) {
-				grid[ix][iy].push(object);
+			var ix0 = Math.max(0, Math.floor(vi0.x));
+			var iy0 = Math.max(0, Math.floor(vi0.y));
+			var ix1 = Math.min(ng, Math.ceil(vi1.x));
+			var iy1 = Math.min(ng, Math.ceil(vi1.y));
+
+			for(var ix = ix0; ix < ix1; ix++) {
+				for(var iy = iy0; iy < iy1; iy++) {
+					grid[ix][iy].push(child);
+				}
 			}
-		}
+		});
 	});
 
 	function toIxV_unsafe(v3) {
