@@ -258,7 +258,7 @@ Bonsai.prototype.init = function() {
 			if(_this.playing) {
 				setTimeout(function() {
 					_this.handle_step(1);
-				}, 50);
+				}, 100);
 			}
 		} else if(ev.data.type === 'stat-plant') {
 			_this.updatePlantView(ev.data.data.stat);
