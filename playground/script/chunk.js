@@ -1,5 +1,13 @@
 (function() {
 
+if(console.assert === undefined) {
+	console.assert = function(cond) {
+		if(!cond) {
+			throw "assertion failed";
+		}
+	};
+}
+
 var now = function() {
 	if(typeof performance !== 'undefined') {
 		return performance.now();
