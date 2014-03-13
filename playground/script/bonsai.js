@@ -99,7 +99,9 @@ Bonsai.prototype.add_stats = function() {
 	this.stats.domElement.style.right = '0px';
 	this.stats.domElement.style.top = '0px';
 
-	document.body.appendChild(this.stats.domElement);
+	if(this.debug) {
+		document.body.appendChild(this.stats.domElement);
+	}
 }
 
 // return :: ()
@@ -183,6 +185,7 @@ Bonsai.prototype.init = function() {
 			button_toggle_chart: 'bg-chart',
 			button_toggle_plant: 'bg-plant',
 			button_toggle_genome: 'bg-genome',
+			button_toggle_about: 'bg-about',
 		};
 
 		target.toggleClass('active');
@@ -222,6 +225,23 @@ Bonsai.prototype.init = function() {
 		_this.handle_step(50);
 	});
 
+	$('#button_kill').on('click', function() {
+		if(curr_selection !== null) {
+			_this.isolated_chunk.postMessage({
+				type: 'kill',
+				data: {
+					id: _this.inspect_plant_id
+				}
+			});
+
+			_this.isolated_chunk.postMessage({
+				type: 'serialize'
+			});
+
+			_this.requestPlantStatUpdate();
+		}
+	});
+
 	this.isolated_chunk.addEventListener('message', function(ev) {
 		if(ev.data.type === 'serialize') {
 			var proxy = _this.deserialize(ev.data.data);
@@ -256,7 +276,7 @@ Bonsai.prototype.init = function() {
 			if(_this.playing) {
 				setTimeout(function() {
 					_this.handle_step(1);
-				}, 50);
+				}, 100);
 			}
 		} else if(ev.data.type === 'stat-plant') {
 			_this.updatePlantView(ev.data.data.stat);
@@ -396,8 +416,8 @@ Bonsai.prototype.serializeSelection = function(data_plant) {
 	var padding = new THREE.Vector3(5e-3, 5e-3, 5e-3);
 
 	// Calculate AABB of the plant.
-	var v_min = new THREE.Vector3(0, 0, 0);
-	var v_max = new THREE.Vector3(0, 0, 0);
+	var v_min = new THREE.Vector3(1e3, 1e3, 1e3);
+	var v_max = new THREE.Vector3(-1e3, -1e3, -1e3);
 	_.each(data_plant.vertices, function(data_vertex) {
 		var vertex = new THREE.Vector3().copy(data_vertex);
 		v_min.min(vertex);
@@ -420,11 +440,8 @@ Bonsai.prototype.serializeSelection = function(data_plant) {
 
 		}));
 
-	proxy.position = new THREE.Vector3(
-		data_plant.position.x,
-		data_plant.position.y,
-		data_plant.position.z)
-		.add(proxy_center)
+	proxy.position = proxy_center
+		.clone()
 		.add(new THREE.Vector3(0, 0, 5e-3 + 1e-3));
 
 	return proxy;
@@ -444,11 +461,6 @@ Bonsai.prototype.deserialize = function(data) {
 		var mesh = new THREE.Mesh(geom,
 			new THREE.MeshLambertMaterial({
 				vertexColors: THREE.VertexColors}));
-
-		mesh.position = new THREE.Vector3(
-			data_plant.position.x,
-			data_plant.position.y,
-			data_plant.position.z);
 		
 		mesh.plant_id = data_plant.id;
 		mesh.plant_data = data_plant;

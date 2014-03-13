@@ -9,12 +9,23 @@ var ChunkServer = function() {
 	var scene = new THREE.Scene();
 	this.chunk = new Chunk(scene);
 
-	_.each(_.range(-1, 2), function(ix) {
-		_.each(_.range(-1, 2), function(iy) {
-			this.current_plant = _this.chunk.add_default_plant(
-				new THREE.Vector3(ix * 0.1, iy * 0.1, 0));
+	// Should be moved to bonsai.js
+	var stress = false;
+	if(!stress) {
+		_.each(_.range(-2, 3), function(ix) {
+			_.each(_.range(-2, 3), function(iy) {
+				this.current_plant = _this.chunk.add_default_plant(
+					new THREE.Vector3(ix * 0.07, iy * 0.07, 0));
+			});
 		});
-	});
+	} else {
+		_.each(_.range(-15, 16), function(ix) {
+			_.each(_.range(-15, 16), function(iy) {
+				this.current_plant = _this.chunk.add_default_plant(
+					new THREE.Vector3(ix * 0.01, iy * 0.01, 0));
+			});
+		});
+	}
 
 	self.addEventListener('message', function(ev) {
 		try {
@@ -24,6 +35,8 @@ var ChunkServer = function() {
 					type: 'stat-sim',
 					data: sim_stat
 				});
+			} else if(ev.data.type === 'kill') {
+				_this.chunk.kill(ev.data.data.id);
 			} else if(ev.data.type === 'serialize') {
 				self.postMessage({
 					type: 'serialize',
