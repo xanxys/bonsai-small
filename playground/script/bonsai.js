@@ -225,6 +225,23 @@ Bonsai.prototype.init = function() {
 		_this.handle_step(50);
 	});
 
+	$('#button_kill').on('click', function() {
+		if(curr_selection !== null) {
+			_this.isolated_chunk.postMessage({
+				type: 'kill',
+				data: {
+					id: _this.inspect_plant_id
+				}
+			});
+
+			_this.isolated_chunk.postMessage({
+				type: 'serialize'
+			});
+
+			_this.requestPlantStatUpdate();
+		}
+	});
+
 	this.isolated_chunk.addEventListener('message', function(ev) {
 		if(ev.data.type === 'serialize') {
 			var proxy = _this.deserialize(ev.data.data);

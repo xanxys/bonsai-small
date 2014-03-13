@@ -9,6 +9,7 @@ var ChunkServer = function() {
 	var scene = new THREE.Scene();
 	this.chunk = new Chunk(scene);
 
+	// Should be moved to bonsai.js
 	var stress = false;
 	if(!stress) {
 		_.each(_.range(-2, 3), function(ix) {
@@ -34,6 +35,8 @@ var ChunkServer = function() {
 					type: 'stat-sim',
 					data: sim_stat
 				});
+			} else if(ev.data.type === 'kill') {
+				_this.chunk.kill(ev.data.data.id);
 			} else if(ev.data.type === 'serialize') {
 				self.postMessage({
 					type: 'serialize',

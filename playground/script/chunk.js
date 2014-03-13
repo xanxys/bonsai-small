@@ -855,6 +855,13 @@ Chunk.prototype.serialize = function() {
 	return ser;
 };
 
+// Kill plant with specified id.
+Chunk.prototype.kill = function(id) {
+	this.children = _.filter(this.children, function(plant) {
+		return (plant.id !== id);
+	});
+};
+
 // xs :: [num]
 // return :: num
 function sum(xs) {

@@ -177,8 +177,7 @@ canvas {
 	color: #eee;
 }
 
-/* Time Panel */
-.bg-time button {
+.pane-panel button {
 	border: #eee solid 2px;
 
 	height: 2em;
@@ -191,6 +190,7 @@ canvas {
 	font-weight: 800;
 }
 
+/* Time Panel */
 #ui_abs_time {
 	font-size: 150%;
 }
