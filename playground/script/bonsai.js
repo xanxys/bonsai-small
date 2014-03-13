@@ -185,6 +185,7 @@ Bonsai.prototype.init = function() {
 			button_toggle_chart: 'bg-chart',
 			button_toggle_plant: 'bg-plant',
 			button_toggle_genome: 'bg-genome',
+			button_toggle_about: 'bg-about',
 		};
 
 		target.toggleClass('active');

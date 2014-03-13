@@ -48,7 +48,9 @@ canvas {
 	background-color: #cf7274;
 }
 
-
+.bg-about {
+	background-color: #729fcf;
+}
 
 /* Basic structure (logo + two columns) */
 .logo {
@@ -156,6 +158,15 @@ canvas {
 	color: #eee;
 }
 
+.pane-panel h2 {
+	font-size: 120%;
+	margin-top: 1px;
+	margin-bottom: 0;
+	font-family: 'Alegreya Sans', sans-serif;
+	font-weight: 800;
+	color: #ccc;
+}
+
 .pane-panel pre {
 	margin-top: 0;
 	margin-bottom: 0;
@@ -244,6 +255,16 @@ canvas {
 	background-color: #a33;
 }
 
+/* about panel */
+.bg-about {
+	width: 600px;
+	font-family: 'Alegreya Sans', sans-serif;
+}
+
+.bg-about p {
+	margin-top: 0;
+	margin-bottom: 0.4em;
+}
 
 /*  */
 .credit {
