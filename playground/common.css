@@ -266,6 +266,11 @@ canvas {
 	margin-bottom: 0.4em;
 }
 
+.bg-about li .gene {
+	font-family: "Inconsolata", sans-serif;
+	font-weight: 700;
+}
+
 /*  */
 .credit {
 	position: absolute;
