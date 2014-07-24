@@ -1,0 +1,29 @@
+#!/bin/bash
+
+rebuild_rust_http() {
+    rm -rf rust-http
+    git clone git@github.com:chris-morgan/rust-http.git
+    cd rust-http
+    ./configure
+    make -j 8
+    cd ..
+}
+
+re_populate_lib() {
+    rm -rf lib
+    mkdir lib
+    cp rust-http/target/libhttp.rlib lib/
+}
+
+cleanup() {
+    rm -rf rust-http
+}
+
+echo "Fetching & Compiling rust-http"
+rebuild_rust_http
+
+echo "Creating lib directory"
+re_populate_lib
+
+echo "Cleaningup rust-http"
+cleanup

@@ -1,0 +1,5 @@
+env = Environment(BUILDERS={
+    "Rust": Builder(action="rustc -o $TARGET -L ./lib $SOURCE")
+    })
+
+env.Rust("bonsai_genesis", "main.rs")
