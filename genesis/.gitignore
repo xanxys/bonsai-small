@@ -1,3 +1,2 @@
 bonsai_genesis
-lib/
-.sconsign.dblite
+target/
