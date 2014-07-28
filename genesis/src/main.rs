@@ -110,7 +110,9 @@ impl Server for GenesisServer {
                 parameters: vec!((String::from_str("charset"), String::from_str("UTF-8")))
             }, content)
         } else if uri_path.as_slice() == "/" {
-            let content = match std::io::File::open(&Path::new("http_static/index.html")).read_to_end() {
+            let mut file_path = String::from_str(dir_prefix);
+            file_path.push_str("/index.html");
+            let content = match std::io::File::open(&Path::new(file_path.clone())).read_to_end() {
                 Ok(content) => content,
                 _ => vec![]
             };
@@ -120,7 +122,7 @@ impl Server for GenesisServer {
                 parameters: vec!((String::from_str("charset"), String::from_str("UTF-8")))
             }, content)
         } else {
-            let mut file_path = String::from_str("http_static");
+            let mut file_path = String::from_str(dir_prefix);
             file_path.push_str(uri_path.as_slice());
             let content = match std::io::File::open(&Path::new(file_path.clone())).read_to_end() {
                 Ok(content) => content,
