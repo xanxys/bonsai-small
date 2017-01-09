@@ -154,7 +154,7 @@ class Cell {
 
     // in-sim (bio)
     this.plant = plant;
-    this.children = [];  // out_conn
+    this.children = [];  // being deprecated
     this.power = 0;
 
     // in-sim (genetics)
@@ -816,9 +816,16 @@ class Chunk {
     this.light.step();
     sim_stats['light/ms'] = now() - t0;
 
+    // TODO: From plants.cells,
+    // apply delta to rigid_world. Possible delta:
+    // * Size change of each cells
+    // * New cells appended (w/ new hinges)
+    // * New plant added (w/ land-hinge)
+    // * Plant deleted
     t0 = now();
     this.rigid_world.stepSimulation(1/60);  // 1 tick = 1/60 sec. Soooo fake phnysics...
     sim_stats['rigid/ms'] = now() - t0;
+    // TODO: Reflect these prop back to plant.
 
     return sim_stats;
   }
