@@ -61,7 +61,7 @@ class Plant {
     this.seed.updatePose(this.seed_innode_to_world);
 
     // Consume/store in-Plant energy.
-    this.energy += this._powerForPlant() * 1;
+    this.energy += this._power_for_plant() * 1;
 
     if(this.energy <= 0 || !mech_valid) {
       // die
@@ -94,9 +94,7 @@ class Plant {
 
     if(merge) {
       let merged_geom = new THREE.Geometry();
-      _.each(proxies, function(proxy) {
-        merged_geom.mergeMesh(proxy);
-      });
+      proxies.forEach(proxy => merged_geom.mergeMesh(proxy));
 
       let merged_plant = new THREE.Mesh(
         merged_geom,
@@ -105,9 +103,7 @@ class Plant {
       return merged_plant;
     } else {
       let three_plant = new THREE.Object3D();
-      _.each(proxies, function(proxy) {
-        three_plant.add(proxy);
-      });
+      proxies.forEach(proxy => three_plant.add(proxy));
       return three_plant;
     }
   }
@@ -128,12 +124,8 @@ class Plant {
     return this.genome;
   }
 
-  _powerForPlant() {
-    let sum_power_cell_recursive = function(cell) {
-      return cell.powerForPlant() +
-        sum(_.map(cell.children, sum_power_cell_recursive));
-    };
-    return sum_power_cell_recursive(this.seed);
+  _power_for_plant() {
+    return sum(this.cells.map(cell => cell.power_for_plant()));
   }
 }
 
@@ -219,7 +211,7 @@ class Cell {
 
   // Return net usable power for Plant.
   // return :: float<Energy>
-  powerForPlant() {
+  power_for_plant() {
     return this.power;
   }
 
@@ -431,29 +423,9 @@ class Cell {
         vertexColors: THREE.VertexColors}));
   };
 
-  givePhoton() {
+  give_photon() {
     this.photons += 1;
-  };
-
-  // Get Cell age in ticks.
-  // return :: int (tick)
-  get_age() {
-    return this.age;
-  };
-
-  // counter :: dict(string, int)
-  // return :: dict(string, int)
-  count_type(counter) {
-    let key = this.signals[0];
-
-    counter[key] = 1 + (_.has(counter, key) ? counter[key] : 0);
-
-    _.each(this.children, function(child) {
-      child.count_type(counter);
-    }, this);
-
-    return counter;
-  };
+  }
 
   // initial :: Signal
   // locator :: LocatorSignal
@@ -647,7 +619,7 @@ class Light {
           1e2);
 
         if(isect.length > 0) {
-          isect[0].object.cell.givePhoton();
+          isect[0].object.cell.give_photon();
           this.shadow_map[i + j * this.n] = isect[0].point.z;
         } else {
           this.shadow_map[i + j * this.n] = 0;
