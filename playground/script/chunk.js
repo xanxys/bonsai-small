@@ -55,7 +55,7 @@ Plant.prototype.step = function() {
 	_.each(this.collectCells(), function(cell) {
 		cell.step();
 	});
-	
+
 	console.assert(this.seed.age === this.age);
 
 	var mech_valid = this.seed.checkMechanics();
@@ -88,15 +88,15 @@ Plant.prototype.materialize = function(merge) {
 		cell.loc_to_world.decompose(trans, q, s);
 
 		m.cell = cell;
-		m.position = trans;
-		m.quaternion = q;
+		m.position.copy(trans);
+		m.quaternion.copy(q);
 		return m;
 	});
 
 	if(merge) {
 		var merged_geom = new THREE.Geometry();
 		_.each(proxies, function(proxy) {
-			THREE.GeometryUtils.merge(merged_geom, proxy);
+      merged_geom.mergeMesh(proxy);
 		});
 
 		var merged_plant = new THREE.Mesh(
@@ -269,7 +269,7 @@ Cell.prototype._withdrawStaticEnergy = function() {
 	// -: linear-volume consumption (stands for cell substrate maintainance)
 	var volume_consumption = 1.0;
 	delta_static -= this.sx * this.sy * this.sz * volume_consumption;
-	
+
 	this.photons = 0;
 
 	if(this.plant.energy < delta_static) {
@@ -314,7 +314,7 @@ Cell.prototype.step = function() {
 	function unity_calc_prob(when) {
 		return product(_.map(when, unity_calc_prob_term));
 	}
-	
+
 	// Gene expression and transcription.
 	_.each(this.plant.genome.unity, function(gene) {
 		if(unity_calc_prob(gene['when']) > Math.random()) {
@@ -497,7 +497,7 @@ Cell.prototype.add_cont = function(initial, locator) {
 
 
 	var new_cell = new Cell(this.plant, initial);
-	new_cell.loc_to_parent = calc_rot(locator);	
+	new_cell.loc_to_parent = calc_rot(locator);
 	this.add(new_cell);
 };
 
@@ -589,7 +589,7 @@ Light.prototype.updateShadowMapHierarchical = function() {
 			return [];
 		});
 	});
-	
+
 	_.each(this.chunk.children, function(plant) {
 		var object = plant.materialize(false);
 		object.updateMatrixWorld();
@@ -641,7 +641,7 @@ Light.prototype.updateShadowMapHierarchical = function() {
 		if(ix < 0 || iy < 0 || ix >= ng || iy >= ng) {
 			return [];
 		}
-		
+
 		return new THREE.Raycaster(origin, new THREE.Vector3(0, 0, -1), near, far)
 			.intersectObjects(grid[ix][iy], true);
 	}
@@ -737,7 +737,7 @@ Chunk.prototype.disperse_seed_from = function(pos, energy, genome) {
 
 	var sigma = Math.tan(angle) * pos.z;
 
-	// TODO: Use gaussian 
+	// TODO: Use gaussian
 	var dx = sigma * 2 * (Math.random() - 0.5);
 	var dy = sigma * 2 * (Math.random() - 0.5);
 

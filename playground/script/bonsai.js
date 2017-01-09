@@ -112,7 +112,7 @@ Bonsai.prototype.init = function() {
 
 	this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.005, 15);
 	this.camera.up = new THREE.Vector3(0, 0, 1);
-	this.camera.position = new THREE.Vector3(0.3, 0.3, 0.4);
+	this.camera.position.set(0.3, 0.3, 0.4);
 	this.camera.lookAt(new THREE.Vector3(0, 0, 0));
 
 	this.scene = new THREE.Scene();
@@ -159,7 +159,9 @@ Bonsai.prototype.init = function() {
 	// Connect signals
 	var _this = this;
 	this.controls.on_click = function(pos_ndc) {
-		var caster = new THREE.Projector().pickingRay(pos_ndc, _this.camera);
+    var caster = new THREE.Raycaster();
+    caster.setFromCamera(pos_ndc, _this.camera);
+		//var caster = new THREE.Projector().pickingRay(pos_ndc, _this.camera);
 		var intersections = caster.intersectObject(_this.scene, true);
 
 		if(intersections.length > 0 &&
@@ -245,7 +247,7 @@ Bonsai.prototype.init = function() {
 	this.isolated_chunk.addEventListener('message', function(ev) {
 		if(ev.data.type === 'serialize') {
 			var proxy = _this.deserialize(ev.data.data);
-			
+
 			// Update chunk proxy.
 			if(curr_proxy) {
 				_this.scene.remove(curr_proxy);
@@ -440,9 +442,9 @@ Bonsai.prototype.serializeSelection = function(data_plant) {
 
 		}));
 
-	proxy.position = proxy_center
+	proxy.position.copy(proxy_center
 		.clone()
-		.add(new THREE.Vector3(0, 0, 5e-3 + 1e-3));
+		.add(new THREE.Vector3(0, 0, 5e-3 + 1e-3)));
 
 	return proxy;
 };
@@ -461,7 +463,7 @@ Bonsai.prototype.deserialize = function(data) {
 		var mesh = new THREE.Mesh(geom,
 			new THREE.MeshLambertMaterial({
 				vertexColors: THREE.VertexColors}));
-		
+
 		mesh.plant_id = data_plant.id;
 		mesh.plant_data = data_plant;
 		proxy.add(mesh);
@@ -492,7 +494,7 @@ Bonsai.prototype.deserialize = function(data) {
 			map: tex
 		}));
 	proxy.add(soil_plate);
-			
+
 	return proxy;
 };
 
