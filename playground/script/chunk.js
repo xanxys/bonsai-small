@@ -44,7 +44,8 @@ class Plant {
 
     // biophysics
     this.energy = energy;
-    this.seed = new Cell(this, Signal.SHOOT_END);
+    this.seed = new Cell(this, Signal.SHOOT_END);  // being deprecated
+    this.cells = [this.seed];  // flat cells in world coords
 
     // genetics
     this.genome = genome;
@@ -53,10 +54,7 @@ class Plant {
   step() {
     // Step cells (w/o collecting/stepping separation, infinite growth will occur)
     this.age += 1;
-    _.each(this.collectCells(), function(cell) {
-      cell.step();
-    });
-
+    this.cells.forEach(cell => cell.step());
     console.assert(this.seed.age === this.age);
 
     let mech_valid = this.seed.checkMechanics();
@@ -80,7 +78,7 @@ class Plant {
 
   // return :: THREE.Object3D<world>
   materialize(merge) {
-    let proxies = _.map(this.collectCells(), function(cell) {
+    let proxies = _.map(this.cells, cell => {
       let m = cell.materializeSingle();
 
       let trans = new THREE.Vector3();
@@ -114,20 +112,8 @@ class Plant {
     }
   }
 
-  collectCells() {
-    let all_cells = [];
-    let collect_cell_recursive = function(cell) {
-      all_cells.push(cell);
-      _.each(cell.children, collect_cell_recursive);
-    }
-    collect_cell_recursive(this.seed);
-    return all_cells;
-  }
-
   get_stat() {
-    let stat_cells = _.map(this.collectCells(), function(cell) {
-      return cell.signals;
-    });
+    let stat_cells = _.map(this.cells, cell => cell.signals);
 
     let stat = {};
     stat["#cells"] = stat_cells.length;
@@ -227,6 +213,7 @@ class Cell {
       throw new Error("Tried to add itself as child.", sub_cell);
     } else {
       this.children.push(sub_cell);
+      this.plant.cells.push(sub_cell);
     }
   }
 
