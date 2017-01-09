@@ -593,7 +593,7 @@ class Light {
       });
     });
 
-    _.each(this.chunk.children, function(plant) {
+    _.each(this.chunk.plants, function(plant) {
       let object = plant.materialize(false);
       object.updateMatrixWorld();
 
