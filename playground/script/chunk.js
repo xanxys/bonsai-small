@@ -675,19 +675,15 @@ class Light {
 }
 
 
-// Chunk world class. There's no interaction between bonsai instances,
-// and Chunk just borrows scene, not owns it.
+// A chunk is non-singleton, finite patch of space containing bunch of plants, soil,
+// and light field.
+// Chunk have no coupling with DOM or external state. Main methods are
+// step & serialize. Other methods are mostly for statistics.
 class Chunk {
-  constructor (scene) {
-    this.scene = scene;
-
+  constructor() {
     // tracer
     this.age = 0;
     this.new_plant_id = 0;
-
-    // dummy material
-    this.land = new THREE.Object3D();
-    this.scene.add(this.land);
 
     // Chunk spatail
     this.size = 0.5;
@@ -703,10 +699,10 @@ class Chunk {
     this.plants = [];
 
     // Rigid-phys
-    this.rigid_world = this.create_rigid_world();
+    this.rigid_world = this._create_rigid_world();
   }
 
-　create_rigid_world() {
+　_create_rigid_world() {
     let collision_configuration = new Ammo.btDefaultCollisionConfiguration();
     let dispatcher = new Ammo.btCollisionDispatcher(collision_configuration);
     let overlappingPairCache = new Ammo.btDbvtBroadphase();

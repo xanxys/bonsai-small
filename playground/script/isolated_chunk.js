@@ -7,8 +7,7 @@ importScripts('./genome.js');
 let ChunkServer = function() {
   let _this = this;
 
-  let scene = new THREE.Scene();
-  this.chunk = new Chunk(scene);
+  this.chunk = new Chunk();
 
   // Should be moved to bonsai.js
   let stress = false;
