@@ -671,196 +671,251 @@ Light.prototype.updateShadowMapHierarchical = function() {
 // and Chunk just borrows scene, not owns it.
 // Cells changes doesn't show up until you call re_materialize.
 // re_materialize is idempotent from visual perspective.
-let Chunk = function(scene) {
-	this.scene = scene;
+class Chunk {
+  constructor (scene) {
+  	this.scene = scene;
 
-	// tracer
-	this.age = 0;
-	this.new_plant_id = 0;
+  	// tracer
+  	this.age = 0;
+  	this.new_plant_id = 0;
 
-	// dummy material
-	this.land = new THREE.Object3D();
-	this.scene.add(this.land);
+  	// dummy material
+  	this.land = new THREE.Object3D();
+  	this.scene.add(this.land);
 
-	// Chunk spatail
-	this.size = 0.5;
+  	// Chunk spatail
+  	this.size = 0.5;
 
-	// Soil (Cell sim)
-	this.soil = new Soil(this, this.size);
-	this.seeds = [];
+  	// Soil (Cell sim)
+  	this.soil = new Soil(this, this.size);
+  	this.seeds = [];
 
-	// Light
-	this.light = new Light(this, this.size);
+  	// Light
+  	this.light = new Light(this, this.size);
 
-	// Plants (bio-phys)
-	this.children = [];
-};
+  	// Plants (bio-phys)
+  	this.children = [];
 
-// Add standard plant seed.
-Chunk.prototype.add_default_plant = function(pos) {
-	return this.add_plant(
-		pos,
-		Math.pow(20e-3, 3) * 100, // allow 2cm cube for 100T)
-		new Genome());
-};
+    // Rigid-phys
+    this.rigid_world = this.create_rigid_world();
+  }
 
-// pos :: THREE.Vector3 (z must be 0)
-// energy :: Total starting energy for the new plant.
-// genome :: genome for new plant
-// return :: Plant
-Chunk.prototype.add_plant = function(pos, energy, genome) {
-	console.assert(Math.abs(pos.z) < 1e-3);
+  create_rigid_world() {
+    let collision_configuration = new Ammo.btDefaultCollisionConfiguration();
+    let dispatcher = new Ammo.btCollisionDispatcher(collision_configuration);
+    let overlappingPairCache = new Ammo.btDbvtBroadphase();
+    let solver = new Ammo.btSequentialImpulseConstraintSolver();
+    let rigid_world = new Ammo.btDiscreteDynamicsWorld(dispatcher, overlappingPairCache, solver, collision_configuration);
+    rigid_world.setGravity(new Ammo.btVector3(0, -10, 0));
 
-	// Torus-like boundary
-	pos = new THREE.Vector3(
-		(pos.x + 1.5 * this.size) % this.size - this.size / 2,
-		(pos.y + 1.5 * this.size) % this.size - this.size / 2,
-		pos.z);
+    // add ground box
+    let groundShape     = new Ammo.btBoxShape(new Ammo.btVector3(50, 50, 50));
+    let bodies          = [];
+    let groundTransform = new Ammo.btTransform();
 
-	let shoot = new Plant(pos, this, energy, genome, this.new_plant_id);
-	this.new_plant_id += 1;
-	this.children.push(shoot);
+     groundTransform.setIdentity();
+     groundTransform.setOrigin(new Ammo.btVector3(0, -56, 0));
 
-	return shoot;
-};
+    let localInertia  = new Ammo.btVector3(0, 0, 0);
+    let myMotionState = new Ammo.btDefaultMotionState(groundTransform);
+    let rbInfo        = new Ammo.btRigidBodyConstructionInfo(0 /* mass */, myMotionState, groundShape, localInertia);
+    let body          = new Ammo.btRigidBody(rbInfo);
 
-// pos :: THREE.Vector3
-// return :: ()
-Chunk.prototype.disperse_seed_from = function(pos, energy, genome) {
-	console.assert(pos.z >= 0);
-	// Discard seeds thrown from too low altitude.
-	if(pos.z < 0.01) {
-		return;
-	}
+    rigid_world.addRigidBody(body);
+    bodies.push(body);
 
-	let angle = Math.PI / 3;
+    {
+      let colShape        = new Ammo.btSphereShape(1);
+      let startTransform  = new Ammo.btTransform();
 
-	let sigma = Math.tan(angle) * pos.z;
+      startTransform.setIdentity();
 
-	// TODO: Use gaussian
-	let dx = sigma * 2 * (Math.random() - 0.5);
-	let dy = sigma * 2 * (Math.random() - 0.5);
+      let mass          = 1;
+      let localInertia  = new Ammo.btVector3(0, 0, 0);
+      colShape.calculateLocalInertia(mass,localInertia);
 
-	this.seeds.push({
-		pos: new THREE.Vector3(pos.x + dx, pos.y + dy, 0),
-		energy: energy,
-		genome: genome
-	});
-};
+      startTransform.setOrigin(new Ammo.btVector3(2, 10, 0));
 
-// Plant :: must be returned by add_plant
-// return :: ()
-Chunk.prototype.remove_plant = function(plant) {
-	this.children = _.without(this.children, plant);
-};
+      let myMotionState = new Ammo.btDefaultMotionState(startTransform);
+      let rbInfo        = new Ammo.btRigidBodyConstructionInfo(mass, myMotionState, colShape, localInertia);
+      let body          = new Ammo.btRigidBody(rbInfo);
 
-// return :: dict
-Chunk.prototype.get_stat = function() {
-	let stored_energy = sum(_.map(this.children, function(plant) {
-		return plant.energy;
-	}));
+      rigid_world.addRigidBody(body);
+      bodies.push(body);
+    }
 
-	return {
-		'age/T': this.age,
-		'plant': this.children.length,
-		'stored/E': stored_energy
-	};
-};
+    return rigid_world;
+  }
 
-// Retrieve current statistics about specified plant id.
-// id :: int (plant id)
-// return :: dict | null
-Chunk.prototype.get_plant_stat = function(id) {
-	let stat = null;
-	_.each(this.children, function(plant) {
-		if(plant.id === id) {
-			stat = plant.get_stat();
-		}
-	});
-	return stat;
-};
+  // Add standard plant seed.
+  add_default_plant(pos) {
+  	return this.add_plant(
+  		pos,
+  		Math.pow(20e-3, 3) * 100, // allow 2cm cube for 100T)
+  		new Genome());
+  }
 
-// return :: array | null
-Chunk.prototype.get_plant_genome = function(id) {
-	let genome = null;
-	_.each(this.children, function(plant) {
-		if(plant.id === id) {
-			genome = plant.get_genome();
-		}
-	});
-	return genome;
-};
+  // pos :: THREE.Vector3 (z must be 0)
+  // energy :: Total starting energy for the new plant.
+  // genome :: genome for new plant
+  // return :: Plant
+  add_plant(pos, energy, genome) {
+  	console.assert(Math.abs(pos.z) < 1e-3);
 
-// return :: object (stats)
-Chunk.prototype.step = function() {
-	this.age += 1;
+  	// Torus-like boundary
+  	pos = new THREE.Vector3(
+  		(pos.x + 1.5 * this.size) % this.size - this.size / 2,
+  		(pos.y + 1.5 * this.size) % this.size - this.size / 2,
+  		pos.z);
 
-	let t0 = 0;
-	let sim_stats = {};
+  	let shoot = new Plant(pos, this, energy, genome, this.new_plant_id);
+  	this.new_plant_id += 1;
+  	this.children.push(shoot);
 
-	t0 = now();
-	_.each(this.children, function(plant) {
-		plant.step();
-	}, this);
+  	return shoot;
+  }
 
-	_.each(this.seeds, function(seed) {
-		this.add_plant(seed.pos, seed.energy, seed.genome);
-	}, this);
-	this.seeds = [];
-	sim_stats['plant/ms'] = now() - t0;
+  // pos :: THREE.Vector3
+  // return :: ()
+  disperse_seed_from(pos, energy, genome) {
+  	console.assert(pos.z >= 0);
+  	// Discard seeds thrown from too low altitude.
+  	if(pos.z < 0.01) {
+  		return;
+  	}
 
-	t0 = now();
-	this.light.step();
-	sim_stats['light/ms'] = now() - t0;
+  	let angle = Math.PI / 3;
 
-	t0 = now();
-	this.soil.step();
-	sim_stats['soil/ms'] = now() - t0;
+  	let sigma = Math.tan(angle) * pos.z;
 
-	return sim_stats;
-};
+  	// TODO: Use gaussian
+  	let dx = sigma * 2 * (Math.random() - 0.5);
+  	let dy = sigma * 2 * (Math.random() - 0.5);
 
-// options :: dict(string, bool)
-// return :: ()
-Chunk.prototype.re_materialize = function(options) {
-	// Throw away all children of pot.
-	_.each(_.clone(this.land.children), function(three_cell_or_debug) {
-		this.land.remove(three_cell_or_debug);
-	}, this);
+  	this.seeds.push({
+  		pos: new THREE.Vector3(pos.x + dx, pos.y + dy, 0),
+  		energy: energy,
+  		genome: genome
+  	});
+  }
 
-	// Materialize soil.
-	let soil = this.soil.materialize();
-	this.land.add(soil);
+  // Plant :: must be returned by add_plant
+  // return :: ()
+  remove_plant(plant) {
+  	this.children = _.without(this.children, plant);
+  }
 
-	// Materialize all Plant.
-	_.each(this.children, function(plant) {
-		this.land.add(plant.materialize(true));
-	}, this);
-};
+  // return :: dict
+  get_stat() {
+  	let stored_energy = sum(_.map(this.children, function(plant) {
+  		return plant.energy;
+  	}));
 
+  	return {
+  		'age/T': this.age,
+  		'plant': this.children.length,
+  		'stored/E': stored_energy
+  	};
+  }
 
-Chunk.prototype.serialize = function() {
-	let ser = {};
-	ser['plants'] = _.map(this.children, function(plant) {
-		let mesh = plant.materialize(true);
+  // Retrieve current statistics about specified plant id.
+  // id :: int (plant id)
+  // return :: dict | null
+  get_plant_stat(id) {
+  	let stat = null;
+  	_.each(this.children, function(plant) {
+  		if(plant.id === id) {
+  			stat = plant.get_stat();
+  		}
+  	});
+  	return stat;
+  }
 
-		return {
-			'id': plant.id,
-			'vertices': mesh.geometry.vertices,
-			'faces': mesh.geometry.faces
-		};
-	}, this);
-	ser['soil'] = this.soil.serialize();
+  // return :: array | null
+  get_plant_genome(id) {
+  	let genome = null;
+  	_.each(this.children, function(plant) {
+  		if(plant.id === id) {
+  			genome = plant.get_genome();
+  		}
+  	});
+  	return genome;
+  }
 
-	return ser;
-};
+  // return :: object (stats)
+  step() {
+  	this.age += 1;
 
-// Kill plant with specified id.
-Chunk.prototype.kill = function(id) {
-	this.children = _.filter(this.children, function(plant) {
-		return (plant.id !== id);
-	});
-};
+  	let t0 = 0;
+  	let sim_stats = {};
+
+  	t0 = now();
+  	_.each(this.children, function(plant) {
+  		plant.step();
+  	}, this);
+
+  	_.each(this.seeds, function(seed) {
+  		this.add_plant(seed.pos, seed.energy, seed.genome);
+  	}, this);
+  	this.seeds = [];
+  	sim_stats['plant/ms'] = now() - t0;
+
+  	t0 = now();
+  	this.light.step();
+  	sim_stats['light/ms'] = now() - t0;
+
+  	t0 = now();
+  	this.soil.step();
+  	sim_stats['soil/ms'] = now() - t0;
+
+    t0 = now();
+    this.rigid_world.stepSimulation(1/60);  // 1 tick = 1/60 sec. Soooo fake phnysics...
+    sim_stats['rigid/ms'] = now() - t0;
+
+  	return sim_stats;
+  }
+
+  // options :: dict(string, bool)
+  // return :: ()
+  re_materialize(options) {
+  	// Throw away all children of pot.
+  	_.each(_.clone(this.land.children), function(three_cell_or_debug) {
+  		this.land.remove(three_cell_or_debug);
+  	}, this);
+
+  	// Materialize soil.
+  	let soil = this.soil.materialize();
+  	this.land.add(soil);
+
+  	// Materialize all Plant.
+  	_.each(this.children, function(plant) {
+  		this.land.add(plant.materialize(true));
+  	}, this);
+  }
+
+  serialize() {
+  	let ser = {};
+  	ser['plants'] = _.map(this.children, function(plant) {
+  		let mesh = plant.materialize(true);
+
+  		return {
+  			'id': plant.id,
+  			'vertices': mesh.geometry.vertices,
+  			'faces': mesh.geometry.faces
+  		};
+  	}, this);
+  	ser['soil'] = this.soil.serialize();
+
+  	return ser;
+  }
+
+    // Kill plant with specified id.
+  kill(id) {
+  	this.children = _.filter(this.children, function(plant) {
+  		return (plant.id !== id);
+  	});
+  }
+}
 
 // xs :: [num]
 // return :: num

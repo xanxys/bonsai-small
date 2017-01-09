@@ -1,5 +1,6 @@
 importScripts('./underscore.js');
 importScripts('./three.js');
+importScripts('./ammo.js');
 importScripts('./chunk.js');
 importScripts('./genome.js');
 
