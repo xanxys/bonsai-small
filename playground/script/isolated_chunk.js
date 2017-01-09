@@ -3,14 +3,14 @@ importScripts('./three.js');
 importScripts('./chunk.js');
 importScripts('./genome.js');
 
-var ChunkServer = function() {
-	var _this = this;
-	
-	var scene = new THREE.Scene();
+let ChunkServer = function() {
+	let _this = this;
+
+	let scene = new THREE.Scene();
 	this.chunk = new Chunk(scene);
 
 	// Should be moved to bonsai.js
-	var stress = false;
+	let stress = false;
 	if(!stress) {
 		_.each(_.range(-2, 3), function(ix) {
 			_.each(_.range(-2, 3), function(iy) {
@@ -30,7 +30,7 @@ var ChunkServer = function() {
 	self.addEventListener('message', function(ev) {
 		try {
 			if(ev.data.type === 'step') {
-				var sim_stat = _this.chunk.step();
+				let sim_stat = _this.chunk.step();
 				self.postMessage({
 					type: 'stat-sim',
 					data: sim_stat

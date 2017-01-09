@@ -8,7 +8,7 @@ if(console.assert === undefined) {
 	};
 }
 
-var now = function() {
+let now = function() {
 	if(typeof performance !== 'undefined') {
 		return performance.now();
 	} else {
@@ -27,7 +27,7 @@ var now = function() {
 // (n.b. energy = power * time)
 //
 // position :: THREE.Vector3<World>
-var Plant = function(position, unsafe_chunk, energy, genome, plant_id) {
+let Plant = function(position, unsafe_chunk, energy, genome, plant_id) {
 	this.unsafe_chunk = unsafe_chunk;
 
 	// tracer
@@ -58,7 +58,7 @@ Plant.prototype.step = function() {
 
 	console.assert(this.seed.age === this.age);
 
-	var mech_valid = this.seed.checkMechanics();
+	let mech_valid = this.seed.checkMechanics();
 	this.seed.updatePose(this.seed_innode_to_world);
 
 	// Consume/store in-Plant energy.
@@ -79,12 +79,12 @@ Plant.prototype.growth_factor = function() {
 
 // return :: THREE.Object3D<world>
 Plant.prototype.materialize = function(merge) {
-	var proxies = _.map(this.collectCells(), function(cell) {
-		var m = cell.materializeSingle();
+	let proxies = _.map(this.collectCells(), function(cell) {
+		let m = cell.materializeSingle();
 
-		var trans = new THREE.Vector3();
-		var q = new THREE.Quaternion();
-		var s = new THREE.Vector3();
+		let trans = new THREE.Vector3();
+		let q = new THREE.Quaternion();
+		let s = new THREE.Vector3();
 		cell.loc_to_world.decompose(trans, q, s);
 
 		m.cell = cell;
@@ -94,18 +94,18 @@ Plant.prototype.materialize = function(merge) {
 	});
 
 	if(merge) {
-		var merged_geom = new THREE.Geometry();
+		let merged_geom = new THREE.Geometry();
 		_.each(proxies, function(proxy) {
       merged_geom.mergeMesh(proxy);
 		});
 
-		var merged_plant = new THREE.Mesh(
+		let merged_plant = new THREE.Mesh(
 			merged_geom,
 			new THREE.MeshLambertMaterial({vertexColors: THREE.VertexColors}));
 
 		return merged_plant;
 	} else {
-		var three_plant = new THREE.Object3D();
+		let three_plant = new THREE.Object3D();
 		_.each(proxies, function(proxy) {
 			three_plant.add(proxy);
 		});
@@ -114,8 +114,8 @@ Plant.prototype.materialize = function(merge) {
 };
 
 Plant.prototype.collectCells = function() {
-	var all_cells = [];
-	var collect_cell_recursive = function(cell) {
+	let all_cells = [];
+	let collect_cell_recursive = function(cell) {
 		all_cells.push(cell);
 		_.each(cell.children, collect_cell_recursive);
 	}
@@ -124,11 +124,11 @@ Plant.prototype.collectCells = function() {
 };
 
 Plant.prototype.get_stat = function() {
-	var stat_cells = _.map(this.collectCells(), function(cell) {
+	let stat_cells = _.map(this.collectCells(), function(cell) {
 		return cell.signals;
 	});
 
-	var stat = {};
+	let stat = {};
 	stat["#cells"] = stat_cells.length;
 	stat['cells'] = stat_cells;
 	stat['age/T'] = this.age;
@@ -142,7 +142,7 @@ Plant.prototype.get_genome = function() {
 };
 
 Plant.prototype._powerForPlant = function() {
-	var sum_power_cell_recursive = function(cell) {
+	let sum_power_cell_recursive = function(cell) {
 		return cell.powerForPlant() +
 			sum(_.map(cell.children, sum_power_cell_recursive));
 	};
@@ -157,7 +157,7 @@ Plant.prototype._powerForPlant = function() {
 //  Power Consumption:
 //    basic (minimum cell volume equivalent)
 //    linear-volume
-var Cell = function(plant, initial_signal) {
+let Cell = function(plant, initial_signal) {
 	// tracer
 	this.age = 0;
 
@@ -189,12 +189,12 @@ Cell.prototype.checkMechanics = function() {
 
 // return: {valid: bool, total_mass: num}
 Cell.prototype._checkMass = function() {
-	var mass = 1e3 * this.sx * this.sy * this.sz;  // kg
+	let mass = 1e3 * this.sx * this.sy * this.sz;  // kg
 
-	var total_mass = mass;
-	var valid = true;
+	let total_mass = mass;
+	let valid = true;
 	_.each(this.children, function(cell) {
-		var child_result = cell._checkMass();
+		let child_result = cell._checkMass();
 		total_mass += child_result.total_mass;
 		valid &= child_result.valid;
 	});
@@ -250,24 +250,24 @@ Cell.prototype._withdrawEnergy = function(amount) {
 }
 
 Cell.prototype._withdrawVariableEnergy = function(max_amount) {
-	var amount = Math.min(Math.max(0, this.plant.energy), max_amount);
+	let amount = Math.min(Math.max(0, this.plant.energy), max_amount);
 	this.plant.energy -= amount;
 	this.power -= amount;
 	return amount;
 }
 
 Cell.prototype._withdrawStaticEnergy = function() {
-	var delta_static = 0;
+	let delta_static = 0;
 
 	// +: photo synthesis
-	var efficiency = this._getPhotoSynthesisEfficiency();
+	let efficiency = this._getPhotoSynthesisEfficiency();
 	delta_static += this.photons * 1e-9 * 15000 * efficiency;
 
 	// -: basic consumption (stands for common func.)
 	delta_static -= 10 * 1e-9;
 
 	// -: linear-volume consumption (stands for cell substrate maintainance)
-	var volume_consumption = 1.0;
+	let volume_consumption = 1.0;
 	delta_static -= this.sx * this.sy * this.sz * volume_consumption;
 
 	this.photons = 0;
@@ -282,7 +282,7 @@ Cell.prototype._withdrawStaticEnergy = function() {
 
 Cell.prototype._getPhotoSynthesisEfficiency = function() {
 	// 1:1/2, 2:3/4, etc...
-	var num_chl = sum(_.map(this.signals, function(sig) {
+	let num_chl = sum(_.map(this.signals, function(sig) {
 		return (sig === Signal.CHLOROPLAST) ? 1 : 0;
 	}));
 
@@ -291,7 +291,7 @@ Cell.prototype._getPhotoSynthesisEfficiency = function() {
 
 // return :: ()
 Cell.prototype.step = function() {
-	var _this = this;
+	let _this = this;
 	this.age += 1;
 	this._beginUsePower();
 	this._withdrawStaticEnergy();
@@ -318,7 +318,7 @@ Cell.prototype.step = function() {
 	// Gene expression and transcription.
 	_.each(this.plant.genome.unity, function(gene) {
 		if(unity_calc_prob(gene['when']) > Math.random()) {
-			var num_codon = sum(_.map(gene['emit'], function(sig) {
+			let num_codon = sum(_.map(gene['emit'], function(sig) {
 				return sig.length
 			}));
 
@@ -330,10 +330,10 @@ Cell.prototype.step = function() {
 
 	// Bio-physics.
 	// TODO: define remover semantics.
-	var removers = {};
+	let removers = {};
 	_.each(this.signals, function(signal) {
 		if(signal.length >= 2 && signal[0] === Signal.REMOVER) {
-			var rm = signal.substr(1);
+			let rm = signal.substr(1);
 			if(removers[rm] !== undefined) {
 				removers[rm] += 1;
 			} else {
@@ -342,7 +342,7 @@ Cell.prototype.step = function() {
 		}
 	});
 
-	var new_signals = [];
+	let new_signals = [];
 	_.each(this.signals, function(signal) {
 		if(signal.length === 3 && signal[0] === Signal.DIFF) {
 			_this.add_cont(signal[1], signal[2]);
@@ -366,12 +366,12 @@ Cell.prototype.step = function() {
 		// TODO: this should be handled by physics, not biology.
 		// Maybe dead cells with stored energy survives when fallen off.
 		if(Math.random() < 0.01) {
-			var seed_energy = _this._withdrawVariableEnergy(Math.pow(20e-3, 3) * 10);
+			let seed_energy = _this._withdrawVariableEnergy(Math.pow(20e-3, 3) * 10);
 
 			// Get world coordinates.
-			var trans = new THREE.Vector3();
-			var _rot = new THREE.Quaternion();
-			var _scale = new THREE.Vector3();
+			let trans = new THREE.Vector3();
+			let _rot = new THREE.Quaternion();
+			let _scale = new THREE.Vector3();
 			this.loc_to_world.decompose(trans, _rot, _scale);
 
 			// TODO: should be world coodinate of the flower
@@ -383,23 +383,23 @@ Cell.prototype.step = function() {
 
 Cell.prototype.updatePose = function(innode_to_world) {
 	// Update this.
-	var parent_to_loc = this.loc_to_parent.clone().inverse();
+	let parent_to_loc = this.loc_to_parent.clone().inverse();
 
-	var innode_to_center = new THREE.Matrix4().compose(
+	let innode_to_center = new THREE.Matrix4().compose(
 		new THREE.Vector3(0, 0, -this.sz / 2),
 		parent_to_loc,
 		new THREE.Vector3(1, 1, 1));
-	var center_to_innode = new THREE.Matrix4().getInverse(innode_to_center);
+	let center_to_innode = new THREE.Matrix4().getInverse(innode_to_center);
 	this.loc_to_world = innode_to_world.clone().multiply(
 		center_to_innode);
 
-	var innode_to_outnode = new THREE.Matrix4().compose(
+	let innode_to_outnode = new THREE.Matrix4().compose(
 		new THREE.Vector3(0, 0, -this.sz),
 		parent_to_loc,
 		new THREE.Vector3(1, 1, 1));
 
-	var outnode_to_innode = new THREE.Matrix4().getInverse(innode_to_outnode);
-	var outnode_to_world = innode_to_world.clone().multiply(
+	let outnode_to_innode = new THREE.Matrix4().getInverse(innode_to_outnode);
+	let outnode_to_world = innode_to_world.clone().multiply(
 		outnode_to_innode);
 
 	_.each(this.children, function(child) {
@@ -411,10 +411,10 @@ Cell.prototype.updatePose = function(innode_to_world) {
 // return :: THREE.Mesh
 Cell.prototype.materializeSingle = function() {
 	// Create cell object [-sx/2,sx/2] * [-sy/2,sy/2] * [0, sz]
-	var flr_ratio = (_.contains(this.signals, Signal.FLOWER)) ? 0.5 : 1;
-	var chl_ratio = 1 - this._getPhotoSynthesisEfficiency();
+	let flr_ratio = (_.contains(this.signals, Signal.FLOWER)) ? 0.5 : 1;
+	let chl_ratio = 1 - this._getPhotoSynthesisEfficiency();
 
-	var color_diffuse = new THREE.Color();
+	let color_diffuse = new THREE.Color();
 	color_diffuse.setRGB(
 		chl_ratio,
 		flr_ratio,
@@ -424,13 +424,13 @@ Cell.prototype.materializeSingle = function() {
 		color_diffuse.offsetHSL(0, 0, -0.2);
 	}
 	if(this.plant.energy < 1e-4) {
-		var t = 1 - this.plant.energy * 1e4;
+		let t = 1 - this.plant.energy * 1e4;
 		color_diffuse.offsetHSL(0, -t, 0);
 	}
 
-	var geom_cube = new THREE.CubeGeometry(this.sx, this.sy, this.sz);
-	for(var i = 0; i < geom_cube.faces.length; i++) {
-		for(var j = 0; j < 3; j++) {
+	let geom_cube = new THREE.CubeGeometry(this.sx, this.sy, this.sz);
+	for(let i = 0; i < geom_cube.faces.length; i++) {
+		for(let j = 0; j < 3; j++) {
 			geom_cube.faces[i].vertexColors[j] = color_diffuse;
 		}
 	}
@@ -454,7 +454,7 @@ Cell.prototype.get_age = function() {
 // counter :: dict(string, int)
 // return :: dict(string, int)
 Cell.prototype.count_type = function(counter) {
-	var key = this.signals[0];
+	let key = this.signals[0];
 
 	counter[key] = 1 + (_.has(counter, key) ? counter[key] : 0);
 
@@ -496,7 +496,7 @@ Cell.prototype.add_cont = function(initial, locator) {
 	}
 
 
-	var new_cell = new Cell(this.plant, initial);
+	let new_cell = new Cell(this.plant, initial);
 	new_cell.loc_to_parent = calc_rot(locator);
 	this.add(new_cell);
 };
@@ -504,7 +504,7 @@ Cell.prototype.add_cont = function(initial, locator) {
 // Represents soil surface state by a grid.
 // parent :: Chunk
 // size :: float > 0
-var Soil = function(parent, size) {
+let Soil = function(parent, size) {
 	this.parent = parent;
 
 	this.n = 35;
@@ -518,13 +518,13 @@ Soil.prototype.step = function() {
 // return :: THREE.Object3D
 Soil.prototype.materialize = function() {
 	// Create texture.
-	var canvas = this._generateTexture();
+	let canvas = this._generateTexture();
 
 	// Attach tiles to the base.
-	var tex = new THREE.Texture(canvas);
+	let tex = new THREE.Texture(canvas);
 	tex.needsUpdate = true;
 
-	var soil_plate = new THREE.Mesh(
+	let soil_plate = new THREE.Mesh(
 		new THREE.CubeGeometry(this.size, this.size, 1e-3),
 		new THREE.MeshBasicMaterial({
 			map: tex
@@ -533,10 +533,10 @@ Soil.prototype.materialize = function() {
 };
 
 Soil.prototype.serialize = function() {
-	var array = [];
+	let array = [];
 	_.each(_.range(this.n), function(y) {
 		_.each(_.range(this.n), function(x) {
-			var v = this.parent.light.shadow_map[x + y * this.n] > 1e-3 ? 0.1 : 0.5;
+			let v = this.parent.light.shadow_map[x + y * this.n] > 1e-3 ? 0.1 : 0.5;
 			array.push(v);
 		}, this);
 	}, this);
@@ -549,14 +549,14 @@ Soil.prototype.serialize = function() {
 
 // return :: Canvas
 Soil.prototype._generateTexture = function() {
-	var canvas = document.createElement('canvas');
+	let canvas = document.createElement('canvas');
 	canvas.width = this.n;
 	canvas.height = this.n;
-	var context = canvas.getContext('2d');
+	let context = canvas.getContext('2d');
 	_.each(_.range(this.n), function(y) {
 		_.each(_.range(this.n), function(x) {
-			var v = this.parent.light.shadow_map[x + y * this.n] > 1e-3 ? 0.1 : 0.5;
-			var lighting = new THREE.Color().setRGB(v, v, v);
+			let v = this.parent.light.shadow_map[x + y * this.n] > 1e-3 ? 0.1 : 0.5;
+			let lighting = new THREE.Color().setRGB(v, v, v);
 
 			context.fillStyle = lighting.getStyle();
 			context.fillRect(x, this.n - y, 1, 1);
@@ -566,7 +566,7 @@ Soil.prototype._generateTexture = function() {
 };
 
 // Downward directional light.
-var Light = function(chunk, size) {
+let Light = function(chunk, size) {
 	this.chunk = chunk;
 
 	this.n = 35;
@@ -580,23 +580,23 @@ Light.prototype.step = function() {
 };
 
 Light.prototype.updateShadowMapHierarchical = function() {
-	var _this = this;
+	let _this = this;
 
 	// Put Plants to all overlapping 2D uniform grid cells.
-	var ng = 15;
-	var grid = _.map(_.range(0, ng), function(ix) {
+	let ng = 15;
+	let grid = _.map(_.range(0, ng), function(ix) {
 		return _.map(_.range(0, ng), function(iy) {
 			return [];
 		});
 	});
 
 	_.each(this.chunk.children, function(plant) {
-		var object = plant.materialize(false);
+		let object = plant.materialize(false);
 		object.updateMatrixWorld();
 
-		var v_min = new THREE.Vector3();
-		var v_max = new THREE.Vector3();
-		var v_temp = new THREE.Vector3();
+		let v_min = new THREE.Vector3();
+		let v_max = new THREE.Vector3();
+		let v_temp = new THREE.Vector3();
 		_.each(object.children, function(child) {
 			// Calculate AABB.
 			v_min.set(1e3, 1e3, 1e3);
@@ -609,16 +609,16 @@ Light.prototype.updateShadowMapHierarchical = function() {
 			});
 
 			// Store to uniform grid.
-			var vi0 = toIxV_unsafe(v_min);
-			var vi1 = toIxV_unsafe(v_max);
+			let vi0 = toIxV_unsafe(v_min);
+			let vi1 = toIxV_unsafe(v_max);
 
-			var ix0 = Math.max(0, Math.floor(vi0.x));
-			var iy0 = Math.max(0, Math.floor(vi0.y));
-			var ix1 = Math.min(ng, Math.ceil(vi1.x));
-			var iy1 = Math.min(ng, Math.ceil(vi1.y));
+			let ix0 = Math.max(0, Math.floor(vi0.x));
+			let iy0 = Math.max(0, Math.floor(vi0.y));
+			let ix1 = Math.min(ng, Math.ceil(vi1.x));
+			let iy1 = Math.min(ng, Math.ceil(vi1.y));
 
-			for(var ix = ix0; ix < ix1; ix++) {
-				for(var iy = iy0; iy < iy1; iy++) {
+			for(let ix = ix0; ix < ix1; ix++) {
+				for(let iy = iy0; iy < iy1; iy++) {
 					grid[ix][iy].push(child);
 				}
 			}
@@ -634,9 +634,9 @@ Light.prototype.updateShadowMapHierarchical = function() {
 
 	// Accelerated ray tracing w/ the uniform grid.
 	function intersectDown(origin, near, far) {
-		var i = toIxV_unsafe(origin.clone());
-		var ix = Math.floor(i.x);
-		var iy = Math.floor(i.y);
+		let i = toIxV_unsafe(origin.clone());
+		let ix = Math.floor(i.x);
+		let iy = Math.floor(i.y);
 
 		if(ix < 0 || iy < 0 || ix >= ng || iy >= ng) {
 			return [];
@@ -646,9 +646,9 @@ Light.prototype.updateShadowMapHierarchical = function() {
 			.intersectObjects(grid[ix][iy], true);
 	}
 
-	for(var i = 0; i < this.n; i++) {
-		for(var j = 0; j < this.n; j++) {
-			var isect = intersectDown(
+	for(let i = 0; i < this.n; i++) {
+		for(let j = 0; j < this.n; j++) {
+			let isect = intersectDown(
 				new THREE.Vector3(
 					((i + Math.random()) / this.n - 0.5) * this.size,
 					((j + Math.random()) / this.n - 0.5) * this.size,
@@ -671,7 +671,7 @@ Light.prototype.updateShadowMapHierarchical = function() {
 // and Chunk just borrows scene, not owns it.
 // Cells changes doesn't show up until you call re_materialize.
 // re_materialize is idempotent from visual perspective.
-var Chunk = function(scene) {
+let Chunk = function(scene) {
 	this.scene = scene;
 
 	// tracer
@@ -717,7 +717,7 @@ Chunk.prototype.add_plant = function(pos, energy, genome) {
 		(pos.y + 1.5 * this.size) % this.size - this.size / 2,
 		pos.z);
 
-	var shoot = new Plant(pos, this, energy, genome, this.new_plant_id);
+	let shoot = new Plant(pos, this, energy, genome, this.new_plant_id);
 	this.new_plant_id += 1;
 	this.children.push(shoot);
 
@@ -733,13 +733,13 @@ Chunk.prototype.disperse_seed_from = function(pos, energy, genome) {
 		return;
 	}
 
-	var angle = Math.PI / 3;
+	let angle = Math.PI / 3;
 
-	var sigma = Math.tan(angle) * pos.z;
+	let sigma = Math.tan(angle) * pos.z;
 
 	// TODO: Use gaussian
-	var dx = sigma * 2 * (Math.random() - 0.5);
-	var dy = sigma * 2 * (Math.random() - 0.5);
+	let dx = sigma * 2 * (Math.random() - 0.5);
+	let dy = sigma * 2 * (Math.random() - 0.5);
 
 	this.seeds.push({
 		pos: new THREE.Vector3(pos.x + dx, pos.y + dy, 0),
@@ -756,7 +756,7 @@ Chunk.prototype.remove_plant = function(plant) {
 
 // return :: dict
 Chunk.prototype.get_stat = function() {
-	var stored_energy = sum(_.map(this.children, function(plant) {
+	let stored_energy = sum(_.map(this.children, function(plant) {
 		return plant.energy;
 	}));
 
@@ -771,7 +771,7 @@ Chunk.prototype.get_stat = function() {
 // id :: int (plant id)
 // return :: dict | null
 Chunk.prototype.get_plant_stat = function(id) {
-	var stat = null;
+	let stat = null;
 	_.each(this.children, function(plant) {
 		if(plant.id === id) {
 			stat = plant.get_stat();
@@ -782,7 +782,7 @@ Chunk.prototype.get_plant_stat = function(id) {
 
 // return :: array | null
 Chunk.prototype.get_plant_genome = function(id) {
-	var genome = null;
+	let genome = null;
 	_.each(this.children, function(plant) {
 		if(plant.id === id) {
 			genome = plant.get_genome();
@@ -795,8 +795,8 @@ Chunk.prototype.get_plant_genome = function(id) {
 Chunk.prototype.step = function() {
 	this.age += 1;
 
-	var t0 = 0;
-	var sim_stats = {};
+	let t0 = 0;
+	let sim_stats = {};
 
 	t0 = now();
 	_.each(this.children, function(plant) {
@@ -829,7 +829,7 @@ Chunk.prototype.re_materialize = function(options) {
 	}, this);
 
 	// Materialize soil.
-	var soil = this.soil.materialize();
+	let soil = this.soil.materialize();
 	this.land.add(soil);
 
 	// Materialize all Plant.
@@ -840,9 +840,9 @@ Chunk.prototype.re_materialize = function(options) {
 
 
 Chunk.prototype.serialize = function() {
-	var ser = {};
+	let ser = {};
 	ser['plants'] = _.map(this.children, function(plant) {
-		var mesh = plant.materialize(true);
+		let mesh = plant.materialize(true);
 
 		return {
 			'id': plant.id,

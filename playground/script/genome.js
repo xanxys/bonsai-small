@@ -2,7 +2,7 @@
 
 // protein: carrier of information and matter.
 // Codon, amino acids: Roman character
-var Signal = {
+let Signal = {
 	// Intrinsic signals.
 	GROWTH: 'g',
 
@@ -36,17 +36,17 @@ var Signal = {
 	DIFF_LF: 'dlf',
 };
 
-var parseIntrinsicSignal = function(sig) {
-	var inv_table = {};
+let parseIntrinsicSignal = function(sig) {
+	let inv_table = {};
 	_.each(Signal, function(signal, name) {
 		inv_table[signal] = name;
 	});
 
-	var signals_simple = [Signal.GROWTH,
+	let signals_simple = [Signal.GROWTH,
 		Signal.HALF, Signal.CHLOROPLAST,
 		Signal.G_DX, Signal.G_DY, Signal.G_DZ];
 
-	var signals_standard = [Signal.LEAF,
+	let signals_standard = [Signal.LEAF,
 		Signal.SHOOT, Signal.SHOOT_END, Signal.FLOWER];
 
 	if(_.contains(signals_simple, sig)) {
@@ -113,7 +113,7 @@ var parseIntrinsicSignal = function(sig) {
 };
 
 
-var Genome = function() {
+let Genome = function() {
 	this.unity = [
 		// Topological
 		{
@@ -192,9 +192,9 @@ var Genome = function() {
 // diffuse into all states.
 // return :: Genome
 Genome.prototype.naturalClone = function() {
-	var _this = this;
+	let _this = this;
 
-	var genome = new Genome();
+	let genome = new Genome();
 	genome.unity = this._shuffle(this.unity,
 		function(gene) {
 			return _this._naturalCloneGene(gene, '');
@@ -209,10 +209,10 @@ Genome.prototype.naturalClone = function() {
 // flag :: A text to attach to description tracer.
 // return :: Genome.gene
 Genome.prototype._naturalCloneGene = function(gene_old, flag) {
-	var _this = this;
+	let _this = this;
 
-	var gene = {};
-	
+	let gene = {};
+
 	gene["when"] = this._shuffle(gene_old["when"],
 		function(sig) { return _this._naturalCloneSignal(sig); },
 		function(sig) { return _this._naturalCloneSignal(sig); });
@@ -227,12 +227,12 @@ Genome.prototype._naturalCloneGene = function(gene_old, flag) {
 
 Genome.prototype._naturalCloneSignal = function(sig) {
 	function random_sig1() {
-		var set = 'abcdefghijklmnopqrstuvwxyz';
+		let set = 'abcdefghijklmnopqrstuvwxyz';
 		return set[Math.floor(Math.random() * set.length)];
 	}
 
-	var new_sig = '';
-	for(var i = 0; i < sig.length; i++) {
+	let new_sig = '';
+	for(let i = 0; i < sig.length; i++) {
 		if(Math.random() > 0.01) {
 			new_sig += sig[i];
 		}
@@ -244,7 +244,7 @@ Genome.prototype._naturalCloneSignal = function(sig) {
 };
 
 Genome.prototype._shuffle = function(array, modifier_normal, modifier_dup) {
-	var result = [];
+	let result = [];
 
 	// 1st pass: Copy with occasional misses.
 	_.each(array, function(elem) {

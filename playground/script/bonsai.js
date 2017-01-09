@@ -5,31 +5,31 @@
 _.mixin(_.str.exports());
 
 // target :: CanvasElement
-var RealtimePlot = function(canvas) {
+let RealtimePlot = function(canvas) {
 	this.canvas = canvas;
 	this.context = canvas.getContext('2d');
 };
 
 RealtimePlot.prototype.update = function(dataset) {
-	var ctx = this.context;
-	var max_steps = 5;
+	let ctx = this.context;
+	let max_steps = 5;
 
 	ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
-	var width_main = this.canvas.width - 50;
-	var height_main = this.canvas.height;
+	let width_main = this.canvas.width - 50;
+	let height_main = this.canvas.height;
 	_.each(dataset, function(series) {
 		if(series.data.length === 0) {
 			return;
 		}
 
 		// Plan layout
-		var scale_y = height_main / _.max(series.data);
-		var scale_x = Math.min(2, width_main / series.data.length);
+		let scale_y = height_main / _.max(series.data);
+		let scale_x = Math.min(2, width_main / series.data.length);
 
 		// Draw horizontal line with label
 		if(series.show_label) {
-			var step;
+			let step;
 			if(_.max(series.data) < max_steps) {
 				step = 1;
 			} else {
@@ -40,7 +40,7 @@ RealtimePlot.prototype.update = function(dataset) {
 			}
 
 			_.each(_.range(0, _.max(series.data) + 1, step), function(yv) {
-				var y = height_main - yv * scale_y;
+				let y = height_main - yv * scale_y;
 
 				ctx.beginPath();
 				ctx.moveTo(0, y);
@@ -83,7 +83,7 @@ RealtimePlot.prototype.update = function(dataset) {
 // 1. master class (holds chunk worker)
 // 1': 3D GUI class
 // 2. Panel GUI class
-var Bonsai = function() {
+let Bonsai = function() {
 	this.debug = (location.hash === '#debug');
 
 	this.add_stats();
@@ -117,13 +117,13 @@ Bonsai.prototype.init = function() {
 
 	this.scene = new THREE.Scene();
 
-	var sunlight = new THREE.DirectionalLight(0xcccccc);
+	let sunlight = new THREE.DirectionalLight(0xcccccc);
 	sunlight.position.set(0, 0, 1).normalize();
 	this.scene.add(sunlight);
 
 	this.scene.add(new THREE.AmbientLight(0x333333));
 
-	var bg = new THREE.Mesh(
+	let bg = new THREE.Mesh(
 		new THREE.IcosahedronGeometry(8, 1),
 		new THREE.MeshBasicMaterial({
 			wireframe: true,
@@ -137,12 +137,12 @@ Bonsai.prototype.init = function() {
 	this.energy_history = [];
 
 	// new, web worker API
-	var curr_proxy = null;
+	let curr_proxy = null;
 	this.isolated_chunk = new Worker('script/isolated_chunk.js');
 
 	// Selection
 	this.inspect_plant_id = null;
-	var curr_selection = null;
+	let curr_selection = null;
 
 	// start canvas
 	this.renderer = new THREE.WebGLRenderer({
@@ -157,16 +157,16 @@ Bonsai.prototype.init = function() {
 	this.controls.maxDistance = 5;
 
 	// Connect signals
-	var _this = this;
+	let _this = this;
 	this.controls.on_click = function(pos_ndc) {
-    var caster = new THREE.Raycaster();
+    let caster = new THREE.Raycaster();
     caster.setFromCamera(pos_ndc, _this.camera);
-		//var caster = new THREE.Projector().pickingRay(pos_ndc, _this.camera);
-		var intersections = caster.intersectObject(_this.scene, true);
+		//let caster = new THREE.Projector().pickingRay(pos_ndc, _this.camera);
+		let intersections = caster.intersectObject(_this.scene, true);
 
 		if(intersections.length > 0 &&
 			intersections[0].object.plant_id !== undefined) {
-			var plant = intersections[0].object;
+			let plant = intersections[0].object;
 			_this.inspect_plant_id = plant.plant_id;
 
 			if(curr_selection !== null) {
@@ -179,9 +179,9 @@ Bonsai.prototype.init = function() {
 	};
 
 	$('.column-buttons button').on('click', function(ev) {
-		var target = $(ev.currentTarget);
+		let target = $(ev.currentTarget);
 
-		var button_window_table = {
+		let button_window_table = {
 			button_toggle_time: 'bg-time',
 			button_toggle_chunk: 'bg-chunk',
 			button_toggle_chart: 'bg-chart',
@@ -246,7 +246,7 @@ Bonsai.prototype.init = function() {
 
 	this.isolated_chunk.addEventListener('message', function(ev) {
 		if(ev.data.type === 'serialize') {
-			var proxy = _this.deserialize(ev.data.data);
+			let proxy = _this.deserialize(ev.data.data);
 
 			// Update chunk proxy.
 			if(curr_proxy) {
@@ -260,7 +260,7 @@ Bonsai.prototype.init = function() {
 				_this.scene.remove(curr_selection);
 				curr_selection = null;
 			}
-			var target_plant_data = _.find(ev.data.data.plants, function(dp) {
+			let target_plant_data = _.find(ev.data.data.plants, function(dp) {
 				return dp.id === _this.inspect_plant_id;
 			});
 			if(target_plant_data !== undefined) {
@@ -300,18 +300,18 @@ Bonsai.prototype.updatePlantView = function(stat) {
 	$('#info-plant').append($('<br/>'));
 
 	if(stat !== null) {
-		var table = $('<table/>');
+		let table = $('<table/>');
 		$('#info-plant').append(table);
 
-		var n_cols = 5;
-		var curr_row = null;
+		let n_cols = 5;
+		let curr_row = null;
 		_.each(stat['cells'], function(cell_stat, ix) {
 			if(ix % n_cols === 0) {
 				curr_row = $('<tr/>');
 				table.append(curr_row);
 			}
 
-			var stat = {};
+			let stat = {};
 			_.each(cell_stat, function(sig) {
 				if(stat[sig] !== undefined) {
 					stat[sig] += 1;
@@ -320,9 +320,9 @@ Bonsai.prototype.updatePlantView = function(stat) {
 				}
 			});
 
-			var cell_info = $('<div/>');
+			let cell_info = $('<div/>');
 			_.each(stat, function(n, sig) {
-				var mult = '';
+				let mult = '';
 				if(n > 1) {
 					mult = '*' + n;
 				}
@@ -336,37 +336,37 @@ Bonsai.prototype.updatePlantView = function(stat) {
 Bonsai.prototype.updateGenomeView = function(genome) {
 	function visualizeSignals(sigs) {
 		// Parse signals.
-		var raws = $('<tr/>');
-		var descs = $('<tr/>');
+		let raws = $('<tr/>');
+		let descs = $('<tr/>');
 
 		_.each(sigs, function(sig) {
-			var desc = parseIntrinsicSignal(sig);
+			let desc = parseIntrinsicSignal(sig);
 
-			var e_raw = $('<td/>').text(desc.raw);
+			let e_raw = $('<td/>').text(desc.raw);
 			e_raw.addClass('ct-' + desc.type);
 			raws.append(e_raw);
 
-			var e_desc = $('<td/>').text(desc.long);
+			let e_desc = $('<td/>').text(desc.long);
 			if(desc.long === '') {
 				e_desc.text(' ');
 			}
 			descs.append(e_desc);
 		});
 
-		var element = $('<table/>');
+		let element = $('<table/>');
 		element.append(raws);
 		element.append(descs);
 		return element;
 	}
 
-	var target = $('#genome-plant');
+	let target = $('#genome-plant');
 	target.empty();
 	if(genome === null) {
 		return;
 	}
 
 	_.each(genome.unity, function(gene) {
-		var gene_vis = $('<div/>').attr('class', 'gene');
+		let gene_vis = $('<div/>').attr('class', 'gene');
 
 		gene_vis.append(gene["tracer_desc"]);
 		gene_vis.append($('<br/>'));
@@ -415,13 +415,13 @@ Bonsai.prototype.requestPlantStatUpdate = function() {
 // data :: PlantData
 // return :: THREE.Object3D
 Bonsai.prototype.serializeSelection = function(data_plant) {
-	var padding = new THREE.Vector3(5e-3, 5e-3, 5e-3);
+	let padding = new THREE.Vector3(5e-3, 5e-3, 5e-3);
 
 	// Calculate AABB of the plant.
-	var v_min = new THREE.Vector3(1e3, 1e3, 1e3);
-	var v_max = new THREE.Vector3(-1e3, -1e3, -1e3);
+	let v_min = new THREE.Vector3(1e3, 1e3, 1e3);
+	let v_max = new THREE.Vector3(-1e3, -1e3, -1e3);
 	_.each(data_plant.vertices, function(data_vertex) {
-		var vertex = new THREE.Vector3().copy(data_vertex);
+		let vertex = new THREE.Vector3().copy(data_vertex);
 		v_min.min(vertex);
 		v_max.max(vertex);
 	});
@@ -430,10 +430,10 @@ Bonsai.prototype.serializeSelection = function(data_plant) {
 	v_min.sub(padding);
 	v_max.add(padding);
 
-	var proxy_size = v_max.clone().sub(v_min);
-	var proxy_center = v_max.clone().add(v_min).multiplyScalar(0.5);
+	let proxy_size = v_max.clone().sub(v_min);
+	let proxy_center = v_max.clone().add(v_min).multiplyScalar(0.5);
 
-	var proxy = new THREE.Mesh(
+	let proxy = new THREE.Mesh(
 		new THREE.CubeGeometry(proxy_size.x, proxy_size.y, proxy_size.z),
 		new THREE.MeshBasicMaterial({
 			wireframe: true,
@@ -452,15 +452,15 @@ Bonsai.prototype.serializeSelection = function(data_plant) {
 // data :: ChunkData
 // return :: THREE.Object3D
 Bonsai.prototype.deserialize = function(data) {
-	var proxy = new THREE.Object3D();
+	let proxy = new THREE.Object3D();
 
 	// de-serialize plants
 	_.each(data.plants, function(data_plant) {
-		var geom = new THREE.Geometry();
+		let geom = new THREE.Geometry();
 		geom.vertices = data_plant.vertices;
 		geom.faces = data_plant.faces;
 
-		var mesh = new THREE.Mesh(geom,
+		let mesh = new THREE.Mesh(geom,
 			new THREE.MeshLambertMaterial({
 				vertexColors: THREE.VertexColors}));
 
@@ -470,14 +470,14 @@ Bonsai.prototype.deserialize = function(data) {
 	});
 
 	// de-serialize soil
-	var canvas = document.createElement('canvas');
+	let canvas = document.createElement('canvas');
 	canvas.width = data.soil.n;
 	canvas.height = data.soil.n;
-	var context = canvas.getContext('2d');
+	let context = canvas.getContext('2d');
 	_.each(_.range(data.soil.n), function(y) {
 		_.each(_.range(data.soil.n), function(x) {
-			var v = data.soil.luminance[x + y * data.soil.n];
-			var lighting = new THREE.Color().setRGB(v, v, v);
+			let v = data.soil.luminance[x + y * data.soil.n];
+			let lighting = new THREE.Color().setRGB(v, v, v);
 
 			context.fillStyle = lighting.getStyle();
 			context.fillRect(x, data.soil.n - 1 - y, 1, 1);
@@ -485,10 +485,10 @@ Bonsai.prototype.deserialize = function(data) {
 	}, this);
 
 	// Attach tiles to the base.
-	var tex = new THREE.Texture(canvas);
+	let tex = new THREE.Texture(canvas);
 	tex.needsUpdate = true;
 
-	var soil_plate = new THREE.Mesh(
+	let soil_plate = new THREE.Mesh(
 		new THREE.CubeGeometry(data.soil.size, data.soil.size, 1e-3),
 		new THREE.MeshBasicMaterial({
 			map: tex
@@ -522,7 +522,7 @@ Bonsai.prototype.animate = function() {
 	this.stats.begin();
 
 	// note: three.js includes requestAnimationFrame shim
-	var _this = this;
+	let _this = this;
 	requestAnimationFrame(function(){_this.animate();});
 
 	this.renderer.render(this.scene, this.camera);
