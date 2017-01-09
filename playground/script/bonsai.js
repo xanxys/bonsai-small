@@ -478,15 +478,14 @@ class Bonsai {
     canvas.height = tex_size;
     let context = canvas.getContext('2d');
     context.scale(tex_size / data.soil.n, tex_size / data.soil.n);
-    _.each(_.range(data.soil.n), y => {
-      _.each(_.range(data.soil.n), x => {
+    for(let y = 0; y < data.soil.n; y++) {
+      for(let x = 0; x < data.soil.n; x++) {
         const v = data.soil.luminance[x + y * data.soil.n];
         let lighting = new THREE.Color().setRGB(v, v, v);
-
         context.fillStyle = lighting.getStyle();
         context.fillRect(x, data.soil.n - 1 - y, 1, 1);
-      }, this);
-    }, this);
+      }
+    }
 
     // Attach tiles to the base.
     let tex = new THREE.Texture(canvas);
