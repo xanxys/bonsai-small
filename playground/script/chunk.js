@@ -516,10 +516,6 @@ class Soil {
     this.size = size;
   }
 
-  // return :: ()
-  step() {
-  }
-
   // return :: THREE.Object3D
   materialize() {
     // Create texture.
@@ -681,24 +677,20 @@ class Light {
 // step & serialize. Other methods are mostly for statistics.
 class Chunk {
   constructor() {
+    // Chunk spatial constants.
+    this.size = 0.5;
+
     // tracer
     this.age = 0;
     this.new_plant_id = 0;
 
-    // Chunk spatail
-    this.size = 0.5;
-
-    // Soil (Cell sim)
+    // Entities.
+    this.plants = [];  // w/ internal "bio" aspect
     this.soil = new Soil(this, this.size);
     this.seeds = [];
 
-    // Light
+    // Physical aspects.
     this.light = new Light(this, this.size);
-
-    // Plants (bio-phys)
-    this.plants = [];
-
-    // Rigid-phys
     this.rigid_world = this._create_rigid_world();
   }
 
@@ -859,15 +851,11 @@ class Chunk {
       this.add_plant(seed.pos, seed.energy, seed.genome);
     }, this);
     this.seeds = [];
-    sim_stats['plant/ms'] = now() - t0;
+    sim_stats['bio/ms'] = now() - t0;
 
     t0 = now();
     this.light.step();
     sim_stats['light/ms'] = now() - t0;
-
-    t0 = now();
-    this.soil.step();
-    sim_stats['soil/ms'] = now() - t0;
 
     t0 = now();
     this.rigid_world.stepSimulation(1/60);  // 1 tick = 1/60 sec. Soooo fake phnysics...
