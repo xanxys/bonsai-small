@@ -15,7 +15,7 @@ let Signal = {
   G_DX: 'x',
   G_DY: 'y',
   G_DZ: 'z',
-  DIFF: 'd', // comound: d12 (1:initial signal 2:locator)
+  DIFF: 'd', // compound: d12 (1:initial signal 2:locator)
   REMOVER: 'r',  // compound: r[1] ([1]: signal to be removed)
 
   // Positional modifiers.

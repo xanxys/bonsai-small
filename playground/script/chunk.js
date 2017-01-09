@@ -677,8 +677,6 @@ class Light {
 
 // Chunk world class. There's no interaction between bonsai instances,
 // and Chunk just borrows scene, not owns it.
-// Cells changes doesn't show up until you call re_materialize.
-// re_materialize is idempotent from visual perspective.
 class Chunk {
   constructor (scene) {
     this.scene = scene;
@@ -702,7 +700,7 @@ class Chunk {
     this.light = new Light(this, this.size);
 
     // Plants (bio-phys)
-    this.children = [];
+    this.plants = [];
 
     // Rigid-phys
     this.rigid_world = this.create_rigid_world();
@@ -777,7 +775,7 @@ class Chunk {
 
     let shoot = new Plant(pos, this, energy, genome, this.new_plant_id);
     this.new_plant_id += 1;
-    this.children.push(shoot);
+    this.plants.push(shoot);
 
     return shoot;
   }
@@ -809,18 +807,18 @@ class Chunk {
   // Plant :: must be returned by add_plant
   // return :: ()
   remove_plant(plant) {
-    this.children = _.without(this.children, plant);
+    this.plants = _.without(this.plants, plant);
   }
 
   // return :: dict
   get_stat() {
-    let stored_energy = sum(_.map(this.children, function(plant) {
+    let stored_energy = sum(_.map(this.plants, function(plant) {
       return plant.energy;
     }));
 
     return {
       'age/T': this.age,
-      'plant': this.children.length,
+      'plant': this.plants.length,
       'stored/E': stored_energy
     };
   }
@@ -830,7 +828,7 @@ class Chunk {
   // return :: dict | null
   get_plant_stat(id) {
     let stat = null;
-    _.each(this.children, function(plant) {
+    _.each(this.plants, function(plant) {
       if(plant.id === id) {
         stat = plant.get_stat();
       }
@@ -841,7 +839,7 @@ class Chunk {
   // return :: array | null
   get_plant_genome(id) {
     let genome = null;
-    _.each(this.children, function(plant) {
+    _.each(this.plants, function(plant) {
       if(plant.id === id) {
         genome = plant.get_genome();
       }
@@ -857,7 +855,7 @@ class Chunk {
     let sim_stats = {};
 
     t0 = now();
-    _.each(this.children, function(plant) {
+    _.each(this.plants, function(plant) {
       plant.step();
     }, this);
 
@@ -882,27 +880,9 @@ class Chunk {
     return sim_stats;
   }
 
-  // options :: dict(string, bool)
-  // return :: ()
-  re_materialize(options) {
-    // Throw away all children of pot.
-    _.each(_.clone(this.land.children), function(three_cell_or_debug) {
-      this.land.remove(three_cell_or_debug);
-    }, this);
-
-    // Materialize soil.
-    let soil = this.soil.materialize();
-    this.land.add(soil);
-
-    // Materialize all Plant.
-    _.each(this.children, function(plant) {
-      this.land.add(plant.materialize(true));
-    }, this);
-  }
-
   serialize() {
     let ser = {};
-    ser['plants'] = _.map(this.children, function(plant) {
+    ser['plants'] = _.map(this.plants, function(plant) {
       let mesh = plant.materialize(true);
 
       return {
@@ -916,9 +896,9 @@ class Chunk {
     return ser;
   }
 
-    // Kill plant with specified id.
+  // Kill plant with specified id.
   kill(id) {
-    this.children = _.filter(this.children, function(plant) {
+    this.plants = _.filter(this.plants, function(plant) {
       return (plant.id !== id);
     });
   }
