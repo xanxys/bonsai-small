@@ -44,7 +44,8 @@ class Plant {
 
     // biophysics
     this.energy = energy;
-    this.seed = new Cell(this, Signal.SHOOT_END);  // being deprecated
+    this.seed = new Cell(this, Signal.SHOOT_END, null);  // being deprecated
+    this.seed.updatePose(this.seed_innode_to_world);
     this.cells = [this.seed];  // flat cells in world coords
 
     // genetics
@@ -57,8 +58,8 @@ class Plant {
     this.cells.forEach(cell => cell.step());
     console.assert(this.seed.age === this.age);
 
-    let mech_valid = this.seed.checkMechanics();
-    this.seed.updatePose(this.seed_innode_to_world);
+    let mech_valid = true;
+
 
     // Consume/store in-Plant energy.
     this.energy += this._power_for_plant() * 1;
@@ -138,7 +139,7 @@ class Plant {
 //    basic (minimum cell volume equivalent)
 //    linear-volume
 class Cell {
-  constructor(plant, initial_signal) {
+  constructor(plant, initial_signal, parent_cell) {
     // tracer
     this.age = 0;
 
@@ -146,6 +147,7 @@ class Cell {
     this.photons = 0;
 
     // in-sim (phys + bio)
+    this.tf_managed_by_rigid = false;
     this.loc_to_parent = new THREE.Quaternion();
     this.sx = 1e-3;
     this.sy = 1e-3;
@@ -155,6 +157,7 @@ class Cell {
     // in-sim (bio)
     this.plant = plant;
     this.children = [];  // being deprecated
+    this.parent_cell = parent_cell;
     this.power = 0;
 
     // in-sim (genetics)
@@ -166,6 +169,10 @@ class Cell {
   // return :: valid :: bool
   checkMechanics() {
     return this._checkMass().valid;
+  }
+
+  getMass() {
+    return 1e3 * this.sx * this.sy * this.sz;  // kg
   }
 
   // return: {valid: bool, total_mass: num}
@@ -204,8 +211,11 @@ class Cell {
     if(this === sub_cell) {
       throw new Error("Tried to add itself as child.", sub_cell);
     } else {
+      sub_cell.updatePose(this.getOutNodeToWorld());
+
       this.children.push(sub_cell);
       this.plant.cells.push(sub_cell);
+
     }
   }
 
@@ -372,22 +382,45 @@ class Cell {
       parent_to_loc,
       new THREE.Vector3(1, 1, 1));
     let center_to_innode = new THREE.Matrix4().getInverse(innode_to_center);
-    this.loc_to_world = innode_to_world.clone().multiply(
-      center_to_innode);
+    if(!this.tf_managed_by_rigid) {
+      this.loc_to_world = innode_to_world.clone().multiply(
+        center_to_innode);
+    }
+  }
 
-    let innode_to_outnode = new THREE.Matrix4().compose(
-      new THREE.Vector3(0, 0, -this.sz),
+  getOutNodeToWorld() {
+    let parent_to_loc = this.loc_to_parent.clone().inverse();
+    let loc_to_outnode = new THREE.Matrix4().compose(
+      new THREE.Vector3(0, 0, -this.sz / 2),
       parent_to_loc,
       new THREE.Vector3(1, 1, 1));
 
-    let outnode_to_innode = new THREE.Matrix4().getInverse(innode_to_outnode);
-    let outnode_to_world = innode_to_world.clone().multiply(
-      outnode_to_innode);
+    let outnode_to_loc = new THREE.Matrix4().getInverse(loc_to_outnode);
+    return this.loc_to_world.clone().multiply(outnode_to_loc);
+  }
 
-    _.each(this.children, function(child) {
-      child.updatePose(outnode_to_world);
-    });
-  };
+  getBtTransform() {
+    let trans = new THREE.Vector3();
+    let quat = new THREE.Quaternion();
+    let unused_scale = new THREE.Vector3();
+    this.loc_to_world.decompose(trans, quat, unused_scale);
+
+    let tf = new Ammo.btTransform();
+    tf.setIdentity();
+    tf.setOrigin(new Ammo.btVector3(trans.x, trans.y, trans.z));
+    tf.setRotation(new Ammo.btQuaternion(quat.x, quat.y, quat.z, quat.w));
+    return tf;
+  }
+
+  setBtTransform(tf) {
+    let t = tf.getOrigin();
+    let r = tf.getRotation();
+    this.loc_to_world.compose(
+      new THREE.Vector3(t.x(), t.y(), t.z()),
+      new THREE.Quaternion(r.x(), r.y(), r.z(), r.w()),
+      new THREE.Vector3(1, 1, 1));
+    this.tf_managed_by_rigid = true;
+  }
 
   // Create origin-centered, colored AABB for this Cell.
   // return :: THREE.Mesh
@@ -458,7 +491,7 @@ class Cell {
     }
 
 
-    let new_cell = new Cell(this.plant, initial);
+    let new_cell = new Cell(this.plant, initial, this);
     new_cell.loc_to_parent = calc_rot(locator);
     this.add(new_cell);
   }
@@ -648,6 +681,10 @@ class Chunk {
     this.soil = new Soil(this, this.size);
     this.seeds = [];
 
+    // Temporary hacks.
+    this.cell_to_rigid_body = new Map();
+    this.cell_to_parent_joint = new Map();
+
     // Physical aspects.
     this.light = new Light(this, this.size);
     this.rigid_world = this._create_rigid_world();
@@ -659,42 +696,19 @@ class Chunk {
     let overlappingPairCache = new Ammo.btDbvtBroadphase();
     let solver = new Ammo.btSequentialImpulseConstraintSolver();
     let rigid_world = new Ammo.btDiscreteDynamicsWorld(dispatcher, overlappingPairCache, solver, collision_configuration);
-    rigid_world.setGravity(new Ammo.btVector3(0, -10, 0));
+    rigid_world.setGravity(new Ammo.btVector3(0, 0, 0));
 
-    // add ground box
-    let groundShape     = new Ammo.btBoxShape(new Ammo.btVector3(50, 50, 50));
-    let bodies          = [];
-    let groundTransform = new Ammo.btTransform();
-    groundTransform.setIdentity();
-    groundTransform.setOrigin(new Ammo.btVector3(0, -56, 0));
+    // Add ground.
+    let ground_shape = new Ammo.btStaticPlaneShape(new Ammo.btVector3(0, 0, 1), 0);
+    let trans = new Ammo.btTransform();
+    trans.setIdentity();
 
-    let localInertia  = new Ammo.btVector3(0, 0, 0);
-    let myMotionState = new Ammo.btDefaultMotionState(groundTransform);
-    let rbInfo        = new Ammo.btRigidBodyConstructionInfo(0 /* mass */, myMotionState, groundShape, localInertia);
-    let body          = new Ammo.btRigidBody(rbInfo);
-
-    rigid_world.addRigidBody(body);
-    bodies.push(body);
-
-    {
-      let colShape        = new Ammo.btSphereShape(1);
-      let startTransform  = new Ammo.btTransform();
-
-      startTransform.setIdentity();
-
-      let mass          = 1;
-      let localInertia  = new Ammo.btVector3(0, 0, 0);
-      colShape.calculateLocalInertia(mass,localInertia);
-
-      startTransform.setOrigin(new Ammo.btVector3(2, 10, 0));
-
-      let myMotionState = new Ammo.btDefaultMotionState(startTransform);
-      let rbInfo        = new Ammo.btRigidBodyConstructionInfo(mass, myMotionState, colShape, localInertia);
-      let body          = new Ammo.btRigidBody(rbInfo);
-
-      rigid_world.addRigidBody(body);
-      bodies.push(body);
-    }
+    let motion = new Ammo.btDefaultMotionState(trans);
+    let rb_info = new Ammo.btRigidBodyConstructionInfo(
+      0 /* mass */, motion, ground_shape, new Ammo.btVector3(0, 0, 0) /* inertia */);
+    let ground = new Ammo.btRigidBody(rb_info);
+    rigid_world.addRigidBody(ground);
+    this.ground_rb = ground;
 
     return rigid_world;
   }
@@ -816,18 +830,106 @@ class Chunk {
     this.light.step();
     sim_stats['light/ms'] = now() - t0;
 
-    // TODO: From plants.cells,
-    // apply delta to rigid_world. Possible delta:
-    // * Size change of each cells
-    // * New cells appended (w/ new hinges)
-    // * New plant added (w/ land-hinge)
-    // * Plant deleted
     t0 = now();
-    this.rigid_world.stepSimulation(1/60);  // 1 tick = 1/60 sec. Soooo fake phnysics...
+    this._export_plants_to_rigid();
+    this.rigid_world.stepSimulation(1/60, 0);  // 1 tick = 1/60 sec. Soooo fake phnysics...
+    this._update_plants_from_rigid();
     sim_stats['rigid/ms'] = now() - t0;
-    // TODO: Reflect these prop back to plant.
+
+    if(false) {
+      const v = this.test_sphere.getCenterOfMassTransform().getOrigin();
+      console.log(v.z(), v.x(), v.y());
+    }
 
     return sim_stats;
+  }
+
+  _export_plants_to_rigid() {
+    // There are three types of changes: add / modify / delete
+    let live_cells = new Set();
+    for(let plant of this.plants) {
+      for(let cell of plant.cells) {
+        let rb = this.cell_to_rigid_body.get(cell);
+
+        // Also add contraint.
+        let tf_cell = new Ammo.btTransform();
+        tf_cell.setIdentity();
+        tf_cell.setOrigin(new Ammo.btVector3(0, 0, -cell.sz / 2)); // innode
+        let tf_parent = new Ammo.btTransform();
+        tf_parent.setIdentity();
+        if (cell.parent_cell === null) {
+          // point on ground
+          tf_parent.setOrigin(new Ammo.btVector3(cell.plant.position.x, cell.plant.position.y, 0));
+        } else {
+          // outnode of parent
+          tf_parent.setOrigin(new Ammo.btVector3(0, 0, cell.parent_cell.sz / 2));
+        }
+
+        let parent_rb = cell.parent_cell === null ? this.ground_rb : this.cell_to_rigid_body.get(cell.parent_cell);
+        // let joint = new Ammo.btFixedConstraint(rb, parent_rb, tf_cell, tf_parent);
+        let joint = new Ammo.btGeneric6DofSpringConstraint(rb, parent_rb, tf_cell, tf_parent, true);
+//          joint.
+        joint.setAngularLowerLimit(new Ammo.btVector3(0, 0, 0));
+        joint.setAngularUpperLimit(new Ammo.btVector3(0, 0, 0));
+        joint.setLinearLowerLimit(new Ammo.btVector3(0, 0, 0));
+        joint.setLinearUpperLimit(new Ammo.btVector3(0, 0, 0));
+
+        if(rb === undefined) {
+          // New cell added.
+          let cell_shape = new Ammo.btBoxShape(new Ammo.btVector3(0.5, 0.5, 0.5));  // (1m)^3 cube
+          cell_shape.setLocalScaling(new Ammo.btVector3(cell.sx, cell.sy, cell.sz));
+
+          let local_inertia = new Ammo.btVector3(0, 0, 0);
+          cell_shape.calculateLocalInertia(cell.getMass(), local_inertia);
+          // TODO: Is it correct to use total mass, after LocalScaling??
+
+          let motion_st = new Ammo.btDefaultMotionState(cell.getBtTransform());
+          let rb_info = new Ammo.btRigidBodyConstructionInfo(cell.getMass(), motion_st, cell_shape, local_inertia);
+          let rb = new Ammo.btRigidBody(rb_info);
+          rb.setFriction(0.8);
+
+          this.rigid_world.addRigidBody(rb);
+          this.cell_to_rigid_body.set(cell, rb);
+
+          this.rigid_world.addConstraint(joint, true /* no collision between neighbors */);
+          this.cell_to_parent_joint.set(cell, joint);
+        } else {
+
+          // Apply modification.
+          rb.getCollisionShape().setLocalScaling(new Ammo.btVector3(cell.sx, cell.sy, cell.sz));
+          // AABB?
+          let local_inertia = new Ammo.btVector3(0, 0, 0);
+          rb.getCollisionShape().calculateLocalInertia(cell.getMass(), local_inertia);
+          rb.setMassProps(cell.getMass(), local_inertia);
+          rb.updateInertiaTensor();
+          // TODO: maybe need to call some other updates?
+
+          // Update joint between parent.
+          // TODO: we should call joint.setFrames, but it's not exported yet from ammo.js.
+          // Work around this by re-creating joint.
+          this.rigid_world.removeConstraint(this.cell_to_parent_joint.get(cell));
+          this.rigid_world.addConstraint(joint, true /* no collision between neighbors */);
+          this.cell_to_parent_joint.set(cell, joint);
+        }
+        live_cells.add(cell);
+      }
+    }
+    // Apply removal.
+    if(this.cell_to_rigid_body.size > live_cells.size) {
+      for(let [cell, rb] of this.cell_to_rigid_body) {
+        if(!live_cells.has(cell)) {
+          this.rigid_world.removeRigidBody(rb);
+          this.cell_to_rigid_body.delete(cell);
+          this.cell_to_parent_joint.delete(cell);
+        }
+      }
+    }
+  }
+
+  _update_plants_from_rigid() {
+    for(let [cell, rb] of this.cell_to_rigid_body) {
+      cell.setBtTransform(rb.getCenterOfMassTransform());
+    }
   }
 
   serialize() {
