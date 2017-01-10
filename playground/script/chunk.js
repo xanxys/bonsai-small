@@ -45,7 +45,7 @@ class Plant {
     // biophysics
     this.energy = energy;
     this.seed = new Cell(this, Signal.SHOOT_END, null);  // being deprecated
-    this.seed.updatePose(this.seed_innode_to_world);
+    this.seed.initPose(this.seed_innode_to_world);
     this.cells = [this.seed];  // flat cells in world coords
 
     // genetics
@@ -156,7 +156,6 @@ class Cell {
 
     // in-sim (bio)
     this.plant = plant;
-    this.children = [];  // being deprecated
     this.parent_cell = parent_cell;
     this.power = 0;
 
@@ -164,45 +163,8 @@ class Cell {
     this.signals = [initial_signal];
   }
 
-  // Run pseudo-mechanical stability test based solely
-  // on mass and cross-section.
-  // return :: valid :: bool
-  checkMechanics() {
-    return this._checkMass().valid;
-  }
-
   getMass() {
     return 1e3 * this.sx * this.sy * this.sz;  // kg
-  }
-
-  // return: {valid: bool, total_mass: num}
-  _checkMass() {
-    let mass = 1e3 * this.sx * this.sy * this.sz;  // kg
-
-    let total_mass = mass;
-    let valid = true;
-    _.each(this.children, function(cell) {
-      let child_result = cell._checkMass();
-      total_mass += child_result.total_mass;
-      valid &= child_result.valid;
-    });
-
-    // 4mm:30g max
-    // mass[kg] / cross_section[m^2] = 7500.
-    if(total_mass / (this.sx * this.sy) > 7500 * 5) {
-      valid = false;
-    }
-
-    // 4mm:30g * 1cm max
-    // mass[kg]*length[m] / cross_section[m^2] = 75
-    if(total_mass * this.sz / (this.sx * this.sy) > 75 * 5) {
-      valid = false;
-    }
-
-    return {
-      valid: valid,
-      total_mass: total_mass
-    };
   }
 
   // sub_cell :: Cell
@@ -211,11 +173,8 @@ class Cell {
     if(this === sub_cell) {
       throw new Error("Tried to add itself as child.", sub_cell);
     } else {
-      sub_cell.updatePose(this.getOutNodeToWorld());
-
-      this.children.push(sub_cell);
+      sub_cell.initPose(this.getOutNodeToWorld());
       this.plant.cells.push(sub_cell);
-
     }
   }
 
@@ -373,7 +332,7 @@ class Cell {
     }
   };
 
-  updatePose(innode_to_world) {
+  initPose(innode_to_world) {
     // Update this.
     let parent_to_loc = this.loc_to_parent.clone().inverse();
 
