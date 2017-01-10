@@ -147,7 +147,6 @@ class Cell {
     this.photons = 0;
 
     // in-sim (phys + bio)
-    this.tf_managed_by_rigid = false;
     this.loc_to_parent = new THREE.Quaternion();
     this.sx = 1e-3;
     this.sy = 1e-3;
@@ -341,10 +340,8 @@ class Cell {
       parent_to_loc,
       new THREE.Vector3(1, 1, 1));
     let center_to_innode = new THREE.Matrix4().getInverse(innode_to_center);
-    if(!this.tf_managed_by_rigid) {
-      this.loc_to_world = innode_to_world.clone().multiply(
-        center_to_innode);
-    }
+    this.loc_to_world =
+        innode_to_world.clone().multiply(center_to_innode);
   }
 
   getOutNodeToWorld() {
@@ -378,7 +375,6 @@ class Cell {
       new THREE.Vector3(t.x(), t.y(), t.z()),
       new THREE.Quaternion(r.x(), r.y(), r.z(), r.w()),
       new THREE.Vector3(1, 1, 1));
-    this.tf_managed_by_rigid = true;
   }
 
   // Create origin-centered, colored AABB for this Cell.
