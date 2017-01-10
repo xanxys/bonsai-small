@@ -651,7 +651,7 @@ class Chunk {
     let overlappingPairCache = new Ammo.btDbvtBroadphase();
     let solver = new Ammo.btSequentialImpulseConstraintSolver();
     let rigid_world = new Ammo.btDiscreteDynamicsWorld(dispatcher, overlappingPairCache, solver, collision_configuration);
-    rigid_world.setGravity(new Ammo.btVector3(0, 0, 0));
+    rigid_world.setGravity(new Ammo.btVector3(0, 0, -1));
 
     // Add ground.
     let ground_shape = new Ammo.btStaticPlaneShape(new Ammo.btVector3(0, 0, 1), 0);
@@ -821,13 +821,15 @@ class Chunk {
         }
 
         let parent_rb = cell.parent_cell === null ? this.ground_rb : this.cell_to_rigid_body.get(cell.parent_cell);
-        // let joint = new Ammo.btFixedConstraint(rb, parent_rb, tf_cell, tf_parent);
         let joint = new Ammo.btGeneric6DofSpringConstraint(rb, parent_rb, tf_cell, tf_parent, true);
-//          joint.
         joint.setAngularLowerLimit(new Ammo.btVector3(0, 0, 0));
         joint.setAngularUpperLimit(new Ammo.btVector3(0, 0, 0));
         joint.setLinearLowerLimit(new Ammo.btVector3(0, 0, 0));
         joint.setLinearUpperLimit(new Ammo.btVector3(0, 0, 0));
+        [3, 4, 5].forEach(ix => {
+          joint.enableSpring(ix, true);
+          joint.setStiffness(ix, 1e5);
+        });  // rotation axes
 
         if(rb === undefined) {
           // New cell added.
@@ -884,6 +886,9 @@ class Chunk {
   _update_plants_from_rigid() {
     for(let [cell, rb] of this.cell_to_rigid_body) {
       cell.setBtTransform(rb.getCenterOfMassTransform());
+    }
+    for(let [cell, joint] of this.cell_to_parent_joint) {
+    //  console.log(joint.getAppliedImpulse());
     }
   }
 
