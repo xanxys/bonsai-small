@@ -6,6 +6,8 @@ Not so massive vegetation evolution simulator in browser. (cf. discontinued "mas
 You can try hosted one at [bonsai](http://www.xanxys.net/bonsai), which is somewhat stable "production" version I push occasionally.
 
 ## Model Overview
+![Screenvideo](/summary.gif)
+
 In bonsai world, plants are composed of "cells". A plant consists of interconnected "cells", where each cell is a cuboid.
 Bonsai tries to differ from existing evolution simulator in two main points: genotype-phenotype distinction & rich environment.
 
