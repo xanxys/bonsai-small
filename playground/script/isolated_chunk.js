@@ -12,8 +12,8 @@ let ChunkServer = function() {
   // Should be moved to bonsai.js
   let stress = false;
   if(!stress) {
-    _.each(_.range(0, 1), function(ix) {
-      _.each(_.range(0, 1), function(iy) {
+    _.each(_.range(-2, 3), function(ix) {
+      _.each(_.range(-2, 3), function(iy) {
         this.current_plant = _this.chunk.add_default_plant(
           new THREE.Vector3(ix * 0.07, iy * 0.07, 0));
       });

@@ -148,9 +148,9 @@ class Cell {
 
     // in-sim (phys + bio)
     this.loc_to_parent = new THREE.Quaternion();
-    this.sx = 1e-3;
-    this.sy = 1e-3;
-    this.sz = 1e-3;
+    this.sx = 5e-3;
+    this.sy = 5e-3;
+    this.sz = 5e-3;
     this.loc_to_world = new THREE.Matrix4();
 
     // in-sim (bio)
@@ -297,11 +297,11 @@ class Cell {
       if(signal.length === 3 && signal[0] === Signal.DIFF) {
         _this.add_cont(signal[1], signal[2]);
       } else if(signal === Signal.G_DX) {
-        _this.sx += 1e-3;
+        _this.sx = Math.min(0.05, _this.sx + 1e-3);
       } else if(signal === Signal.G_DY) {
-        _this.sy += 1e-3;
+        _this.sy = Math.min(0.05, _this.sy + 1e-3);
       } else if(signal === Signal.G_DZ) {
-        _this.sz += 1e-3;
+        _this.sz = Math.min(0.05, _this.sz + 1e-3);
       } else if(removers[signal] !== undefined && removers[signal] > 0) {
         removers[signal] -= 1;
       } else {
@@ -820,17 +820,6 @@ class Chunk {
           tf_parent.setOrigin(new Ammo.btVector3(0, 0, cell.parent_cell.sz / 2));
         }
 
-        let parent_rb = cell.parent_cell === null ? this.ground_rb : this.cell_to_rigid_body.get(cell.parent_cell);
-        let joint = new Ammo.btGeneric6DofSpringConstraint(rb, parent_rb, tf_cell, tf_parent, true);
-        joint.setAngularLowerLimit(new Ammo.btVector3(0, 0, 0));
-        joint.setAngularUpperLimit(new Ammo.btVector3(0, 0, 0));
-        joint.setLinearLowerLimit(new Ammo.btVector3(0, 0, 0));
-        joint.setLinearUpperLimit(new Ammo.btVector3(0, 0, 0));
-        [3, 4, 5].forEach(ix => {
-          joint.enableSpring(ix, true);
-          joint.setStiffness(ix, 1e5);
-        });  // rotation axes
-
         if(rb === undefined) {
           // New cell added.
           let cell_shape = new Ammo.btBoxShape(new Ammo.btVector3(0.5, 0.5, 0.5));  // (1m)^3 cube
@@ -848,25 +837,33 @@ class Chunk {
           this.rigid_world.addRigidBody(rb);
           this.cell_to_rigid_body.set(cell, rb);
 
+          // Add a joint to the parent (another Cell or Soil).
+          let parent_rb = cell.parent_cell === null ? this.ground_rb : this.cell_to_rigid_body.get(cell.parent_cell);
+          let joint = new Ammo.btGeneric6DofSpringConstraint(rb, parent_rb, tf_cell, tf_parent, true);
+          joint.setAngularLowerLimit(new Ammo.btVector3(0, 0, 0));
+          joint.setAngularUpperLimit(new Ammo.btVector3(0, 0, 0));
+          joint.setLinearLowerLimit(new Ammo.btVector3(0, 0, 0));
+          joint.setLinearUpperLimit(new Ammo.btVector3(0, 0, 0));
+          [3, 4, 5].forEach(ix => {
+            joint.enableSpring(ix, true);
+            joint.setStiffness(ix, 1e5);
+            joint.setDamping(ix, 0.5);
+          });  // rotation axes
+          joint.setBreakingImpulseThreshold(100);
           this.rigid_world.addConstraint(joint, true /* no collision between neighbors */);
           this.cell_to_parent_joint.set(cell, joint);
         } else {
-
           // Apply modification.
           rb.getCollisionShape().setLocalScaling(new Ammo.btVector3(cell.sx, cell.sy, cell.sz));
-          // AABB?
           let local_inertia = new Ammo.btVector3(0, 0, 0);
           rb.getCollisionShape().calculateLocalInertia(cell.getMass(), local_inertia);
           rb.setMassProps(cell.getMass(), local_inertia);
           rb.updateInertiaTensor();
           // TODO: maybe need to call some other updates?
 
-          // Update joint between parent.
-          // TODO: we should call joint.setFrames, but it's not exported yet from ammo.js.
-          // Work around this by re-creating joint.
-          this.rigid_world.removeConstraint(this.cell_to_parent_joint.get(cell));
-          this.rigid_world.addConstraint(joint, true /* no collision between neighbors */);
-          this.cell_to_parent_joint.set(cell, joint);
+          // Update joint between current cell and its parent.
+          let joint = this.cell_to_parent_joint.get(cell);
+          joint.setFrames(tf_cell, tf_parent);
         }
         live_cells.add(cell);
       }
