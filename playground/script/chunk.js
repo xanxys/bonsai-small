@@ -214,7 +214,7 @@ class Cell {
     delta_static += this.photons * 1e-9 * 15000 * efficiency;
 
     // -: basic consumption (stands for common func.)
-    delta_static -= 10 * 1e-9;
+    delta_static -= 100 * 1e-9;
 
     // -: linear-volume consumption (stands for cell substrate maintainance)
     let volume_consumption = 1.0;
