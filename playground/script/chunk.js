@@ -482,12 +482,12 @@ class Soil {
 
   serialize() {
     let array = [];
-    _.each(_.range(this.n), function(y) {
-      _.each(_.range(this.n), function(x) {
-        let v = this.parent.light.shadow_map[x + y * this.n] > 1e-3 ? 0.1 : 0.5;
+    for (let y = 0; y < this.n; y++) {
+      for (let x = 0; x < this.n; x++) {
+        let v = Math.min(1, this.parent.light.shadow_map[x + y * this.n] / 2 + 0.1);
         array.push(v);
-      }, this);
-    }, this);
+      }
+    }
     return {
       luminance: array,
       n: this.n,
@@ -501,15 +501,15 @@ class Soil {
     canvas.width = this.n;
     canvas.height = this.n;
     let context = canvas.getContext('2d');
-    _.each(_.range(this.n), function(y) {
-      _.each(_.range(this.n), function(x) {
-        let v = this.parent.light.shadow_map[x + y * this.n] > 1e-3 ? 0.1 : 0.5;
+    for (let y = 0; y < this.n; y++) {
+      for (let x = 0; x < this.n; x++) {
+        let v = Math.min(1, this.parent.light.shadow_map[x + y * this.n] / 2 + 0.1);
         let lighting = new THREE.Color().setRGB(v, v, v);
 
         context.fillStyle = lighting.getStyle();
         context.fillRect(x, this.n - y, 1, 1);
-      }, this);
-    }, this);
+      }
+    }
     return canvas;
   }
 }
@@ -522,6 +522,7 @@ class Light {
     this.n = 35;
     this.size = size;
 
+    // number of photos that hit ground.
     this.shadow_map = new Float32Array(this.n * this.n);
   }
 
@@ -598,6 +599,13 @@ class Light {
 
     for(let i = 0; i < this.n; i++) {
       for(let j = 0; j < this.n; j++) {
+        this.shadow_map[i + j * this.n]  = 0;
+
+        // 50% light in smaller i region
+        if (i < this.n / 2 && Math.random() < 0.5) {
+          continue;
+        }
+
         let isect = intersectDown(
           new THREE.Vector3(
             ((i + Math.random()) / this.n - 0.5) * this.size,
@@ -608,9 +616,8 @@ class Light {
 
         if(isect.length > 0) {
           isect[0].object.cell.give_photon();
-          this.shadow_map[i + j * this.n] = isect[0].point.z;
         } else {
-          this.shadow_map[i + j * this.n] = 0;
+          this.shadow_map[i + j * this.n] += 1.0;
         }
       }
     }
