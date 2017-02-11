@@ -155,17 +155,20 @@ fn draw_world_forever(rx: Receiver<WorldView>) {
 
         in vec3 position;
         uniform mat4 matrix;
+        varying float height;
 
         void main() {
             gl_Position = matrix * vec4(position, 1.0);
+            height = position.z / 100;
         }
     "#;
 
     let fragment_shader_src = r#"
         #version 140
         out vec4 color;
+        varying float height;
         void main() {
-            color = vec4(0.86, 1.0, 0.52, 1.0);
+            color = vec4(0.86, 1.0, 0.52 + height, 1);
         }
     "#;
 
@@ -181,12 +184,21 @@ fn draw_world_forever(rx: Receiver<WorldView>) {
             Ok(new_wv) => wv = new_wv,
             Err(_) => {},
         }
+
+
+        let mut target = display.draw();
+        let aspect = {
+            let (w, h) = target.get_dimensions();
+            (w as f32) / (h as f32)
+        };
+
         let radius = 200.0;
         let camera_pose = look_at(
             &Point3::new(radius * sv.cam_rot_theta.cos(), radius * sv.cam_rot_theta.sin(), 40.0),
             &Point3::new(0.0, 0.0, 30.0),
             &Vector3::new(0.0, 0.0, 1.0));
-        let camera_proj = Perspective3::new(1.0, consts::PI as f32/ 2.0, 0.5, 500.0).to_matrix();
+
+        let camera_proj = Perspective3::new(aspect, consts::PI as f32/ 2.0, 0.5, 500.0).to_matrix();
         let matrix = (camera_proj * camera_pose).transpose();
         let matrix_raw = [
             [matrix.m11, matrix.m12, matrix.m13, matrix.m14],
@@ -194,7 +206,7 @@ fn draw_world_forever(rx: Receiver<WorldView>) {
             [matrix.m31, matrix.m32, matrix.m33, matrix.m34],
             [matrix.m41, matrix.m42, matrix.m43, matrix.m44],
         ];
-        let mut target = display.draw();
+
         target.clear_color(0.01, 0.01, 0.01, 1.0);
         let params = glium::DrawParameters{
             point_size: Some(4.0),
