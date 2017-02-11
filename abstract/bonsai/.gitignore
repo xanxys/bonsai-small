@@ -1,2 +1,2 @@
-./bonsai
 cachegrind.out.*
+target/
