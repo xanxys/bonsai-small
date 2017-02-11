@@ -3,10 +3,13 @@ extern crate glium;
 extern crate rand;
 extern crate time;
 extern crate nalgebra;
+extern crate ncurses;
 
 use nalgebra::{BaseFloat, Vector3, Point3, Rotation3,Matrix4, Isometry3, ToHomogeneous, Transpose, Perspective3};
+use ncurses::*;
 use std::time::Duration;
 use std::thread;
+use std::fmt::{format};
 use std::f64::consts;
 use std::collections::HashMap;
 use std::sync::mpsc::{Receiver, sync_channel};
@@ -227,6 +230,7 @@ fn main() {
     let mut w = create_world();
     let (tx, rx) = sync_channel::<WorldView>(1);
 
+    initscr();
     thread::spawn(move || {
         loop {
             let t0 = time::precise_time_s();
@@ -238,7 +242,9 @@ fn main() {
                 wv.cells.push(CellView{p:cell.p});
             }
             tx.send(wv).unwrap();
-            println!("{}, {:.1}ms", w.steps, dt_step * 1e3);
+            mv(0, 0);
+            printw(&format!("step={} dt={:.1}ms", w.steps, dt_step * 1e3));
+            refresh();
             thread::sleep(Duration::from_millis(250));
         }
     });
