@@ -1,7 +1,12 @@
 #[macro_use]
 extern crate glium;
+extern crate rand;
 
+use std::thread;
 use std::collections::HashMap;
+use std::sync::mpsc::sync_channel;
+use rand::Rng;
+use rand::distributions::{IndependentSample, Range};
 
 #[derive(Debug, Copy, Clone)]
 struct V3{x:f64, y:f64, z:f64}
@@ -16,11 +21,10 @@ fn floor(v : &V3) -> I3 {
 
 #[derive(Copy, Clone)]
 struct Vertex {
-    position: [f32; 2],
+    position: [f32; 3],
 }
 
 implement_vertex!(Vertex, position);
-
 
 
 struct Cell {
@@ -37,7 +41,18 @@ struct Cell {
 struct World {
     cells: Vec<Cell>,
     next_id: u64,
+    steps: u64,
 }
+
+struct CellView {
+    p: V3,
+}
+
+// Subset of World + animtation information to visualize World.
+struct WorldView {
+    cells: Vec<CellView>,
+}
+
 
 fn step_code(c: &mut Cell){
     let inst = c.prog[c.regs[3] as usize];
@@ -88,17 +103,23 @@ fn step(w: &mut World) {
 
     // Light transport.
 
+    w.steps += 1;
 }
 
 
 
 fn main() {
-    let mut w = World{cells:vec![], next_id:0};
+    let mut rng = rand::thread_rng();
+    let mut w = World{cells:vec![], next_id:0, steps:0};
     for _ in 0..1000*1000 {
+        let hrange = Range::new(-100.0, 100.0);
+        let vrange = Range::new(0.0, 200.0);
+        let p = V3{x:hrange.ind_sample(&mut rng), y: hrange.ind_sample(&mut rng), z: vrange.ind_sample(&mut rng)};
+
         w.cells.push(Cell{
             id: w.next_id,
-            p: V3{x:12.3, y: 3.4, z: -232.3},
-            pi: I3{x:12, y: 3, z: -233},
+            p: p,
+            pi: floor(&p),
             dp: V3{x:0.0, y:0.0, z:0.0},
             prog: [0; 256],
             regs: [0; 4],
@@ -106,13 +127,28 @@ fn main() {
         w.next_id += 1;
     }
 
+    let (tx, rx) = sync_channel::<WorldView>(1);
+
+    thread::spawn(move || {
+        loop {
+            step(&mut w);
+            let mut wv = WorldView{cells:vec![]};
+            for cell in &w.cells {
+                wv.cells.push(CellView{p:cell.p});
+            }
+            tx.send(wv).unwrap();
+            println!("{}", w.steps);
+            thread::sleep_ms(250);
+        }
+    });
+
     let vertex_shader_src = r#"
         #version 140
 
-        in vec2 position;
+        in vec3 position;
 
         void main() {
-            gl_Position = vec4(position, 0.0, 1.0);
+            gl_Position = vec4(position * 0.1, 1.0);
         }
     "#;
 
@@ -123,25 +159,30 @@ fn main() {
             color = vec4(1.0, 0.0, 0.0, 1.0);
         }
     "#;
-    let vertex1 = Vertex { position: [-0.5, -0.5] };
-    let vertex2 = Vertex { position: [ 0.0,  0.5] };
-    let vertex3 = Vertex { position: [ 0.5, -0.25] };
-    let shape = vec![vertex1, vertex2, vertex3];
-
 
     use glium::{DisplayBuild, Surface};
     let display = glium::glutin::WindowBuilder::new().build_glium().unwrap();
     let program = glium::Program::from_source(&display, vertex_shader_src, fragment_shader_src, None).unwrap();
 
-    let vertex_buffer = glium::VertexBuffer::new(&display, &shape).unwrap();
-    let indices = glium::index::NoIndices(glium::index::PrimitiveType::TrianglesList);
-
-
     loop {
+        let wv = rx.recv().unwrap();
+
         let mut target = display.draw();
-        target.clear_color(0.0, 0.0, 1.0, 1.0);
-        target.draw(&vertex_buffer, &indices, &program, &glium::uniforms::EmptyUniforms,
-            &Default::default()).unwrap();
+        target.clear_color(0.01, 0.01, 0.01, 1.0);
+        let params = glium::DrawParameters{
+            point_size: Some(4.0),
+            ..Default::default()
+        };
+
+        let mut shape = vec![];
+        for cell in wv.cells {
+            shape.push(Vertex { position: [cell.p.x as f32, cell.p.y as f32, cell.p.z as f32] });
+        }
+
+        let vertex_buffer = glium::VertexBuffer::new(&display, &shape).unwrap();
+        let indices = glium::index::NoIndices(glium::index::PrimitiveType::Points);
+
+        target.draw(&vertex_buffer, &indices, &program, &glium::uniforms::EmptyUniforms, &params).unwrap();
         target.finish().unwrap();
 
         // listing the events produced by the window and waiting to be received
@@ -151,9 +192,5 @@ fn main() {
                 _ => ()
             }
         }
-    }
-
-    for _ in 0i64..10 {
-        step(&mut w);
     }
 }
