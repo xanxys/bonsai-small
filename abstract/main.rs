@@ -11,7 +11,9 @@ fn floor(v : &V3) -> I3 {
     I3{x:v.x.floor() as i16, y:v.y.floor() as i16, z:v.z.floor() as i16}
 }
 
-struct Cell{
+struct Cell {
+    id: u64,
+
     p: V3,
     pi: I3,
     dp: V3,
@@ -20,10 +22,10 @@ struct Cell{
     regs: [u8; 4],
 }
 
-struct World{
+struct World {
     cells: Vec<Cell>,
+    next_id: u64,
 }
-
 
 fn step_code(c: &mut Cell){
     let inst = c.prog[c.regs[3] as usize];
@@ -55,15 +57,17 @@ fn step(w: &mut World) {
         cell.dp.z *= dissipation;
 
         // Inertia.
+        // TODO: Experiment w/ explicit stopoed-moving st. mgmt.
         cell.p.x += cell.dp.x;
         cell.p.y += cell.dp.y;
         cell.p.z += cell.dp.z;
 
         // Exclusivity.
         let pi_next = floor(&cell.p);
+        // M(pi_next - pi) = {0, 1, 2, 3}
+        // When empty: ok
+        // Otherwise, try decending order: 2, 1, 0.
         if occupation.contains_key(&pi_next) {
-            // Need to stay inside pi, instead of going to pi_next.
-
         } else {
             cell.pi = pi_next;
         }
@@ -77,15 +81,17 @@ fn step(w: &mut World) {
 
 
 fn main() {
-    let mut w = World{cells:vec![]};
-    for i in 0..1000*1000 {
+    let mut w = World{cells:vec![], next_id:0};
+    for _ in 0..1000*1000 {
         w.cells.push(Cell{
+            id: w.next_id,
             p: V3{x:12.3, y: 3.4, z: -232.3},
             pi: I3{x:12, y: 3, z: -233},
             dp: V3{x:0.0, y:0.0, z:0.0},
             prog: [0; 256],
             regs: [0; 4],
         });
+        w.next_id += 1;
     }
 
     for _ in 0i64..10 {
