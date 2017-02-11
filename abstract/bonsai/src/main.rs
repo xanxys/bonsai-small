@@ -107,8 +107,7 @@ fn step(w: &mut World) {
 }
 
 
-
-fn main() {
+fn create_world() -> World {
     let mut rng = rand::thread_rng();
     let mut w = World{cells:vec![], next_id:0, steps:0};
     for _ in 0..1000*1000 {
@@ -126,7 +125,11 @@ fn main() {
         });
         w.next_id += 1;
     }
+    return w;
+}
 
+fn main() {
+    let mut w = create_world();
     let (tx, rx) = sync_channel::<WorldView>(1);
 
     thread::spawn(move || {
