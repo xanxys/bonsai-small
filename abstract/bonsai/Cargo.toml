@@ -1,0 +1,6 @@
+[package]
+name = "bonsai"
+version = "0.1.0"
+authors = ["xyx <xanxys@gmail.com>"]
+
+[dependencies]

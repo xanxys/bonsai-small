@@ -1,8 +1,2 @@
-*.o
-.sconsign*
-
-# build product
-bonsai
-
 # run product
 /*.png
