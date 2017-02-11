@@ -2,7 +2,9 @@
 extern crate glium;
 extern crate rand;
 
+use std::time::{Duration, Instant};
 use std::thread;
+use std::f64::consts;
 use std::collections::HashMap;
 use std::sync::mpsc::sync_channel;
 use rand::Rng;
@@ -51,6 +53,11 @@ struct CellView {
 // Subset of World + animtation information to visualize World.
 struct WorldView {
     cells: Vec<CellView>,
+}
+
+// Outside World.
+struct SceneView {
+    cam_rot_theta: f32,
 }
 
 
@@ -149,9 +156,10 @@ fn main() {
         #version 140
 
         in vec3 position;
+        uniform mat4 matrix;
 
         void main() {
-            gl_Position = vec4(position * 0.1, 1.0);
+            gl_Position = matrix * vec4(position, 1.0);
         }
     "#;
 
@@ -167,9 +175,21 @@ fn main() {
     let display = glium::glutin::WindowBuilder::new().build_glium().unwrap();
     let program = glium::Program::from_source(&display, vertex_shader_src, fragment_shader_src, None).unwrap();
 
+    let mut sv = SceneView{cam_rot_theta: 0.0};
+    let mut wv = rx.recv().unwrap();
     loop {
-        let wv = rx.recv().unwrap();
-
+        let t0 = Instant::now();
+        match rx.try_recv() {
+            Ok(new_wv) => wv = new_wv,
+            Err(_) => {},
+        }
+        let scale = 1e-2;
+        let matrix = [
+            [scale * sv.cam_rot_theta.cos(), - scale * sv.cam_rot_theta.sin(), 0.0, 0.0],
+            [scale * sv.cam_rot_theta.sin(), scale * sv.cam_rot_theta.cos(), 0.0, 0.0],
+            [0.0, 0.0, 1.0, 0.0],
+            [0.0, 0.0, 0.0, 1.0f32]
+        ];
         let mut target = display.draw();
         target.clear_color(0.01, 0.01, 0.01, 1.0);
         let params = glium::DrawParameters{
@@ -178,14 +198,14 @@ fn main() {
         };
 
         let mut shape = vec![];
-        for cell in wv.cells {
+        for cell in &wv.cells {
             shape.push(Vertex { position: [cell.p.x as f32, cell.p.y as f32, cell.p.z as f32] });
         }
 
         let vertex_buffer = glium::VertexBuffer::new(&display, &shape).unwrap();
         let indices = glium::index::NoIndices(glium::index::PrimitiveType::Points);
 
-        target.draw(&vertex_buffer, &indices, &program, &glium::uniforms::EmptyUniforms, &params).unwrap();
+        target.draw(&vertex_buffer, &indices, &program,  &uniform!{ matrix: matrix }, &params).unwrap();
         target.finish().unwrap();
 
         // listing the events produced by the window and waiting to be received
@@ -195,5 +215,10 @@ fn main() {
                 _ => ()
             }
         }
+
+        let dt = t0.elapsed();
+        let dt_sec = (dt.as_secs() as f64) + (dt.subsec_nanos() as f64) * 1e-9;
+        let rot_speed = 0.1;  // rot/sec
+        sv.cam_rot_theta += (dt_sec * rot_speed * (2.0 * consts::PI)) as f32;
     }
 }
