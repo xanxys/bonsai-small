@@ -6,3 +6,5 @@ authors = ["xyx <xanxys@gmail.com>"]
 [dependencies]
 glium = "*"
 rand = "0.3"
+time = "0.1"
+nalgebra = "0.10.*"

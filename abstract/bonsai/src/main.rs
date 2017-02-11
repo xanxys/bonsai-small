@@ -1,13 +1,15 @@
 #[macro_use]
 extern crate glium;
 extern crate rand;
+extern crate time;
+extern crate nalgebra;
 
-use std::time::{Duration, Instant};
+use nalgebra::{BaseFloat, Vector3, Point3, Rotation3,Matrix4, Isometry3, ToHomogeneous, Transpose, Perspective3};
+use std::time::Duration;
 use std::thread;
 use std::f64::consts;
 use std::collections::HashMap;
-use std::sync::mpsc::sync_channel;
-use rand::Rng;
+use std::sync::mpsc::{Receiver, sync_channel};
 use rand::distributions::{IndependentSample, Range};
 
 #[derive(Debug, Copy, Clone)]
@@ -119,7 +121,7 @@ fn create_world() -> World {
     let mut w = World{cells:vec![], next_id:0, steps:0};
     for _ in 0..1000*1000 {
         let hrange = Range::new(-100.0, 100.0);
-        let vrange = Range::new(0.0, 200.0);
+        let vrange = Range::new(0.0, 100.0);
         let p = V3{x:hrange.ind_sample(&mut rng), y: hrange.ind_sample(&mut rng), z: vrange.ind_sample(&mut rng)};
 
         w.cells.push(Cell{
@@ -135,23 +137,16 @@ fn create_world() -> World {
     return w;
 }
 
-fn main() {
-    let mut w = create_world();
-    let (tx, rx) = sync_channel::<WorldView>(1);
+// Create a camera matrix with specified attribs.
+// when retval is m,
+// m*(p,1) will be located in coords such that
+// X+: right, Y+:down, Z+: far, (0, 0) will be center of camera.
+fn look_at<N: BaseFloat>(pos: &Point3<N>, at: &Point3<N>, up: &Vector3<N>) -> Matrix4<N> {
+    return Isometry3::look_at_rh(pos, at, up).to_homogeneous();
+}
 
-    thread::spawn(move || {
-        loop {
-            step(&mut w);
-            let mut wv = WorldView{cells:vec![]};
-            for cell in &w.cells {
-                wv.cells.push(CellView{p:cell.p});
-            }
-            tx.send(wv).unwrap();
-            println!("{}", w.steps);
-            thread::sleep_ms(250);
-        }
-    });
 
+fn draw_world_forever(rx: Receiver<WorldView>) {
     let vertex_shader_src = r#"
         #version 140
 
@@ -167,7 +162,7 @@ fn main() {
         #version 140
         out vec4 color;
         void main() {
-            color = vec4(1.0, 0.0, 0.0, 1.0);
+            color = vec4(0.86, 1.0, 0.52, 1.0);
         }
     "#;
 
@@ -178,17 +173,23 @@ fn main() {
     let mut sv = SceneView{cam_rot_theta: 0.0};
     let mut wv = rx.recv().unwrap();
     loop {
-        let t0 = Instant::now();
+        let t0 = time::precise_time_s();
         match rx.try_recv() {
             Ok(new_wv) => wv = new_wv,
             Err(_) => {},
         }
-        let scale = 1e-2;
-        let matrix = [
-            [scale * sv.cam_rot_theta.cos(), - scale * sv.cam_rot_theta.sin(), 0.0, 0.0],
-            [scale * sv.cam_rot_theta.sin(), scale * sv.cam_rot_theta.cos(), 0.0, 0.0],
-            [0.0, 0.0, 1.0, 0.0],
-            [0.0, 0.0, 0.0, 1.0f32]
+        let radius = 200.0;
+        let camera_pose = look_at(
+            &Point3::new(radius * sv.cam_rot_theta.cos(), radius * sv.cam_rot_theta.sin(), 40.0),
+            &Point3::new(0.0, 0.0, 30.0),
+            &Vector3::new(0.0, 0.0, 1.0));
+        let camera_proj = Perspective3::new(1.0, consts::PI as f32/ 2.0, 0.5, 500.0).to_matrix();
+        let matrix = (camera_proj * camera_pose).transpose();
+        let matrix_raw = [
+            [matrix.m11, matrix.m12, matrix.m13, matrix.m14],
+            [matrix.m21, matrix.m22, matrix.m23, matrix.m24],
+            [matrix.m31, matrix.m32, matrix.m33, matrix.m34],
+            [matrix.m41, matrix.m42, matrix.m43, matrix.m44],
         ];
         let mut target = display.draw();
         target.clear_color(0.01, 0.01, 0.01, 1.0);
@@ -205,7 +206,7 @@ fn main() {
         let vertex_buffer = glium::VertexBuffer::new(&display, &shape).unwrap();
         let indices = glium::index::NoIndices(glium::index::PrimitiveType::Points);
 
-        target.draw(&vertex_buffer, &indices, &program,  &uniform!{ matrix: matrix }, &params).unwrap();
+        target.draw(&vertex_buffer, &indices, &program,  &uniform!{ matrix: matrix_raw }, &params).unwrap();
         target.finish().unwrap();
 
         // listing the events produced by the window and waiting to be received
@@ -216,9 +217,30 @@ fn main() {
             }
         }
 
-        let dt = t0.elapsed();
-        let dt_sec = (dt.as_secs() as f64) + (dt.subsec_nanos() as f64) * 1e-9;
+        let dt_sec = time::precise_time_s() - t0;
         let rot_speed = 0.1;  // rot/sec
         sv.cam_rot_theta += (dt_sec * rot_speed * (2.0 * consts::PI)) as f32;
     }
+}
+
+fn main() {
+    let mut w = create_world();
+    let (tx, rx) = sync_channel::<WorldView>(1);
+
+    thread::spawn(move || {
+        loop {
+            let t0 = time::precise_time_s();
+            step(&mut w);
+            let dt_step = time::precise_time_s() - t0;
+
+            let mut wv = WorldView{cells:vec![]};
+            for cell in &w.cells {
+                wv.cells.push(CellView{p:cell.p});
+            }
+            tx.send(wv).unwrap();
+            println!("{}, {:.1}ms", w.steps, dt_step * 1e3);
+            thread::sleep(Duration::from_millis(250));
+        }
+    });
+    draw_world_forever(rx);
 }
