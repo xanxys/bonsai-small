@@ -5,14 +5,12 @@ extern crate time;
 extern crate nalgebra;
 extern crate ncurses;
 
-use nalgebra::{BaseFloat, Vector3, Point3, Rotation3,Matrix4, Isometry3, ToHomogeneous, Transpose, Perspective3};
+use nalgebra::{BaseFloat, Vector3, Point3, Matrix4, Isometry3, ToHomogeneous, Transpose, Perspective3};
 use ncurses::*;
-use std::time::Duration;
 use std::thread;
-use std::fmt::{format};
 use std::f64::consts;
 use std::collections::HashMap;
-use std::sync::mpsc::{Receiver, sync_channel};
+use std::sync::mpsc::{Receiver, Sender, channel, sync_channel};
 use rand::distributions::{IndependentSample, Range};
 
 #[derive(Debug, Copy, Clone)]
@@ -310,7 +308,7 @@ fn look_at<N: BaseFloat>(pos: &Point3<N>, at: &Point3<N>, up: &Vector3<N>) -> Ma
 }
 
 
-fn draw_world_forever(rx: Receiver<WorldView>) {
+fn draw_world_forever(rx: Receiver<WorldView>, stat_tx: Sender<f64>) {
     let vertex_shader_src = r#"
         #version 140
 
@@ -402,6 +400,7 @@ fn draw_world_forever(rx: Receiver<WorldView>) {
         }
 
         let dt_sec = time::precise_time_s() - t0;
+        stat_tx.send(dt_sec);
         let rot_speed = 0.1;  // rot/sec
         sv.cam_rot_theta += (dt_sec * rot_speed * (2.0 * consts::PI)) as f32;
     }
@@ -410,6 +409,7 @@ fn draw_world_forever(rx: Receiver<WorldView>) {
 fn main() {
     let mut w = create_world();
     let (tx, rx) = sync_channel::<WorldView>(1);
+    let (stat_tx, stat_rx) = channel::<f64>();
 
     initscr();
     thread::spawn(move || {
@@ -423,12 +423,22 @@ fn main() {
                 wv.cells.push(CellView{p:cell.p});
             }
             tx.send(wv).unwrap();
+
+            let mut draw_dt = 0.0;
+            loop {
+                match stat_rx.try_recv() {
+                    Ok(dt) => draw_dt = dt,
+                    _ => break,
+                }
+            }
             mv(0, 0);
-            printw(&format!("step={} dt={:.1}ms", w.steps, dt_step * 1e3));
+            printw(&format!("SIM step={} dt={:.1}ms", w.steps, dt_step * 1e3));
             mv(1, 0);
-            printw(&format!("{} {}", w.cells[0].ip, w.cells[0].epsilon));
+            printw(&format!("{} {} {}", w.cells[0].id, w.cells[0].ip, w.cells[0].epsilon));
+            mv(2, 0);
+            printw(&format!("DRAW dt={:.1}ms", draw_dt * 1e3));
             refresh();
         }
     });
-    draw_world_forever(rx);
+    draw_world_forever(rx, stat_tx);
 }
