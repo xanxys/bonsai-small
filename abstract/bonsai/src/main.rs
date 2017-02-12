@@ -164,22 +164,28 @@ fn step_code(c: &mut Cell){
     } else if inst < 0x20 {
         // RESERVED
     } else if inst < 0x30 {
-        c.ip = c.regs[dst];
-        return;
-    } else if inst < 0x3f {
-        c.ip += c.regs[dst];
-        return;
-    } else if inst < 0x40 {
-        for i in 1..128 {
-            let addr = (c.ip + i) & 0x7f;
-            if c.prog[addr as usize] == c.regs[dst] {
-                c.ip = addr;
-                c.result = true;
-                return;
-            }
+        if src & 1 == 0 || c.result {
+            c.ip = c.regs[dst];
+            return;
         }
-        c.result = false;
-        return;
+    } else if inst < 0x3f {
+        if src & 1 == 0 || c.result {
+            c.ip += c.regs[dst];
+            return;
+        }
+    } else if inst < 0x40 {
+        if src & 1 == 0 || c.result {
+            for i in 1..128 {
+                let addr = (c.ip + i) & 0x7f;
+                if c.prog[addr as usize] == c.regs[dst] {
+                    c.ip = addr;
+                    c.result = true;
+                    return;
+                }
+            }
+            c.result = false;
+            return;
+        }
     } else if inst < 0x80 {
         c.regs[dst] = (inst >> 2) & 0xf;
     // Upper half: [0x80, 0xff]
@@ -404,6 +410,8 @@ fn main() {
             tx.send(wv).unwrap();
             mv(0, 0);
             printw(&format!("step={} dt={:.1}ms", w.steps, dt_step * 1e3));
+            mv(1, 0);
+            printw(&format!("{} {}", w.cells[0].ip, w.cells[0].epsilon));
             refresh();
         }
     });
