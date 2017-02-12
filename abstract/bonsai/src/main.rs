@@ -55,6 +55,13 @@ struct World {
     cells: Vec<Cell>,
     next_id: u64,
     steps: u64,
+    // environment:
+    // pos -> {W, S, R, A}
+    // W(p): flow, alpha-source, spatial changing, temporally constant
+    // A: weak flow: spatially constant, temporally changing
+    // S: sticking force
+    // R: exclusion
+    // flow
 }
 
 struct CellView {
@@ -322,7 +329,7 @@ fn draw_world_forever(rx: Receiver<WorldView>) {
         out vec4 color;
         varying float height;
         void main() {
-            color = vec4(0.86, 1.0, 0.52 + height, 1);
+            color = vec4(0.86, 1.0, 0.52 + height, 0.1);
         }
     "#;
 
@@ -364,6 +371,14 @@ fn draw_world_forever(rx: Receiver<WorldView>) {
         target.clear_color(0.01, 0.01, 0.01, 1.0);
         let params = glium::DrawParameters{
             point_size: Some(4.0),
+            blend: glium::draw_parameters::Blend {
+                color: glium::BlendingFunction::Addition {
+                    source: glium::LinearBlendingFactor::SourceAlpha,
+                    destination: glium::LinearBlendingFactor::One,
+                },
+                alpha: glium::BlendingFunction::AlwaysReplace,
+                constant_value: (0.0, 0.0, 0.0, 0.0)
+            },
             ..Default::default()
         };
 
