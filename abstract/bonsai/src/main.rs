@@ -41,8 +41,14 @@ struct Cell {
     pi: I3,
     dp: V3,
 
+    epsilon: u8,
+    decay: u8,
+
     prog: [u8; 256],
     regs: [u8; 4],
+    ip: u8,
+    ext: bool,
+    result: bool,
 }
 
 struct World {
@@ -65,22 +71,153 @@ struct SceneView {
     cam_rot_theta: f32,
 }
 
+/*
+Operations:
+0xxx xxxx: 128
+    000x xxdd: 32
+        divide E
+        check E
+        share-ε {pull, push} Dd-t
+        force {-, +} Dd-t
+        fuse Dd-t
+        // rsv
+    001x xxxx: 32
+        0010 0xxx: 8
+            drain
+            clone
+            reduce
+            flip (result = !result)
+            get-α
+            get-φ
+            // rsv * 2
+        001x xcdd: 24 (xx = 01, 10, 11)
+            jmpa C, Dd (eip := Dd)
+            jmpr C, Dd (eip := eip + Dd)
+            jmpc C, Dd  (eip := i s.t. M[i] = Dd)
+    01ii iidd: 64
+        movi Dd, I
+1xxx xxxx: 128
+    1000 xxdd: 16
+        inspect Dd
+        not Dd
+        swap Dd
+        // rsv
+    1xxx ssdd: 112 (xxx = 001, 010, 011, 100, 101, 110, 111)
+        and Ds, Dd  (Dd &=Ds)
+        or Ds, Dd (Dd |= Ds)
+        add Ds, Dd (Dd += Ds)
+        mov Ds, Dd (Dd = Ds)
+
+        st Ds, Dd-a
+        ld Ds-a, Dd
+
+        nearby E, Dd
+*/
 
 fn step_code(c: &mut Cell){
-    let inst = c.prog[c.regs[3] as usize];
-    c.regs[3] += 1;
-
-    if (inst == 0xff) {
-        // Die.
-    } else if(inst == 0x11) {
-
+    if c.epsilon == 0 {
+        c.decay += 1;
+        if c.decay == 0xff {
+            // Delete cell.
+        }
+        return;
     }
+    // Execute the instruction.
+    c.decay = 0;
+    c.epsilon -= if c.ext {2} else {1};
 
+    let inst = c.prog[c.ip as usize];
+    let dst = (inst & 3) as usize;
+    let src = ((inst >> 2) & 3) as usize;
+
+    if inst < 0x04 {
+        // divide
+    } else if inst < 0x08 {
+        // check
+    } else if inst < 0x0c {
+        // share * 2
+    } else if inst < 0x14 {
+        // force * 2
+    } else if inst < 0x1c {
+        // fuse
+        c.ext = true;
+    } else if inst < 0x20 {
+        // RESERVED.
+    } else if inst < 0x21 {
+        c.epsilon = 0;
+    } else if inst < 0x22 {
+        for i in 0..128 {
+            c.prog[i+128] = c.prog[i];
+        }
+        c.ext = true;
+    } else if inst < 0x23 {
+        for i in 128..256 {
+            c.prog[i] = 0;
+        }
+        c.ext = false;
+    } else if inst < 0x24 {
+        c.result = !c.result;
+    } else if inst < 0x25 {
+        // get-alpha
+    } else if inst < 0x26 {
+        // get-phi
+    } else if inst < 0x20 {
+        // RESERVED
+    } else if inst < 0x30 {
+        c.ip = c.regs[dst];
+        return;
+    } else if inst < 0x3f {
+        c.ip += c.regs[dst];
+        return;
+    } else if inst < 0x40 {
+        for i in 1..128 {
+            let addr = (c.ip + i) & 0x7f;
+            if c.prog[addr as usize] == c.regs[dst] {
+                c.ip = addr;
+                c.result = true;
+                return;
+            }
+        }
+        c.result = false;
+        return;
+    } else if inst < 0x80 {
+        c.regs[dst] = (inst >> 2) & 0xf;
+    // Upper half: [0x80, 0xff]
+    } else if inst < 0x84 {
+        c.regs[dst] = c.epsilon;
+    } else if inst < 0x88 {
+        c.regs[dst] = !c.regs[dst];
+    } else if inst < 0x8c {
+        let v = c.regs[dst];
+        c.regs[dst] = (v << 4) | (v >> 4);
+    } else if inst < 0x90 {
+        // RESERVED.
+    } else if inst < 0xa0 {
+        c.regs[dst] &= c.regs[src];
+    } else if inst < 0xb0 {
+        c.regs[dst] |= c.regs[src];
+    } else if inst < 0xc0 {
+        let sum = (c.regs[dst] as u16) + (c.regs[src] as u16);
+        c.regs[dst] = (sum & 0xff) as u8;
+        c.result = sum & 0x100 > 0;
+    } else if inst < 0xd0 {
+        c.regs[dst] = c.regs[src];
+    } else if inst < 0xe0 {
+        let addr = if c.ext {c.regs[dst]} else {c.regs[dst] & 0x7f};
+        c.prog[addr as usize] = c.regs[src];
+    } else if inst < 0xf0 {
+        let addr = if c.ext {c.regs[src]} else {c.regs[src] & 0x7f};
+        c.regs[dst] = c.prog[addr as usize];
+    } else {
+        // Nearby
+    }
+    c.ip += 1;
+    c.ip &= 0x7f;
 }
 
 
 fn step(w: &mut World) {
-    let gravity = -0.01;
+    let gravity = 0.01;
     let dissipation = 0.9;
 
     let mut occupation = HashMap::new();
@@ -101,7 +238,7 @@ fn step(w: &mut World) {
         cell.p.y += cell.dp.y;
         cell.p.z += cell.dp.z;
 
-        // Exclusivity.
+        // Exclusion.
         let pi_next = floor(&cell.p);
         // M(pi_next - pi) = {0, 1, 2, 3}
         // When empty: ok
@@ -126,13 +263,24 @@ fn create_world() -> World {
         let hrange = Range::new(-100.0, 100.0);
         let vrange = Range::new(0.0, 100.0);
         let p = V3{x:hrange.ind_sample(&mut rng), y: hrange.ind_sample(&mut rng), z: vrange.ind_sample(&mut rng)};
+        let inst_range = Range::new(0, 255);
+
+        let mut prog = [0; 256];
+        for i in 0..128 {
+            prog[i] = inst_range.ind_sample(&mut rng);
+        }
 
         w.cells.push(Cell{
             id: w.next_id,
             p: p,
             pi: floor(&p),
             dp: V3{x:0.0, y:0.0, z:0.0},
-            prog: [0; 256],
+            ip: 0,
+            ext: false,
+            result: false,
+            epsilon: 0xff,
+            decay: 0,
+            prog: prog,
             regs: [0; 4],
         });
         w.next_id += 1;
@@ -257,7 +405,6 @@ fn main() {
             mv(0, 0);
             printw(&format!("step={} dt={:.1}ms", w.steps, dt_step * 1e3));
             refresh();
-            thread::sleep(Duration::from_millis(250));
         }
     });
     draw_world_forever(rx);
