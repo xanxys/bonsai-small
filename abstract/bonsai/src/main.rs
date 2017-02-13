@@ -39,10 +39,10 @@ struct SceneView {
 
 fn create_world() -> physics::World {
     let mut rng = rand::thread_rng();
-    let mut w = physics::World{cells:vec![], next_id:0, steps:0};
+    let mut w = physics::empty_world();
     for _ in 0..1000*1000 {
-        let hrange = Range::new(-100.0, 100.0);
-        let vrange = Range::new(0.0, 100.0);
+        let hrange = Range::new(0.0, physics::hsize as f64);
+        let vrange = Range::new(0.0, physics::vsize as f64);
         let p = physics::V3{x:hrange.ind_sample(&mut rng), y: hrange.ind_sample(&mut rng), z: vrange.ind_sample(&mut rng)};
         let inst_range = Range::new(0, 255);
 
@@ -51,8 +51,9 @@ fn create_world() -> physics::World {
             prog[i] = inst_range.ind_sample(&mut rng);
         }
 
+        let id = w.issue_id();
         w.cells.push(physics::Cell{
-            id: w.next_id,
+            id: id,
             p: p,
             pi: physics::floor(&p),
             dp: physics::V3{x:0.0, y:0.0, z:0.0},
@@ -64,7 +65,6 @@ fn create_world() -> physics::World {
             prog: prog,
             regs: [0; 4],
         });
-        w.next_id += 1;
     }
     return w;
 }
@@ -120,10 +120,15 @@ fn draw_world_forever(rx: Receiver<WorldView>, stat_tx: Sender<f64>) {
             (w as f32) / (h as f32)
         };
 
+        let center = Point3::new(
+            physics::hsize as f32 / 2.0,
+            physics::hsize as f32 / 2.0,
+            physics::vsize as f32 / 2.0);
+
         let radius = 200.0;
         let camera_pose = look_at(
-            &Point3::new(radius * sv.cam_rot_theta.cos(), radius * sv.cam_rot_theta.sin(), 40.0),
-            &Point3::new(0.0, 0.0, 30.0),
+            &(center + Vector3::new(radius * sv.cam_rot_theta.cos(), radius * sv.cam_rot_theta.sin(), 10.0)),
+            &center,
             &Vector3::new(0.0, 0.0, 1.0));
 
         let camera_proj = Perspective3::new(aspect, consts::PI as f32/ 2.0, 0.5, 500.0).to_matrix();

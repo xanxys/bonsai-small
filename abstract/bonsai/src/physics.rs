@@ -30,10 +30,22 @@ pub struct Cell {
     pub result: bool,
 }
 
+// Cell.pi in [0, hsize)^2 * [0, vsize)
+// Anything that touches the boundary will be erased.
+
+pub const hsize: usize = 200;
+pub const vsize: usize = 100;
+
 pub struct World {
-    pub cells: Vec<Cell>,
-    pub next_id: u64,
     pub steps: u64,
+
+    next_id: u64,
+    pub cells: Vec<Cell>,
+
+
+
+
+
     // environment:
     // pos -> {W, S, R, A}
     // W(p): flow, alpha-source, spatial changing, temporally constant
@@ -194,6 +206,15 @@ fn step_code(c: &mut Cell){
     c.ip &= 0x7f;
 }
 
+pub fn empty_world() -> World {
+    return World {
+        steps:0,
+
+        next_id:0,
+        cells:vec![],
+    };
+}
+
 impl World {
     pub fn step(&mut self) {
         let gravity = 0.01;
@@ -232,5 +253,11 @@ impl World {
         // Light transport.
 
         self.steps += 1;
+    }
+
+    pub fn issue_id(&mut self) -> u64 {
+        let id = self.next_id;
+        self.next_id += 1;
+        return id;
     }
 }
