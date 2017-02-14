@@ -41,8 +41,8 @@ fn create_world() -> physics::World {
     let mut rng = rand::thread_rng();
     let mut w = physics::empty_world();
     for _ in 0..1000*1000 {
-        let hrange = Range::new(0.0, physics::hsize as f64);
-        let vrange = Range::new(0.0, physics::vsize as f64);
+        let hrange = Range::new(0.0, physics::HSIZE as f64);
+        let vrange = Range::new(0.0, physics::VSIZE as f64);
         let p = physics::V3{x:hrange.ind_sample(&mut rng), y: hrange.ind_sample(&mut rng), z: vrange.ind_sample(&mut rng)};
         let inst_range = Range::new(0, 255);
 
@@ -121,9 +121,9 @@ fn draw_world_forever(rx: Receiver<WorldView>, stat_tx: Sender<f64>) {
         };
 
         let center = Point3::new(
-            physics::hsize as f32 / 2.0,
-            physics::hsize as f32 / 2.0,
-            physics::vsize as f32 / 2.0);
+            physics::HSIZE as f32 / 2.0,
+            physics::HSIZE as f32 / 2.0,
+            physics::VSIZE as f32 / 2.0);
 
         let radius = 200.0;
         let camera_pose = look_at(

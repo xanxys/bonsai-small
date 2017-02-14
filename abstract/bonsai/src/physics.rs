@@ -30,11 +30,19 @@ pub struct Cell {
     pub result: bool,
 }
 
-// Cell.pi in [0, hsize)^2 * [0, vsize)
+// Cell.pi in [0, HSIZE)^2 * [0, VSIZE)
 // Anything that touches the boundary will be erased.
 
-pub const hsize: usize = 200;
-pub const vsize: usize = 100;
+pub const HSIZE: usize = 200;
+pub const VSIZE: usize = 100;
+
+#[derive(Copy, Clone)]
+pub enum Block {
+    Bedrock,
+    Soil,
+    Water(V3),
+    Air
+}
 
 pub struct World {
     pub steps: u64,
@@ -42,9 +50,7 @@ pub struct World {
     next_id: u64,
     pub cells: Vec<Cell>,
 
-
-
-
+    blocks: Vec<Block>,
 
     // environment:
     // pos -> {W, S, R, A}
@@ -208,10 +214,12 @@ fn step_code(c: &mut Cell){
 
 pub fn empty_world() -> World {
     return World {
-        steps:0,
+        steps: 0,
 
-        next_id:0,
-        cells:vec![],
+        next_id: 0,
+        cells: vec![],
+
+        blocks: vec![Block::Air; HSIZE * HSIZE * VSIZE],
     };
 }
 
@@ -259,5 +267,10 @@ impl World {
         let id = self.next_id;
         self.next_id += 1;
         return id;
+    }
+
+    fn block_at(&self, i: I3) -> Block {
+        return self.blocks[
+            i.x as usize + i.y as usize * HSIZE + i.z as usize * HSIZE * VSIZE];
     }
 }
