@@ -4,7 +4,7 @@ use std::collections::HashMap;
 pub struct V3{pub x:f64, pub y:f64, pub z:f64}
 
 #[derive(Debug, Hash, Eq, PartialEq, Copy, Clone)]
-pub struct I3{x:i16, y:i16, z:i16}
+pub struct I3{pub x:i16, pub y:i16, pub z:i16}
 
 // TODO: Hide this
 #[inline]
@@ -223,6 +223,10 @@ pub fn empty_world() -> World {
     };
 }
 
+fn block_address(i: I3) -> usize {
+    return i.x as usize + i.y as usize * HSIZE + i.z as usize * HSIZE * VSIZE;
+}
+
 impl World {
     pub fn step(&mut self) {
         let gravity = 0.01;
@@ -269,8 +273,11 @@ impl World {
         return id;
     }
 
-    fn block_at(&self, i: I3) -> Block {
-        return self.blocks[
-            i.x as usize + i.y as usize * HSIZE + i.z as usize * HSIZE * VSIZE];
+    pub fn block_at(&self, i: I3) -> Block {
+        return self.blocks[block_address(i)];
+    }
+
+    pub fn set_block(&mut self, i: I3, b: Block) {
+        self.blocks[block_address(i)] = b
     }
 }

@@ -1,18 +1,19 @@
 #[macro_use]
 extern crate glium;
-extern crate rand;
 extern crate time;
 extern crate nalgebra;
 extern crate ncurses;
+extern crate rand;
 
 mod physics;
+mod initializer;
 
+use initializer::{WorldSpec};
 use nalgebra::{BaseFloat, Vector3, Point3, Matrix4, Isometry3, ToHomogeneous, Transpose, Perspective3};
 use ncurses::*;
 use std::thread;
 use std::f64::consts;
 use std::sync::mpsc::{Receiver, Sender, channel, sync_channel};
-use rand::distributions::{IndependentSample, Range};
 
 #[derive(Copy, Clone)]
 struct Vertex {
@@ -36,38 +37,6 @@ struct SceneView {
     cam_rot_theta: f32,
 }
 
-
-fn create_world() -> physics::World {
-    let mut rng = rand::thread_rng();
-    let mut w = physics::empty_world();
-    for _ in 0..1000*1000 {
-        let hrange = Range::new(0.0, physics::HSIZE as f64);
-        let vrange = Range::new(0.0, physics::VSIZE as f64);
-        let p = physics::V3{x:hrange.ind_sample(&mut rng), y: hrange.ind_sample(&mut rng), z: vrange.ind_sample(&mut rng)};
-        let inst_range = Range::new(0, 255);
-
-        let mut prog = [0; 256];
-        for i in 0..128 {
-            prog[i] = inst_range.ind_sample(&mut rng);
-        }
-
-        let id = w.issue_id();
-        w.cells.push(physics::Cell{
-            id: id,
-            p: p,
-            pi: physics::floor(&p),
-            dp: physics::V3{x:0.0, y:0.0, z:0.0},
-            ip: 0,
-            ext: false,
-            result: false,
-            epsilon: 0xff,
-            decay: 0,
-            prog: prog,
-            regs: [0; 4],
-        });
-    }
-    return w;
-}
 
 // Create a camera matrix with specified attribs.
 // when retval is m,
@@ -180,14 +149,26 @@ fn draw_world_forever(rx: Receiver<WorldView>, stat_tx: Sender<f64>) {
     }
 }
 
+
 fn main() {
-    let mut w = create_world();
+    let dt_switch = 5.0;
+    let specs = vec![WorldSpec::TestFlatBedrock, WorldSpec::TestCellLoad(1000*1000)];
+
+    let mut current_ix = 0;
+    let mut last_switch_time = time::precise_time_s();
+    let mut w = initializer::create_world(specs[current_ix]);
+
     let (tx, rx) = sync_channel::<WorldView>(1);
     let (stat_tx, stat_rx) = channel::<f64>();
 
     initscr();
     thread::spawn(move || {
         loop {
+            if time::precise_time_s() > last_switch_time + dt_switch {
+                current_ix = (current_ix + 1) % specs.len();
+                w = initializer::create_world(specs[current_ix]);
+                last_switch_time = time::precise_time_s();
+            }
             let t0 = time::precise_time_s();
             w.step();
             let dt_step = time::precise_time_s() - t0;
@@ -211,6 +192,8 @@ fn main() {
             printw(&format!("{} {} {}", w.cells[0].id, w.cells[0].ip, w.cells[0].epsilon));
             mv(2, 0);
             printw(&format!("DRAW dt={:.1}ms", draw_dt * 1e3));
+            mv(3, 0);
+            printw(&format!("Spec={:?}", specs[current_ix]));
             refresh();
         }
     });
