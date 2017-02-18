@@ -67,7 +67,7 @@ struct GlMesh<VT: Copy, IT: glium::index::Index>(glium::VertexBuffer<VT>, glium:
 fn encode_boundary_type(a: physics::Block, b: physics::Block) -> u32 {
     let strength = |x| match x {
         physics::Block::Bedrock => 3,
-        physics::Block::Water(_) => 2,
+        physics::Block::Water => 2,
         physics::Block::Soil => 1,
         physics::Block::Air => 0,
     };
@@ -305,7 +305,7 @@ fn main() {
     thread::spawn(move || {
         let dt_switch = 5.0;
         //let specs = vec![WorldSpec::TestFlatBedrock, WorldSpec::Valley, WorldSpec::TestCellLoad(1000*1000)];
-        let specs = vec![WorldSpec::Valley];
+        let specs = vec![WorldSpec::CubeFarm];
 
         let mut current_ix = 0;
         let mut last_switch_time = time::precise_time_s();

@@ -43,7 +43,7 @@ pub const BLOCKS_SHAPE: (usize, usize, usize) = (HSIZE, HSIZE, VSIZE);
 pub enum Block {
     Bedrock,
     Soil,
-    Water(V3),
+    Water,
     Air
 }
 

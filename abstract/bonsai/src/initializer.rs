@@ -5,16 +5,17 @@ use rand::Rng;
 use rand::distributions::{IndependentSample, Range};
 use physics::Block;
 use ndarray::prelude::*;
+use std::ops;
+use std::cmp;
 
 #[derive(Clone, Copy, Debug)]
 pub enum WorldSpec {
     TestCellLoad(i32),
     TestFlatBedrock,
-    // No-water
+    // Complex envs (natural, fantasy, artificial)
     Valley,
     FloatingIslands,
-    // Waterful
-    Creek,
+    CubeFarm,
 }
 
 // interp(x, y, 0)   = x
@@ -92,6 +93,76 @@ fn valley_base<R: Rng>(rng: &mut R) -> Array2<f32> {
     }));
 }
 
+fn overlap1(a: ops::Range<usize>, b: ops::Range<usize>) -> bool {
+    cmp::max(a.start, b.start) < cmp::min(a.end, b.end)
+}
+
+
+type Area = (ops::Range<usize>, ops::Range<usize>);
+
+fn overlap((ax, ay): Area, (bx, by): Area) -> bool {
+    overlap1(ax, bx) && overlap1(ay, by)
+}
+
+// [prev_z, curr_z]: fill by prev.
+fn fill_nested_cubes<R: Rng>(rng: &mut R, blocks: &mut Array3<Block>, level: usize, prev: Block, area: Area, prev_z: usize, curr_z: usize) {
+    let (xr, yr) = area;
+    for y in yr.clone() {
+        for x in xr.clone() {
+            let edist = cmp::min(cmp::min(x-xr.start, xr.end-1-x), cmp::min(y-yr.start, yr.end-1-y));
+
+            let remove_t = rng.gen_range(0.0, 1.0 / (1.0 + edist as f32));
+
+            let curr_imcomplete_z = if level == 0 {curr_z} else {(curr_z as f32 - (remove_t * (curr_z as f32 - prev_z as f32))) as usize};
+            let z0 = cmp::min(prev_z, curr_imcomplete_z);
+            let z1 = cmp::max(prev_z, curr_imcomplete_z);
+            for z in z0..z1+1 {
+                blocks[(x, y, z)] = prev;
+            }
+        }
+    }
+
+    let dx = xr.end - xr.start;
+    let dy = yr.end - yr.start;
+
+    // Terminate when too small, or Z too close to edge.
+    let max_csize = (cmp::min(dx, dy) as f32 * 0.6) as usize;
+    if max_csize < 15 || curr_z < 2 || curr_z > physics::VSIZE - 2 {
+        return;
+    }
+
+    let mut prev_areas: Vec<Area> = vec![];
+    for _ in 0..20 {
+        let csize = rng.gen_range(10, max_csize);
+        let cx0 = rng.gen_range(xr.start, xr.end - csize);
+        let cy0 = rng.gen_range(yr.start, yr.end - csize);
+        let carea = (ops::Range{start:cx0, end: cx0+csize}, ops::Range{start:cy0, end:cy0+csize});
+        if prev_areas.iter().any(|pa| overlap(carea.clone(), pa.clone())) {
+            continue;
+        }
+
+        let p = rng.gen_range(0.0, 1.0);
+        let mut block = Block::Soil;
+        if p < 0.1 {
+            block = Block::Water;
+        } else if p < 0.4 {
+            block = Block::Bedrock;
+        }
+
+        let mut new_z = if block == Block::Water {curr_z - 10} else {curr_z + rng.gen_range(1, cmp::max(2, csize / 2))};
+        if new_z >= physics::VSIZE - 1 {
+            new_z = physics::VSIZE - 1;
+        }
+        if new_z <= 1 {
+            new_z = 1;
+        }
+        if new_z > curr_z {
+            prev_areas.push(carea.clone());
+            fill_nested_cubes(rng, blocks, level + 1, block, carea, curr_z, new_z);
+        }
+    }
+}
+
 pub fn create_world(spec: WorldSpec) -> physics::World {
     let mut rng = rand::thread_rng();
     let mut w = physics::empty_world();
@@ -109,7 +180,7 @@ pub fn create_world(spec: WorldSpec) -> physics::World {
                     return Block::Bedrock;
                 } else if (z as f32) < height_soil[(x, y)] {
                     if rng.gen_weighted_bool(2000) {
-                        return Block::Water(physics::V3{x:1.0, y: 0.0, z:0.0});
+                        return Block::Water;
                     } else {
                         return Block::Soil;
                     }
@@ -121,6 +192,31 @@ pub fn create_world(spec: WorldSpec) -> physics::World {
             // TODO:
             // Put random big rocks near surface.
             // Put small rocks under surface.
+        },
+        WorldSpec::FloatingIslands => {
+        },
+        WorldSpec::CubeFarm => {
+            let z = rng.gen_range((physics::VSIZE as f32) * 0.2, (physics::VSIZE as f32) * 0.3) as usize;
+            fill_nested_cubes(&mut rng, &mut w.blocks, 0, Block::Soil,
+                (ops::Range{start:0, end:physics::HSIZE}, ops::Range{start:0, end:physics::HSIZE}), 0, z);
+
+            let height_adj = land_base(&mut rng) * 0.1 + 1.0;
+            for y in 0..physics::HSIZE {
+                for x in 0..physics::HSIZE {
+                    let mut z = physics::VSIZE - 1;
+                    while z > 0 {
+                        if w.blocks[(x, y, z)] != Block::Air {
+                            break;
+                        }
+                        z -= 1;
+                    }
+                    let b  = w.blocks[(x, y, z)];
+                    for zmod in z..cmp::min(physics::VSIZE, z+height_adj[(x, y)] as usize) {
+                        w.blocks[(x, y, zmod)] = b;
+                    }
+                    w.blocks[(x, y, 0)] = Block::Bedrock;
+                }
+            }
         },
         WorldSpec::TestCellLoad(num_cells) => {
             for _ in 0..num_cells {
