@@ -1,11 +1,10 @@
 use physics;
 
-use std::ops;
-use std::fmt;
 use rand;
 use rand::Rng;
 use rand::distributions::{IndependentSample, Range};
 use physics::Block;
+use ndarray::prelude::*;
 
 #[derive(Clone, Copy, Debug)]
 pub enum WorldSpec {
@@ -18,29 +17,10 @@ pub enum WorldSpec {
     Creek,
 }
 
-struct Arr2<T>{n0: usize, n1: usize, data: Vec<T>}
-
-impl<T> ops::Index<(usize, usize)> for Arr2<T> {
-    type Output = T;
-    fn index(&self, (i0, i1): (usize, usize)) -> &T {
-        return &self.data[i0 + self.n0 * i1];
-    }
-}
-
-impl<T> ops::IndexMut<(usize, usize)> for Arr2<T> {
-    fn index_mut(&mut self, (i0, i1): (usize, usize)) -> &mut T {
-        return &mut self.data[i0 + self.n0 * i1];
-    }
-}
-
-fn fill<T: Clone>(c: T, n0: usize, n1: usize) -> Arr2<T> {
-    return Arr2{n0: n0, n1: n1, data: vec![c; n0 * n1]};
-}
-
 // returns [s*s] array of
 // Expected value of each cell is 0.
-fn land_base<R: Rng>(rng: &mut R) -> Arr2<f32> {
-    let mut arr = fill(0.0, physics::HSIZE, physics::HSIZE);
+fn land_base<R: Rng>(rng: &mut R) -> Array2<f32> {
+    let mut arr = Array::from_elem((physics::HSIZE, physics::HSIZE), 0.0);
     let vr = Range::new(-1.0, 1.0 as f32);
     for y in 0..physics::HSIZE {
         for x in 0..physics::HSIZE {
@@ -60,17 +40,17 @@ pub fn create_world(spec: WorldSpec) -> physics::World {
             let land_base = land_base(&mut rng);
 
             // convert to soil
-            for y in 0..physics::HSIZE as i16 {
-                for x in 0..physics::HSIZE as i16 {
+            for y in 0..physics::HSIZE {
+                for x in 0..physics::HSIZE {
                     let h = land_base[(x as usize, y as usize)] * 100.0 + 100.0;
-                    for z in 0..physics::VSIZE as i16 {
-                        let i = physics::I3{x:x,y:y,z:z};
+                    for z in 0..physics::VSIZE {
+                        let i = physics::I3{x:x as i16,y:y as i16,z:z as i16};
                         if z == 0 {
-                            w.set_block(i, Block::Bedrock);
+                            w.blocks[(x, y, z)] = Block::Bedrock;
                         } else if (z as f32) < h {
-                            w.set_block(i, Block::Soil);
+                            w.blocks[(x, y, z)] = Block::Soil;
                         } else {
-                            w.set_block(i, Block::Air);
+                            w.blocks[(x, y, z)] = Block::Air;
                         }
                     }
                 }
@@ -109,18 +89,9 @@ pub fn create_world(spec: WorldSpec) -> physics::World {
             }
         },
         _ => {
-            for z in 0..physics::VSIZE as i16 {
-                for y in 0..physics::HSIZE as i16 {
-                    for x in 0..physics::HSIZE as i16 {
-                        let b = if z == 0 {
-                            Block::Bedrock
-                        } else {
-                            Block::Air
-                        };
-                        w.set_block(physics::I3{x:x,y:y,z:z}, b);
-                    }
-                }
-            }
+            w.blocks = Array::from_shape_fn(
+                (physics::HSIZE, physics::HSIZE, physics::VSIZE),
+                |(x,y,z)| if z == 0 {Block::Bedrock} else {Block::Air});
 
             for _ in 0..100*1000 {
                 let hrange = Range::new(0.0, physics::HSIZE as f64);

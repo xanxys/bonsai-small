@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use ndarray::prelude::*;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct V3{pub x:f64, pub y:f64, pub z:f64}
@@ -50,7 +51,7 @@ pub struct World {
     next_id: u64,
     pub cells: Vec<Cell>,
 
-    pub blocks: Vec<Block>,
+    pub blocks: Array3<Block>,
 
     // environment:
     // pos -> {W, S, R, A}
@@ -219,12 +220,8 @@ pub fn empty_world() -> World {
         next_id: 0,
         cells: vec![],
 
-        blocks: vec![Block::Air; HSIZE * HSIZE * VSIZE],
+        blocks: Array::from_elem((HSIZE, HSIZE, VSIZE), Block::Air),
     };
-}
-
-fn block_address(i: I3) -> usize {
-    return i.x as usize + i.y as usize * HSIZE + i.z as usize * HSIZE * HSIZE;
 }
 
 impl World {
@@ -271,13 +268,5 @@ impl World {
         let id = self.next_id;
         self.next_id += 1;
         return id;
-    }
-
-    pub fn block_at(&self, i: I3) -> Block {
-        return self.blocks[block_address(i)];
-    }
-
-    pub fn set_block(&mut self, i: I3, b: Block) {
-        self.blocks[block_address(i)] = b
     }
 }

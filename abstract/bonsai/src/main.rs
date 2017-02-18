@@ -1,9 +1,10 @@
 #[macro_use]
 extern crate glium;
 extern crate time;
-extern crate nalgebra;
 extern crate ncurses;
+extern crate nalgebra;
 extern crate rand;
+extern crate ndarray;
 
 mod physics;
 mod initializer;
@@ -15,6 +16,7 @@ use std::thread;
 use std::f64::consts;
 use std::sync::mpsc::{Receiver, Sender, channel, sync_channel};
 use physics::V3;
+use ndarray::prelude::*;
 
 #[derive(Copy, Clone)]
 struct Vertex {
@@ -28,7 +30,7 @@ struct CellView {
 }
 
 // Subset of World + animtation information to visualize World.
-struct WorldView(Option<Vec<physics::Block>>, Vec<CellView>);
+struct WorldView(Option<Array3<physics::Block>>, Vec<CellView>);
 
 // Outside World.
 struct SceneView {
@@ -181,10 +183,10 @@ fn draw_world_forever(rx: Receiver<WorldView>, stat_tx: Sender<f64>) {
                 for z in 0..physics::VSIZE-1 {
                     for y in 0..physics::HSIZE-1 {
                         for x in 0..physics::HSIZE-1 {
-                            let base = blocks[x + y * physics::HSIZE + z * physics::HSIZE * physics::HSIZE];
-                            let xp = blocks[(x + 1) + y * physics::HSIZE + z * physics::HSIZE * physics::HSIZE];
-                            let yp = blocks[x + (y + 1) * physics::HSIZE + z * physics::HSIZE * physics::HSIZE];
-                            let zp = blocks[x + y * physics::HSIZE + (z + 1) * physics::HSIZE * physics::HSIZE];
+                            let base = blocks[(x, y, z)];
+                            let xp = blocks[(x + 1, y, z)];
+                            let yp = blocks[(x, y + 1, z)];
+                            let zp = blocks[(x, y, z + 1)];
 
                             if base != xp {
                                 emit_quad(V3{x:(x + 1) as f64, y:y as f64, z:z as f64}, V3{x:0.0, y:1.0, z: 0.0}, V3{x:0.0, y:0.0, z: 1.0});
