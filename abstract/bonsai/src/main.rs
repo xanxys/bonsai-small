@@ -55,6 +55,61 @@ fn convert_matrix<N>(m: Matrix4<N>) -> [[N; 4]; 4] {
     ];
 }
 
+struct GlMesh<VT: Copy, IT: glium::index::Index>(glium::VertexBuffer<VT>, glium::IndexBuffer<IT>);
+
+
+fn upload_mesh<F: glium::backend::Facade>(backend: &F, blocks: &Array3<physics::Block>) -> GlMesh<Vertex, u32> {
+    // Emit mesh.
+    let mut vs = vec![];
+    let mut is = vec![];
+    {
+        let mut emit_quad = |vbase: V3, e0: V3, e1: V3| {
+            // 2 3
+            // 0 1  -> (0, 1, 2) + (2, 1, 3)
+            let ix_offset = (&mut vs).len();
+            for i in 0..4 {
+                let mut v = vbase;
+                if i & 1 != 0{
+                    v.x += e0.x;
+                    v.y += e0.y;
+                    v.z += e0.z;
+                }
+                if i & 2 != 0 {
+                    v.x += e1.x;
+                    v.y += e1.y;
+                    v.z += e1.z;
+                }
+                vs.push(Vertex{position: [v.x as f32, v.y as f32, v.z as f32]});
+            };
+            is.append(&mut vec![0, 1, 2, 2, 1, 3].iter().map(|dix| (ix_offset + dix) as u32).collect::<Vec<_>>());
+        };
+        for z in 0..physics::VSIZE-1 {
+            for y in 0..physics::HSIZE-1 {
+                for x in 0..physics::HSIZE-1 {
+                    let base = blocks[(x, y, z)];
+                    let xp = blocks[(x + 1, y, z)];
+                    let yp = blocks[(x, y + 1, z)];
+                    let zp = blocks[(x, y, z + 1)];
+
+                    if base != xp {
+                        emit_quad(V3{x:(x + 1) as f64, y:y as f64, z:z as f64}, V3{x:0.0, y:1.0, z: 0.0}, V3{x:0.0, y:0.0, z: 1.0});
+                    }
+                    if base != yp {
+                        emit_quad(V3{x:x as f64, y:(y + 1) as f64, z:z as f64}, V3{x:0.0, y:0.0, z: 1.0}, V3{x:1.0, y:0.0, z: 0.0});
+                    }
+                    if base != zp {
+                        emit_quad(V3{x:x as f64, y:y as f64, z:(z + 1) as f64}, V3{x:1.0, y:0.0, z: 0.0}, V3{x:0.0, y:1.0, z: 0.0});
+                    }
+                }
+            }
+        }
+    }
+
+    let vertex_buffer = glium::VertexBuffer::new(backend, &vs).unwrap();
+    let index_buffer = glium::IndexBuffer::new(backend, glium::index::PrimitiveType::TrianglesList, &is).unwrap();
+    return GlMesh(vertex_buffer, index_buffer);
+}
+
 fn draw_world_forever(rx: Receiver<WorldView>, stat_tx: Sender<f64>) {
     let vertex_shader_src = r#"
         #version 140
@@ -93,17 +148,19 @@ fn draw_world_forever(rx: Receiver<WorldView>, stat_tx: Sender<f64>) {
     let program_blocks = glium::Program::from_source(&display, vertex_shader_src, fragment_shader_blocks_src, None).unwrap();
 
     let mut sv = SceneView{cam_rot_theta: 0.0};
-    let mut wv = rx.recv().unwrap();
+
+    let mut cells = vec![];
+    let mut blocks_mesh = None;
 
     loop {
         let t0 = time::precise_time_s();
         match rx.try_recv() {
-            Ok(WorldView(None, cells)) => {
-                let WorldView(ex, _) = wv;
-                wv = WorldView(ex, cells);
+            Ok(WorldView(None, new_cells)) => {
+                cells = new_cells;
             },
-            Ok(new_wv) => {
-                wv = new_wv;
+            Ok(WorldView(Some(blocks), new_cells)) => {
+                blocks_mesh = Some(upload_mesh(&display, &blocks));
+                cells = new_cells;
             },
             Err(_) => {},
         }
@@ -130,11 +187,10 @@ fn draw_world_forever(rx: Receiver<WorldView>, stat_tx: Sender<f64>) {
 
         target.clear_color(0.01, 0.01, 0.01, 1.0);
 
-        let WorldView(ref maybe_blocks, ref cells) = wv;
         // Transfer cell points to GPU & draw them.
         {
             let mut shape = vec![];
-            for cell in cells {
+            for cell in &cells {
                 shape.push(Vertex { position: [cell.p.x as f32, cell.p.y as f32, cell.p.z as f32] });
             }
             let vertex_buffer = glium::VertexBuffer::new(&display, &shape).unwrap();
@@ -155,56 +211,8 @@ fn draw_world_forever(rx: Receiver<WorldView>, stat_tx: Sender<f64>) {
             target.draw(&vertex_buffer, &indices, &program,  &uniform!{ matrix: convert_matrix(matrix) }, &params).unwrap();
         }
         // Draw landscape.
-        if let &Some(ref blocks) = maybe_blocks {
-            // Emit mesh.
-            let mut vs = vec![];
-            let mut is = vec![];
-            {
-                let mut emit_quad = |vbase: V3, e0: V3, e1: V3| {
-                    // 2 3
-                    // 0 1  -> (0, 1, 2) + (2, 1, 3)
-                    let ix_offset = (&mut vs).len();
-                    for i in 0..4 {
-                        let mut v = vbase;
-                        if i & 1 != 0{
-                            v.x += e0.x;
-                            v.y += e0.y;
-                            v.z += e0.z;
-                        }
-                        if i & 2 != 0 {
-                            v.x += e1.x;
-                            v.y += e1.y;
-                            v.z += e1.z;
-                        }
-                        vs.push(Vertex{position: [v.x as f32, v.y as f32, v.z as f32]});
-                    };
-                    is.append(&mut vec![0, 1, 2, 2, 1, 3].iter().map(|dix| (ix_offset + dix) as u32).collect::<Vec<_>>());
-                };
-                for z in 0..physics::VSIZE-1 {
-                    for y in 0..physics::HSIZE-1 {
-                        for x in 0..physics::HSIZE-1 {
-                            let base = blocks[(x, y, z)];
-                            let xp = blocks[(x + 1, y, z)];
-                            let yp = blocks[(x, y + 1, z)];
-                            let zp = blocks[(x, y, z + 1)];
-
-                            if base != xp {
-                                emit_quad(V3{x:(x + 1) as f64, y:y as f64, z:z as f64}, V3{x:0.0, y:1.0, z: 0.0}, V3{x:0.0, y:0.0, z: 1.0});
-                            }
-                            if base != yp {
-                                emit_quad(V3{x:x as f64, y:(y + 1) as f64, z:z as f64}, V3{x:0.0, y:0.0, z: 1.0}, V3{x:1.0, y:0.0, z: 0.0});
-                            }
-                            if base != zp {
-                                emit_quad(V3{x:x as f64, y:y as f64, z:(z + 1) as f64}, V3{x:1.0, y:0.0, z: 0.0}, V3{x:0.0, y:1.0, z: 0.0});
-                            }
-                        }
-                    }
-                }
-            }
-
-            let vertex_buffer = glium::VertexBuffer::new(&display, &vs).unwrap();
-            let index_buffer = glium::IndexBuffer::new(&display, glium::index::PrimitiveType::TrianglesList, &is).unwrap();
-
+        if let Some(ref mesh) = blocks_mesh {
+            let &GlMesh(ref vertex_buffer, ref index_buffer) = mesh;
             let params = glium::DrawParameters{
                 blend: glium::draw_parameters::Blend {
                     color: glium::BlendingFunction::Addition {
@@ -216,7 +224,7 @@ fn draw_world_forever(rx: Receiver<WorldView>, stat_tx: Sender<f64>) {
                 },
                 ..Default::default()
             };
-            target.draw(&vertex_buffer, &index_buffer, &program_blocks, &uniform!{ matrix: convert_matrix(matrix) }, &params).unwrap();
+            target.draw(vertex_buffer, index_buffer, &program_blocks, &uniform!{ matrix: convert_matrix(matrix) }, &params).unwrap();
         }
 
         target.finish().unwrap();
