@@ -246,40 +246,49 @@ fn draw_world_forever(rx: Receiver<WorldView>, stat_tx: Sender<f64>) {
 
 
 fn main() {
-    let dt_switch = 5.0;
-    let specs = vec![WorldSpec::TestFlatBedrock, WorldSpec::Valley, WorldSpec::TestCellLoad(1000*1000)];
-    // let specs = vec![WorldSpec::TestFlatBedrock];
-
-    let mut current_ix = 0;
-    let mut last_switch_time = time::precise_time_s();
-    let mut w = initializer::create_world(specs[current_ix]);
-
     let (tx, rx) = sync_channel::<WorldView>(1);
     let (stat_tx, stat_rx) = channel::<f64>();
 
     initscr();
     thread::spawn(move || {
+        let dt_switch = 5.0;
+        //let specs = vec![WorldSpec::TestFlatBedrock, WorldSpec::Valley, WorldSpec::TestCellLoad(1000*1000)];
+        let specs = vec![WorldSpec::Valley];
+
+        let mut current_ix = 0;
+        let mut last_switch_time = time::precise_time_s();
+        let mut w = initializer::create_world(specs[current_ix]);
+
+        let gen_full_wv = |w: &physics::World| {
+            let mut cvs = vec![];
+            for cell in &w.cells {
+                cvs.push(CellView{p:cell.p});
+            }
+            return WorldView(Some(w.blocks.clone()), cvs);
+        };
+        let gen_cell_view = |w: &physics::World| {
+            let mut cvs = vec![];
+            for cell in &w.cells {
+                cvs.push(CellView{p:cell.p});
+            }
+            return WorldView(None, cvs);
+        };
+
+        tx.send(gen_full_wv(&w)).unwrap();
+
         loop {
             if time::precise_time_s() > last_switch_time + dt_switch {
                 current_ix = (current_ix + 1) % specs.len();
                 w = initializer::create_world(specs[current_ix]);
                 last_switch_time = time::precise_time_s();
 
-                let mut cvs = vec![];
-                for cell in &w.cells {
-                    cvs.push(CellView{p:cell.p});
-                }
-                tx.send(WorldView(Some(w.blocks.clone()), cvs)).unwrap();
+                tx.send(gen_full_wv(&w)).unwrap();
             }
             let t0 = time::precise_time_s();
             w.step();
             let dt_step = time::precise_time_s() - t0;
 
-            let mut cvs = vec![];
-            for cell in &w.cells {
-                cvs.push(CellView{p:cell.p});
-            }
-            tx.send(WorldView(None, cvs)).unwrap();
+            tx.send(gen_cell_view(&w)).unwrap();
 
             let mut draw_dt = 0.0;
             loop {
