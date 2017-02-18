@@ -152,7 +152,7 @@ fn draw_world_forever(rx: Receiver<WorldView>, stat_tx: Sender<f64>) {
 
 fn main() {
     let dt_switch = 5.0;
-    let specs = vec![WorldSpec::TestFlatBedrock, WorldSpec::TestCellLoad(1000*1000)];
+    let specs = vec![WorldSpec::TestFlatBedrock, WorldSpec::Valley, WorldSpec::TestCellLoad(1000*1000)];
 
     let mut current_ix = 0;
     let mut last_switch_time = time::precise_time_s();
@@ -188,8 +188,10 @@ fn main() {
             }
             mv(0, 0);
             printw(&format!("SIM step={} dt={:.1}ms", w.steps, dt_step * 1e3));
-            mv(1, 0);
-            printw(&format!("{} {} {}", w.cells[0].id, w.cells[0].ip, w.cells[0].epsilon));
+            if w.cells.len() > 0 {
+                mv(1, 0);
+                printw(&format!("{} {} {}", w.cells[0].id, w.cells[0].ip, w.cells[0].epsilon));
+            }
             mv(2, 0);
             printw(&format!("DRAW dt={:.1}ms", draw_dt * 1e3));
             mv(3, 0);
