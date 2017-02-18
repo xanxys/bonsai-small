@@ -224,7 +224,7 @@ pub fn empty_world() -> World {
 }
 
 fn block_address(i: I3) -> usize {
-    return i.x as usize + i.y as usize * HSIZE + i.z as usize * HSIZE * VSIZE;
+    return i.x as usize + i.y as usize * HSIZE + i.z as usize * HSIZE * HSIZE;
 }
 
 impl World {

@@ -81,7 +81,7 @@ fn draw_world_forever(rx: Receiver<WorldView>, stat_tx: Sender<f64>) {
         out vec4 color;
         varying float height;
         void main() {
-            color = vec4(0.86, 1.0, 0.52 + height, 0.1);
+            color = vec4(0.86, 1.0, 1.0, 0.1);
         }
     "#;
 
@@ -161,6 +161,7 @@ fn draw_world_forever(rx: Receiver<WorldView>, stat_tx: Sender<f64>) {
                 let mut emit_quad = |vbase: V3, e0: V3, e1: V3| {
                     // 2 3
                     // 0 1  -> (0, 1, 2) + (2, 1, 3)
+                    let ix_offset = (&mut vs).len();
                     for i in 0..4 {
                         let mut v = vbase;
                         if i & 1 != 0{
@@ -175,8 +176,7 @@ fn draw_world_forever(rx: Receiver<WorldView>, stat_tx: Sender<f64>) {
                         }
                         vs.push(Vertex{position: [v.x as f32, v.y as f32, v.z as f32]});
                     };
-                    let ix_offset = (&mut is).len();
-                    is.append(&mut vec![0, 1, 2, 2, 1, 3].iter().map(|dix| (ix_offset + dix) as u16).collect::<Vec<_>>());
+                    is.append(&mut vec![0, 1, 2, 2, 1, 3].iter().map(|dix| (ix_offset + dix) as u32).collect::<Vec<_>>());
                 };
                 for z in 0..physics::VSIZE-1 {
                     for y in 0..physics::HSIZE-1 {
@@ -190,10 +190,10 @@ fn draw_world_forever(rx: Receiver<WorldView>, stat_tx: Sender<f64>) {
                                 emit_quad(V3{x:(x + 1) as f64, y:y as f64, z:z as f64}, V3{x:0.0, y:1.0, z: 0.0}, V3{x:0.0, y:0.0, z: 1.0});
                             }
                             if base != yp {
-                                emit_quad(V3{x: x as f64, y:(y + 1) as f64, z:z as f64}, V3{x:0.0, y:0.0, z: 1.0}, V3{x:1.0, y:0.0, z: 0.0});
+                                emit_quad(V3{x:x as f64, y:(y + 1) as f64, z:z as f64}, V3{x:0.0, y:0.0, z: 1.0}, V3{x:1.0, y:0.0, z: 0.0});
                             }
                             if base != zp {
-                                emit_quad(V3{x: x as f64, y:y as f64, z:(z + 1 ) as f64}, V3{x:1.0, y:0.0, z: 0.0}, V3{x:0.0, y:1.0, z: 0.0});
+                                emit_quad(V3{x:x as f64, y:y as f64, z:(z + 1) as f64}, V3{x:1.0, y:0.0, z: 0.0}, V3{x:0.0, y:1.0, z: 0.0});
                             }
                         }
                     }
@@ -228,7 +228,7 @@ fn draw_world_forever(rx: Receiver<WorldView>, stat_tx: Sender<f64>) {
         }
 
         let dt_sec = time::precise_time_s() - t0;
-        stat_tx.send(dt_sec);
+        stat_tx.send(dt_sec).unwrap();
         let rot_speed = 0.1;  // rot/sec
         sv.cam_rot_theta += (dt_sec * rot_speed * (2.0 * consts::PI)) as f32;
     }
@@ -238,6 +238,7 @@ fn draw_world_forever(rx: Receiver<WorldView>, stat_tx: Sender<f64>) {
 fn main() {
     let dt_switch = 5.0;
     let specs = vec![WorldSpec::TestFlatBedrock, WorldSpec::Valley, WorldSpec::TestCellLoad(1000*1000)];
+    // let specs = vec![WorldSpec::TestFlatBedrock];
 
     let mut current_ix = 0;
     let mut last_switch_time = time::precise_time_s();
