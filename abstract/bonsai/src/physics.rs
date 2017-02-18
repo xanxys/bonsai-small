@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub struct V3{pub x:f64, pub y:f64, pub z:f64}
 
 #[derive(Debug, Hash, Eq, PartialEq, Copy, Clone)]
@@ -36,7 +36,7 @@ pub struct Cell {
 pub const HSIZE: usize = 200;
 pub const VSIZE: usize = 100;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq)]
 pub enum Block {
     Bedrock,
     Soil,
@@ -50,7 +50,7 @@ pub struct World {
     next_id: u64,
     pub cells: Vec<Cell>,
 
-    blocks: Vec<Block>,
+    pub blocks: Vec<Block>,
 
     // environment:
     // pos -> {W, S, R, A}
