@@ -13,6 +13,7 @@ use initializer::{WorldSpec};
 use nalgebra::{BaseFloat, Vector3, Point3, Matrix4, Isometry3, ToHomogeneous, Transpose, Perspective3};
 use ncurses::*;
 use std::thread;
+use std::cmp;
 use std::f64::consts;
 use std::sync::mpsc::{Receiver, Sender, channel, sync_channel};
 use physics::V3;
@@ -22,8 +23,14 @@ use ndarray::prelude::*;
 struct Vertex {
     position: [f32; 3],
 }
-
 implement_vertex!(Vertex, position);
+
+#[derive(Copy, Clone)]
+struct BlockVertex {
+    pos: [f32; 3],
+    bnd_type: u32,
+}
+implement_vertex!(BlockVertex, pos, bnd_type);
 
 struct CellView {
     p: physics::V3,
@@ -57,13 +64,22 @@ fn convert_matrix<N>(m: Matrix4<N>) -> [[N; 4]; 4] {
 
 struct GlMesh<VT: Copy, IT: glium::index::Index>(glium::VertexBuffer<VT>, glium::IndexBuffer<IT>);
 
+fn encode_boundary_type(a: physics::Block, b: physics::Block) -> u32 {
+    let strength = |x| match x {
+        physics::Block::Bedrock => 3,
+        physics::Block::Water(_) => 2,
+        physics::Block::Soil => 1,
+        physics::Block::Air => 0,
+    };
+    return cmp::max(strength(a), strength(b));
+}
 
-fn upload_mesh<F: glium::backend::Facade>(backend: &F, blocks: &Array3<physics::Block>) -> GlMesh<Vertex, u32> {
+fn upload_mesh<F: glium::backend::Facade>(backend: &F, blocks: &Array3<physics::Block>) -> GlMesh<BlockVertex, u32> {
     // Emit mesh.
     let mut vs = vec![];
     let mut is = vec![];
     {
-        let mut emit_quad = |vbase: V3, e0: V3, e1: V3| {
+        let mut emit_quad = |vbase: V3, e0: V3, e1: V3, bt: u32| {
             // 2 3
             // 0 1  -> (0, 1, 2) + (2, 1, 3)
             let ix_offset = (&mut vs).len();
@@ -79,7 +95,7 @@ fn upload_mesh<F: glium::backend::Facade>(backend: &F, blocks: &Array3<physics::
                     v.y += e1.y;
                     v.z += e1.z;
                 }
-                vs.push(Vertex{position: [v.x as f32, v.y as f32, v.z as f32]});
+                vs.push(BlockVertex{pos:[v.x as f32, v.y as f32, v.z as f32], bnd_type:bt});
             };
             is.append(&mut vec![0, 1, 2, 2, 1, 3].iter().map(|dix| (ix_offset + dix) as u32).collect::<Vec<_>>());
         };
@@ -92,13 +108,16 @@ fn upload_mesh<F: glium::backend::Facade>(backend: &F, blocks: &Array3<physics::
                     let zp = blocks[(x, y, z + 1)];
 
                     if base != xp {
-                        emit_quad(V3{x:(x + 1) as f64, y:y as f64, z:z as f64}, V3{x:0.0, y:1.0, z: 0.0}, V3{x:0.0, y:0.0, z: 1.0});
+                        emit_quad(V3{x:(x + 1) as f64, y:y as f64, z:z as f64}, V3{x:0.0, y:1.0, z: 0.0}, V3{x:0.0, y:0.0, z: 1.0},
+                            encode_boundary_type(base, xp));
                     }
                     if base != yp {
-                        emit_quad(V3{x:x as f64, y:(y + 1) as f64, z:z as f64}, V3{x:0.0, y:0.0, z: 1.0}, V3{x:1.0, y:0.0, z: 0.0});
+                        emit_quad(V3{x:x as f64, y:(y + 1) as f64, z:z as f64}, V3{x:0.0, y:0.0, z: 1.0}, V3{x:1.0, y:0.0, z: 0.0},
+                            encode_boundary_type(base, yp));
                     }
                     if base != zp {
-                        emit_quad(V3{x:x as f64, y:y as f64, z:(z + 1) as f64}, V3{x:1.0, y:0.0, z: 0.0}, V3{x:0.0, y:1.0, z: 0.0});
+                        emit_quad(V3{x:x as f64, y:y as f64, z:(z + 1) as f64}, V3{x:1.0, y:0.0, z: 0.0}, V3{x:0.0, y:1.0, z: 0.0},
+                            encode_boundary_type(base, zp));
                     }
                 }
             }
@@ -136,29 +155,42 @@ fn draw_world_forever(rx: Receiver<WorldView>, stat_tx: Sender<f64>) {
     let vertex_shader_blocks_src = r#"
         #version 140
 
-        in vec3 position;
+        in vec3 pos;
+        in uint bnd_type;
+
         uniform mat4 matrix;
-        varying vec3 w_pos;
+        out vec3 w_pos;
+        flat out uint bt;
 
         void main() {
-            gl_Position = matrix * vec4(position, 1.0);
-            w_pos = position;
+            gl_Position = matrix * vec4(pos, 1.0);
+            w_pos = pos;
+            bt = bnd_type;
         }
     "#;
 
     let fragment_shader_blocks_src = r#"
         #version 140
         out vec4 color;
-        varying vec3 w_pos;
+        in vec3 w_pos;
+        flat in uint bt;
 
         void main() {
-            // nudge z a little to avoid z fighting.
-            if (fract((w_pos.z + 0.1) / 10) < 0.02) {
-                color = vec4(0, 0, 0, 1);
+            if (bt == 3u) {
+                // Violet-ish color for bedrock.
+                color = vec4(0.32, 0.14, 0.44, 0.5);
+            } else if(bt == 2u) {
+                // Blue-ish color for water.
+                color = vec4(0.52, 0.70, 1.0, 0.5);
             } else {
-                color = vec4(0.86, 1.0, 1.0, 0.1);
+                // Weak red-ish color or black equi-height line for Soil.
+                // nudge z a little to avoid z fighting.
+                if (fract((w_pos.z + 0.1) / 10) < 0.02) {
+                    color = vec4(0, 0, 0, 1);
+                } else {
+                    color = vec4(0.5, 0.41, 0.37, 0.2);
+                }
             }
-
         }
     "#;
 
