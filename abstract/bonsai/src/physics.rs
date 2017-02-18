@@ -37,6 +37,8 @@ pub struct Cell {
 pub const HSIZE: usize = 200;
 pub const VSIZE: usize = 100;
 
+pub const BLOCKS_SHAPE: (usize, usize, usize) = (HSIZE, HSIZE, VSIZE);
+
 #[derive(Copy, Clone, PartialEq)]
 pub enum Block {
     Bedrock,
@@ -220,7 +222,7 @@ pub fn empty_world() -> World {
         next_id: 0,
         cells: vec![],
 
-        blocks: Array::from_elem((HSIZE, HSIZE, VSIZE), Block::Air),
+        blocks: Array::from_elem(BLOCKS_SHAPE, Block::Air),
     };
 }
 

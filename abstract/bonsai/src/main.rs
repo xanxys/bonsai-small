@@ -133,19 +133,39 @@ fn draw_world_forever(rx: Receiver<WorldView>, stat_tx: Sender<f64>) {
         }
     "#;
 
+    let vertex_shader_blocks_src = r#"
+        #version 140
+
+        in vec3 position;
+        uniform mat4 matrix;
+        varying vec3 w_pos;
+
+        void main() {
+            gl_Position = matrix * vec4(position, 1.0);
+            w_pos = position;
+        }
+    "#;
+
     let fragment_shader_blocks_src = r#"
         #version 140
         out vec4 color;
-        varying float height;
+        varying vec3 w_pos;
+
         void main() {
-            color = vec4(0.86, 1.0, 1.0, 0.1);
+            // nudge z a little to avoid z fighting.
+            if (fract((w_pos.z + 0.1) / 10) < 0.02) {
+                color = vec4(0, 0, 0, 1);
+            } else {
+                color = vec4(0.86, 1.0, 1.0, 0.1);
+            }
+
         }
     "#;
 
     use glium::{DisplayBuild, Surface};
     let display = glium::glutin::WindowBuilder::new().build_glium().unwrap();
     let program = glium::Program::from_source(&display, vertex_shader_src, fragment_shader_src, None).unwrap();
-    let program_blocks = glium::Program::from_source(&display, vertex_shader_src, fragment_shader_blocks_src, None).unwrap();
+    let program_blocks = glium::Program::from_source(&display, vertex_shader_blocks_src, fragment_shader_blocks_src, None).unwrap();
 
     let mut sv = SceneView{cam_rot_theta: 0.0};
 

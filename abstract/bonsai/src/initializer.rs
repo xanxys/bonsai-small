@@ -38,23 +38,58 @@ fn land_base<R: Rng>(rng: &mut R) -> Array2<f32> {
     for scale in [2, 4, 8, 16, 32].iter() {
         let vrs = *scale as f32;
         let vr = Range::new(-vrs, vrs);
-        let rs = Array::from_shape_fn((physics::HSIZE / scale + 2, physics::HSIZE / scale + 2), |_| vr.ind_sample(rng));
+        let rs = resample(Array::from_shape_fn((physics::HSIZE / scale + 2, physics::HSIZE / scale + 2), |_| vr.ind_sample(rng)));
         for y in 0..physics::HSIZE {
             for x in 0..physics::HSIZE {
-                let rix = x / scale;
-                let riy = y / scale;
-                let xt = ((x % scale) as f32) / (*scale as f32);
-                let yt = ((y % scale) as f32) / (*scale as f32);
-
-                let v_y0 = interp(rs[(rix, riy)], rs[(rix + 1, riy)], xt);
-                let v_y1 = interp(rs[(rix, riy + 1)], rs[(rix + 1, riy + 1)], xt);
-                let v = interp(v_y0, v_y1, yt);
-                arr[(x, y)] += v;
+                arr[(x, y)] += rs[(x, y)];
             }
         }
     }
-
     return arr;
+}
+
+fn resample(a: Array2<f32>) -> Array2<f32> {
+    let sx = (a.shape()[0] - 2) as f32 / (physics::HSIZE as f32);
+    let sy = (a.shape()[1] - 2) as f32 / (physics::HSIZE as f32);
+
+    return Array::from_shape_fn((physics::HSIZE, physics::HSIZE), |(x, y)| {
+        let ox = (x as f32) * sx;
+        let oy = (y as f32) * sy;
+        let oix = ox.floor() as usize;
+        let oiy = oy.floor() as usize;
+        let xt = ox.fract();
+        let yt = oy.fract();
+
+        let v_y0 = interp(a[(oix, oiy)], a[(oix + 1, oiy)], xt);
+        let v_y1 = interp(a[(oix, oiy + 1)], a[(oix + 1, oiy + 1)], xt);
+        return interp(v_y0, v_y1, yt);
+    });
+}
+
+
+// Create a smooth "valley" that connects X=0 to X=H.
+// X=0 is lower.
+// Calculate on 10x10 grid.
+// Returns smooth [0, 1.0].
+fn valley_base<R: Rng>(rng: &mut R) -> Array2<f32> {
+    const RES: usize = 10;
+    // Create squiggly path.
+    let mut ys = vec![];
+    let mut curr_y = rng.gen_range(2, RES as i32 - 2);
+    for _ in 0..RES {
+        ys.push(curr_y);
+        curr_y += rng.gen_range(-1, 2);
+        if curr_y < 0 {
+            curr_y = 0;
+        } else if curr_y >= RES as i32 {
+            curr_y = (RES - 1) as i32;
+        }
+    }
+    // Create valley by modulating distance from the path.
+    return resample(Array::from_shape_fn((RES, RES), |(x, y)| {
+        let dist = ((ys[x] - y as i32).abs() as f32) / (RES as f32);
+        return interp((dist * 3.0).min(1.0), (x as f32) / (RES as f32), 0.1);
+    }));
 }
 
 pub fn create_world(spec: WorldSpec) -> physics::World {
@@ -63,25 +98,25 @@ pub fn create_world(spec: WorldSpec) -> physics::World {
 
     match spec {
         WorldSpec::Valley => {
-            // TODO: // Coarse "mountain" mask
-            let land_base = land_base(&mut rng);
+            let avg_ground_z = (physics::VSIZE as f32) * 0.4;
+            let valley = valley_base(&mut rng);
+            // Reduce randomness in valley to make them look like a dried up river.
+            let height_soil = (&valley * 50.0 + land_base(&mut rng) * (&valley * 0.5 + 0.5) * 0.5 + avg_ground_z).mapv(|v| v.min((physics::VSIZE - 1) as f32));
+            let height_br = land_base(&mut rng) * 0.01 + 1.0;
 
-            // convert to soil
-            let avg_ground_z = (physics::VSIZE as f32) * 0.3;
-            for y in 0..physics::HSIZE {
-                for x in 0..physics::HSIZE {
-                    let h = land_base[(x as usize, y as usize)] * 0.3 + avg_ground_z;
-                    for z in 0..physics::VSIZE {
-                        if z == 0 {
-                            w.blocks[(x, y, z)] = Block::Bedrock;
-                        } else if (z as f32) < h {
-                            w.blocks[(x, y, z)] = Block::Soil;
-                        } else {
-                            w.blocks[(x, y, z)] = Block::Air;
-                        }
+            w.blocks = Array::from_shape_fn(physics::BLOCKS_SHAPE, |(x, y, z)| {
+                if (z as f32) < height_br[(x, y)] {
+                    return Block::Bedrock;
+                } else if (z as f32) < height_soil[(x, y)] {
+                    if rng.gen_weighted_bool(2000) {
+                        return Block::Water(physics::V3{x:1.0, y: 0.0, z:0.0});
+                    } else {
+                        return Block::Soil;
                     }
+                } else {
+                    return Block::Air;
                 }
-            }
+            });
 
             // TODO:
             // Put random big rocks near surface.
@@ -116,9 +151,7 @@ pub fn create_world(spec: WorldSpec) -> physics::World {
             }
         },
         _ => {
-            w.blocks = Array::from_shape_fn(
-                (physics::HSIZE, physics::HSIZE, physics::VSIZE),
-                |(_, _, z)| if z == 0 {Block::Bedrock} else {Block::Air});
+            w.blocks = Array::from_shape_fn(physics::BLOCKS_SHAPE, |(_, _, z)| if z == 0 {Block::Bedrock} else {Block::Air});
 
             for _ in 0..100*1000 {
                 let hrange = Range::new(0.0, physics::HSIZE as f64);
