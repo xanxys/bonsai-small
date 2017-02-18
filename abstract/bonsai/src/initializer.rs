@@ -44,7 +44,6 @@ pub fn create_world(spec: WorldSpec) -> physics::World {
                 for x in 0..physics::HSIZE {
                     let h = land_base[(x as usize, y as usize)] * 100.0 + 100.0;
                     for z in 0..physics::VSIZE {
-                        let i = physics::I3{x:x as i16,y:y as i16,z:z as i16};
                         if z == 0 {
                             w.blocks[(x, y, z)] = Block::Bedrock;
                         } else if (z as f32) < h {
@@ -91,7 +90,7 @@ pub fn create_world(spec: WorldSpec) -> physics::World {
         _ => {
             w.blocks = Array::from_shape_fn(
                 (physics::HSIZE, physics::HSIZE, physics::VSIZE),
-                |(x,y,z)| if z == 0 {Block::Bedrock} else {Block::Air});
+                |(_, _, z)| if z == 0 {Block::Bedrock} else {Block::Air});
 
             for _ in 0..100*1000 {
                 let hrange = Range::new(0.0, physics::HSIZE as f64);
