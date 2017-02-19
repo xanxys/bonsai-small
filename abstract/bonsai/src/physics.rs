@@ -3,15 +3,15 @@ use std::collections::HashSet;
 use ndarray::prelude::*;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
-pub struct V3{pub x:f64, pub y:f64, pub z:f64}
+pub struct V3(pub f64, pub f64, pub f64);
 
 #[derive(Debug, Hash, Eq, PartialEq, Copy, Clone)]
-pub struct I3{pub x:i16, pub y:i16, pub z:i16}
+pub struct I3(pub i16, pub i16, pub i16);
 
 // TODO: Hide this
 #[inline]
-pub fn floor(v : &V3) -> I3 {
-    I3{x:v.x.floor() as i16, y:v.y.floor() as i16, z:v.z.floor() as i16}
+pub fn floor(&V3(x, y, z) : &V3) -> I3 {
+    I3(x.floor() as i16, y.floor() as i16, z.floor() as i16)
 }
 
 
@@ -42,9 +42,13 @@ pub const BLOCKS_SHAPE: [usize; 3] = [HSIZE, HSIZE, VSIZE];
 
 #[derive(Copy, Clone, PartialEq)]
 pub enum Block {
+    // Exclusion. Block light.
     Bedrock,
+    // Sticking force toward block center. Block light.
     Soil,
+    // Pass light.
     Water,
+    // Weak global flow force.
     Air
 }
 
@@ -55,14 +59,7 @@ pub struct World {
     pub cells: Vec<Cell>,
 
     pub blocks: Array3<Block>,
-
-    // environment:
-    // pos -> {W, S, R, A}
-    // W(p): flow, alpha-source, spatial changing, temporally constant
-    // A: weak flow: spatially constant, temporally changing
-    // S: sticking force
-    // R: exclusion
-    // flow
+    bedrocks: HashSet<I3>,
 }
 
 
@@ -224,44 +221,58 @@ pub fn empty_world() -> World {
         cells: vec![],
 
         blocks: Array::from_elem(BLOCKS_SHAPE, Block::Air),
+        bedrocks: HashSet::new(),
     };
 }
 
 impl World {
+    pub fn init(&mut self) {
+        for ((x, y, z), b) in self.blocks.indexed_iter() {
+            match b.clone() {
+                Block::Bedrock => {
+                    self.bedrocks.insert(I3(x as i16, y as i16, z as i16));
+                },
+                _ => {},
+            }
+        }
+    }
+
     pub fn step(&mut self) {
         let gravity = 0.01;
         let dissipation = 0.9;
 
-        let mut occupation = HashMap::new();
+        let mut occupation = self.bedrocks.clone();
+
         // Biochem & Kinetic.
         for cell in &mut self.cells {
             step_code(cell);
 
-            cell.dp.z -= gravity;
+            cell.dp.2 -= gravity;
 
             // dissipation
-            cell.dp.x *= dissipation;
-            cell.dp.y *= dissipation;
-            cell.dp.z *= dissipation;
+            cell.dp.0 *= dissipation;
+            cell.dp.1 *= dissipation;
+            cell.dp.2 *= dissipation;
 
             // Inertia.
             // TODO: Experiment w/ explicit stopoed-moving st. mgmt.
-            cell.p.x += cell.dp.x;
-            cell.p.y += cell.dp.y;
-            cell.p.z += cell.dp.z;
+            cell.p.0 += cell.dp.0;
+            cell.p.1 += cell.dp.1;
+            cell.p.2 += cell.dp.2;
 
             // Exclusion.
             let pi_next = floor(&cell.p);
-            // M(pi_next - pi) = {0, 1, 2, 3}
-            // When empty: ok
-            // Otherwise, try decending order: 2, 1, 0.
-            if occupation.contains_key(&pi_next) {
+            if occupation.contains(&pi_next) {
+                if pi_next.0 != cell.pi.0 {
+                    //let pi_candidate = I3{x:pi_next.x, y:cell.pi.y, z:cell.pi.z};
+
+                }
             } else {
                 cell.pi = pi_next;
             }
-            occupation.insert(cell.pi, true);
+            occupation.insert(cell.pi);
         }
-        self.cells.retain(|cell| cell.p.z >= 0.0);
+        self.cells.retain(|cell| cell.p.2 >= 0.0);
 
         // Light transport.
 
@@ -288,16 +299,16 @@ impl World {
 
         // Cell internal consistency & finiteness.
         for cell in &self.cells {
-            assert!(cell.p.x.is_finite());
-            assert!(cell.p.y.is_finite());
-            assert!(cell.p.z.is_finite());
-            assert!(cell.dp.x.is_finite());
-            assert!(cell.dp.y.is_finite());
-            assert!(cell.dp.z.is_finite());
+            assert!(cell.p.0.is_finite());
+            assert!(cell.p.1.is_finite());
+            assert!(cell.p.2.is_finite());
+            assert!(cell.dp.0.is_finite());
+            assert!(cell.dp.1.is_finite());
+            assert!(cell.dp.2.is_finite());
             assert_eq!(floor(&cell.p), cell.pi);
-            assert!(cell.p.x < 500.0);
-            assert!(cell.p.y < 500.0);
-            assert!(cell.p.z < 500.0);
+            assert!(cell.p.0 < 500.0);
+            assert!(cell.p.1 < 500.0);
+            assert!(cell.p.2 < 500.0);
         }
 
         // Mutual exclusion (Bedrock & cells).
@@ -309,7 +320,7 @@ impl World {
             }
         }
         for cell in &self.cells {
-            let ix = (cell.pi.x as usize, cell.pi.y as usize, cell.pi.z as usize);
+            let ix = (cell.pi.0 as usize, cell.pi.1 as usize, cell.pi.2 as usize);
             assert!(!occupation.contains(&ix));
             occupation.insert(ix);
         }

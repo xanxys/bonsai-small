@@ -188,18 +188,18 @@ fn sprinkle_cells<R: Rng>(rng: &mut R, w: &mut physics::World) {
                         prog[i] = rng.gen();
                     }
 
-                    let p = physics::V3{
-                        x: x as f64 + rng.gen_range(0.0, 1.0),
-                        y: y as f64 + rng.gen_range(0.0, 1.0),
-                        z: (z + 1) as f64 + rng.gen_range(0.0, 1.0),
-                    };
+                    let p = physics::V3(
+                        x as f64 + rng.gen_range(0.0, 1.0),
+                        y as f64 + rng.gen_range(0.0, 1.0),
+                        (z + 1) as f64 + rng.gen_range(0.0, 1.0),
+                    );
 
                     let id = w.issue_id();
                     w.cells.push(physics::Cell{
                         id: id,
                         p: p,
                         pi: physics::floor(&p),
-                        dp: physics::V3{x:0.0, y:0.0, z:0.0},
+                        dp: physics::V3(0.0, 0.0, 0.0),
                         ip: 0,
                         ext: false,
                         result: false,
@@ -275,7 +275,7 @@ pub fn create_world(spec: WorldSpec) -> physics::World {
             for _ in 0..num_cells {
                 let hrange = Range::new(0.0, physics::HSIZE as f64);
                 let vrange = Range::new(0.0, physics::VSIZE as f64);
-                let p = physics::V3{x:hrange.ind_sample(&mut rng), y: hrange.ind_sample(&mut rng), z: vrange.ind_sample(&mut rng)};
+                let p = physics::V3(hrange.ind_sample(&mut rng), hrange.ind_sample(&mut rng), vrange.ind_sample(&mut rng));
                 let inst_range = Range::new(0, 255);
 
                 let mut prog = [0; 256];
@@ -288,7 +288,7 @@ pub fn create_world(spec: WorldSpec) -> physics::World {
                     id: id,
                     p: p,
                     pi: physics::floor(&p),
-                    dp: physics::V3{x:0.0, y:0.0, z:0.0},
+                    dp: physics::V3(0.0, 0.0, 0.0),
                     ip: 0,
                     ext: false,
                     result: false,
@@ -305,7 +305,7 @@ pub fn create_world(spec: WorldSpec) -> physics::World {
             for _ in 0..100*1000 {
                 let hrange = Range::new(0.0, physics::HSIZE as f64);
                 let vrange = Range::new(1.0, physics::VSIZE as f64);
-                let p = physics::V3{x:hrange.ind_sample(&mut rng), y: hrange.ind_sample(&mut rng), z: vrange.ind_sample(&mut rng)};
+                let p = physics::V3(hrange.ind_sample(&mut rng), hrange.ind_sample(&mut rng), vrange.ind_sample(&mut rng));
                 let inst_range = Range::new(0, 255);
 
                 let mut prog = [0; 256];
@@ -318,7 +318,7 @@ pub fn create_world(spec: WorldSpec) -> physics::World {
                     id: id,
                     p: p,
                     pi: physics::floor(&p),
-                    dp: physics::V3{x:0.0, y:0.0, z:0.0},
+                    dp: physics::V3(0.0, 0.0, 0.0),
                     ip: 0,
                     ext: false,
                     result: false,
@@ -330,5 +330,7 @@ pub fn create_world(spec: WorldSpec) -> physics::World {
             }
         },
     }
+    w.init();
+    w.validate();
     return w;
 }

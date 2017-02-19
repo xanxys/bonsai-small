@@ -86,16 +86,16 @@ fn upload_mesh<F: glium::backend::Facade>(backend: &F, blocks: &Array3<physics::
             for i in 0..4 {
                 let mut v = vbase;
                 if i & 1 != 0{
-                    v.x += e0.x;
-                    v.y += e0.y;
-                    v.z += e0.z;
+                    v.0 += e0.0;
+                    v.1 += e0.1;
+                    v.2 += e0.2;
                 }
                 if i & 2 != 0 {
-                    v.x += e1.x;
-                    v.y += e1.y;
-                    v.z += e1.z;
+                    v.0 += e1.0;
+                    v.1 += e1.1;
+                    v.2 += e1.2;
                 }
-                vs.push(BlockVertex{pos:[v.x as f32, v.y as f32, v.z as f32], bnd_type:bt});
+                vs.push(BlockVertex{pos:[v.0 as f32, v.1 as f32, v.2 as f32], bnd_type:bt});
             };
             is.append(&mut vec![0, 1, 2, 2, 1, 3].iter().map(|dix| (ix_offset + dix) as u32).collect::<Vec<_>>());
         };
@@ -108,15 +108,15 @@ fn upload_mesh<F: glium::backend::Facade>(backend: &F, blocks: &Array3<physics::
                     let zp = blocks[(x, y, z + 1)];
 
                     if base != xp {
-                        emit_quad(V3{x:(x + 1) as f64, y:y as f64, z:z as f64}, V3{x:0.0, y:1.0, z: 0.0}, V3{x:0.0, y:0.0, z: 1.0},
+                        emit_quad(V3((x + 1) as f64, y as f64, z as f64), V3(0.0, 1.0, 0.0), V3(0.0, 0.0, 1.0),
                             encode_boundary_type(base, xp));
                     }
                     if base != yp {
-                        emit_quad(V3{x:x as f64, y:(y + 1) as f64, z:z as f64}, V3{x:0.0, y:0.0, z: 1.0}, V3{x:1.0, y:0.0, z: 0.0},
+                        emit_quad(V3(x as f64, (y + 1) as f64, z as f64), V3(0.0, 0.0, 1.0), V3(1.0, 0.0, 0.0),
                             encode_boundary_type(base, yp));
                     }
                     if base != zp {
-                        emit_quad(V3{x:x as f64, y:y as f64, z:(z + 1) as f64}, V3{x:1.0, y:0.0, z: 0.0}, V3{x:0.0, y:1.0, z: 0.0},
+                        emit_quad(V3(x as f64, y as f64, (z + 1) as f64), V3(1.0, 0.0, 0.0), V3(0.0, 1.0, 0.0),
                             encode_boundary_type(base, zp));
                     }
                 }
@@ -243,7 +243,7 @@ fn draw_world_forever(rx: Receiver<WorldView>, stat_tx: Sender<f64>) {
         {
             let mut shape = vec![];
             for cell in &cells {
-                shape.push(Vertex { position: [cell.p.x as f32, cell.p.y as f32, cell.p.z as f32] });
+                shape.push(Vertex { position: [cell.p.0 as f32, cell.p.1 as f32, cell.p.2 as f32] });
             }
             let vertex_buffer = glium::VertexBuffer::new(&display, &shape).unwrap();
             let indices = glium::index::NoIndices(glium::index::PrimitiveType::Points);
