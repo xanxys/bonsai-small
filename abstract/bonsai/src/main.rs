@@ -178,10 +178,10 @@ fn draw_world_forever(rx: Receiver<WorldView>, stat_tx: Sender<f64>) {
         void main() {
             if (bt == 3u) {
                 // Violet-ish color for bedrock.
-                color = vec4(0.32, 0.14, 0.44, 0.5);
+                color = vec4(0.16, 0.07, 0.22, 0.5);
             } else if(bt == 2u) {
                 // Blue-ish color for water.
-                color = vec4(0.52, 0.70, 1.0, 0.5);
+                color = vec4(0.22, 0.40, 1.0, 0.5);
             } else {
                 // Weak red-ish color or black equi-height line for Soil.
                 // nudge z a little to avoid z fighting.
@@ -305,7 +305,7 @@ fn main() {
     thread::spawn(move || {
         let dt_switch = 5.0;
         //let specs = vec![WorldSpec::TestFlatBedrock, WorldSpec::Valley, WorldSpec::TestCellLoad(1000*1000)];
-        let specs = vec![WorldSpec::CubeFarm];
+        let specs = vec![WorldSpec::Creek, WorldSpec::CubeFarm];
 
         let mut current_ix = 0;
         let mut last_switch_time = time::precise_time_s();

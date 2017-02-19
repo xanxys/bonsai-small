@@ -12,9 +12,8 @@ use std::cmp;
 pub enum WorldSpec {
     TestCellLoad(i32),
     TestFlatBedrock,
-    // Complex envs (natural, fantasy, artificial)
-    Valley,
-    FloatingIslands,
+    // Complex envs (natural, artificial)
+    Creek,
     CubeFarm,
 }
 
@@ -88,8 +87,9 @@ fn valley_base<R: Rng>(rng: &mut R) -> Array2<f32> {
     }
     // Create valley by modulating distance from the path.
     return resample(Array::from_shape_fn((RES, RES), |(x, y)| {
-        let dist = ((ys[x] - y as i32).abs() as f32) / (RES as f32);
-        return interp((dist * 3.0).min(1.0), (x as f32) / (RES as f32), 0.1);
+        let mut dist = ((ys[x] - y as i32).abs() as f32) / (RES as f32);
+        dist = (dist - 0.1).max(0.0);
+        return interp((dist * 3.0).min(1.0), (x as f32) / (RES as f32), 0.3);
     }));
 }
 
@@ -168,7 +168,7 @@ pub fn create_world(spec: WorldSpec) -> physics::World {
     let mut w = physics::empty_world();
 
     match spec {
-        WorldSpec::Valley => {
+        WorldSpec::Creek => {
             let avg_ground_z = (physics::VSIZE as f32) * 0.4;
             let valley = valley_base(&mut rng);
             // Reduce randomness in valley to make them look like a dried up river.
@@ -192,8 +192,6 @@ pub fn create_world(spec: WorldSpec) -> physics::World {
             // TODO:
             // Put random big rocks near surface.
             // Put small rocks under surface.
-        },
-        WorldSpec::FloatingIslands => {
         },
         WorldSpec::CubeFarm => {
             let z = rng.gen_range((physics::VSIZE as f32) * 0.2, (physics::VSIZE as f32) * 0.3) as usize;
