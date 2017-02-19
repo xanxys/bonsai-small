@@ -163,6 +163,57 @@ fn fill_nested_cubes<R: Rng>(rng: &mut R, blocks: &mut Array3<Block>, level: usi
     }
 }
 
+// First non-Air cell in a certain (x, y), searching from the top.
+fn find_filled(blocks: &Array3<physics::Block>, x: usize, y: usize) -> Option<usize> {
+    for z in (0..physics::VSIZE).rev() {
+        if blocks[(x, y, z)] != physics::Block::Air {
+            return Some(z);
+        }
+    }
+    return None;
+}
+
+fn sprinkle_cells<R: Rng>(rng: &mut R, w: &mut physics::World) {
+    let x0 = 30;
+    let y0 = 40;
+    for y in y0..y0+10 {
+        for x in x0..x0+10 {
+            if rng.gen_weighted_bool(2) {
+                continue;
+            }
+            if let Some(z) = find_filled(&w.blocks, x, y) {
+                if z + 1 < physics::VSIZE {
+                    let mut prog = [0; 256];
+                    for i in 0..128 {
+                        prog[i] = rng.gen();
+                    }
+
+                    let p = physics::V3{
+                        x: x as f64 + rng.gen_range(0.0, 1.0),
+                        y: y as f64 + rng.gen_range(0.0, 1.0),
+                        z: (z + 1) as f64 + rng.gen_range(0.0, 1.0),
+                    };
+
+                    let id = w.issue_id();
+                    w.cells.push(physics::Cell{
+                        id: id,
+                        p: p,
+                        pi: physics::floor(&p),
+                        dp: physics::V3{x:0.0, y:0.0, z:0.0},
+                        ip: 0,
+                        ext: false,
+                        result: false,
+                        epsilon: 0xff,
+                        decay: 0,
+                        prog: prog,
+                        regs: [0; 4],
+                    });
+                }
+            }
+        }
+    }
+}
+
 pub fn create_world(spec: WorldSpec) -> physics::World {
     let mut rng = rand::thread_rng();
     let mut w = physics::empty_world();
@@ -192,6 +243,8 @@ pub fn create_world(spec: WorldSpec) -> physics::World {
             // TODO:
             // Put random big rocks near surface.
             // Put small rocks under surface.
+
+            sprinkle_cells(&mut rng, &mut w);
         },
         WorldSpec::CubeFarm => {
             let z = rng.gen_range((physics::VSIZE as f32) * 0.2, (physics::VSIZE as f32) * 0.3) as usize;
@@ -215,6 +268,8 @@ pub fn create_world(spec: WorldSpec) -> physics::World {
                     w.blocks[(x, y, 0)] = Block::Bedrock;
                 }
             }
+
+            sprinkle_cells(&mut rng, &mut w);
         },
         WorldSpec::TestCellLoad(num_cells) => {
             for _ in 0..num_cells {
