@@ -260,6 +260,7 @@ impl World {
             }
             occupation.insert(cell.pi, true);
         }
+        self.cells.retain(|cell| cell.p.z >= 0.0);
 
         // Light transport.
 
