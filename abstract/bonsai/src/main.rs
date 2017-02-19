@@ -341,6 +341,7 @@ fn main() {
             let t0 = time::precise_time_s();
             w.step();
             let dt_step = time::precise_time_s() - t0;
+            w.validate();
 
             tx.send(gen_cell_view(&w)).unwrap();
 

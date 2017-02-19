@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::collections::HashSet;
 use ndarray::prelude::*;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -37,7 +38,7 @@ pub struct Cell {
 pub const HSIZE: usize = 200;
 pub const VSIZE: usize = 100;
 
-pub const BLOCKS_SHAPE: (usize, usize, usize) = (HSIZE, HSIZE, VSIZE);
+pub const BLOCKS_SHAPE: [usize; 3] = [HSIZE, HSIZE, VSIZE];
 
 #[derive(Copy, Clone, PartialEq)]
 pub enum Block {
@@ -271,5 +272,46 @@ impl World {
         let id = self.next_id;
         self.next_id += 1;
         return id;
+    }
+
+    pub fn validate(&self) {
+        // World size.
+        assert_eq!(self.blocks.shape(), BLOCKS_SHAPE);
+
+        // Id check.
+        let mut ids = HashSet::new();
+        for cell in &self.cells {
+            assert!(cell.id < self.next_id); // Id issuing uniqueness.
+            assert!(!ids.contains(&cell.id)); // No dupe.
+            ids.insert(cell.id);
+        }
+
+        // Cell internal consistency & finiteness.
+        for cell in &self.cells {
+            assert!(cell.p.x.is_finite());
+            assert!(cell.p.y.is_finite());
+            assert!(cell.p.z.is_finite());
+            assert!(cell.dp.x.is_finite());
+            assert!(cell.dp.y.is_finite());
+            assert!(cell.dp.z.is_finite());
+            assert_eq!(floor(&cell.p), cell.pi);
+            assert!(cell.p.x < 500.0);
+            assert!(cell.p.y < 500.0);
+            assert!(cell.p.z < 500.0);
+        }
+
+        // Mutual exclusion (Bedrock & cells).
+        let mut occupation = HashSet::new();
+        for (ix, b) in self.blocks.indexed_iter() {
+            match b.clone() {
+                Block::Bedrock => {occupation.insert(ix.clone());},
+                _ => {},
+            }
+        }
+        for cell in &self.cells {
+            let ix = (cell.pi.x as usize, cell.pi.y as usize, cell.pi.z as usize);
+            assert!(!occupation.contains(&ix));
+            occupation.insert(ix);
+        }
     }
 }
