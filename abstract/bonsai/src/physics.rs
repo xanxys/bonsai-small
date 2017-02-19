@@ -13,8 +13,6 @@ pub struct I3(pub i16, pub i16, pub i16);
 pub fn floor(&V3(x, y, z) : &V3) -> I3 {
     I3(x.floor() as i16, y.floor() as i16, z.floor() as i16)
 }
-
-
 pub struct Cell {
     pub id: u64,
 
@@ -261,11 +259,47 @@ impl World {
             cell.p.2 += cell.dp.2;
 
             // Exclusion.
+            let edge = 0.999;
             let pi_next = floor(&cell.p);
             if occupation.contains(&pi_next) {
                 if pi_next.0 != cell.pi.0 {
-                    //let pi_candidate = I3{x:pi_next.x, y:cell.pi.y, z:cell.pi.z};
-
+                    let pi_candidate = I3(pi_next.0, cell.pi.1, cell.pi.2);
+                    if occupation.contains(&pi_candidate) {
+                        if pi_next.0 < cell.pi.0 {
+                            cell.p.0 = cell.pi.0 as f64 + 0.0;
+                        } else {
+                            cell.p.0 = cell.pi.0 as f64 + edge;
+                        }
+                        cell.dp.0 = 0.0;
+                    } else {
+                        cell.pi.0 = pi_next.0;
+                    }
+                }
+                if pi_next.1 != cell.pi.1 {
+                    let pi_candidate = I3(cell.pi.0, pi_next.1, cell.pi.2);
+                    if occupation.contains(&pi_candidate) {
+                        if pi_next.1 < cell.pi.1 {
+                            cell.p.1 = cell.pi.1 as f64 + 0.0;
+                        } else {
+                            cell.p.1 = cell.pi.1 as f64 + edge;
+                        }
+                        cell.dp.1 = 0.0;
+                    } else {
+                        cell.pi.1 = pi_next.1;
+                    }
+                }
+                if pi_next.2 != cell.pi.2 {
+                    let pi_candidate = I3(cell.pi.0, cell.pi.1, pi_next.2);
+                    if occupation.contains(&pi_candidate) {
+                        if pi_next.2 < cell.pi.2 {
+                            cell.p.2 = cell.pi.2 as f64 + 0.0;
+                        } else {
+                            cell.p.2 = cell.pi.2 as f64 + edge;
+                        }
+                        cell.dp.2 = 0.0;
+                    } else {
+                        cell.pi.2 = pi_next.2;
+                    }
                 }
             } else {
                 cell.pi = pi_next;
