@@ -1,5 +1,6 @@
 use physics;
 
+use std::collections::HashSet;
 use rand;
 use rand::Rng;
 use rand::distributions::{IndependentSample, Range};
@@ -11,7 +12,7 @@ use std::cmp;
 #[derive(Clone, Copy, Debug)]
 pub enum WorldSpec {
     TestCellLoad(i32),
-    TestFlatBedrock,
+
     // Complex envs (natural, artificial)
     Creek,
     CubeFarm,
@@ -272,10 +273,32 @@ pub fn create_world(spec: WorldSpec) -> physics::World {
             sprinkle_cells(&mut rng, &mut w);
         },
         WorldSpec::TestCellLoad(num_cells) => {
+            assert!(num_cells as usize <= physics::HSIZE * physics::HSIZE * (physics::VSIZE - 1));
+            w.blocks = Array::from_shape_fn(physics::BLOCKS_SHAPE, |(_, _, z)| {
+                if z == 0 {
+                    if rng.gen() {
+                        return Block::Bedrock;
+                    } else {
+                        return Block::Air;
+                    }
+                } else {
+                    return Block::Air;
+                }
+            });
+
+            let hrange = Range::new(0.0, physics::HSIZE as f64);
+            let vrange = Range::new(1.0, physics::VSIZE as f64);
+
+            let mut already_exist = HashSet::new();
             for _ in 0..num_cells {
-                let hrange = Range::new(0.0, physics::HSIZE as f64);
-                let vrange = Range::new(0.0, physics::VSIZE as f64);
-                let p = physics::V3(hrange.ind_sample(&mut rng), hrange.ind_sample(&mut rng), vrange.ind_sample(&mut rng));
+                let mut p = physics::V3(hrange.ind_sample(&mut rng), hrange.ind_sample(&mut rng), vrange.ind_sample(&mut rng));
+                let mut pi = physics::floor(&p);
+                while already_exist.contains(&pi) {
+                    p = physics::V3(hrange.ind_sample(&mut rng), hrange.ind_sample(&mut rng), vrange.ind_sample(&mut rng));
+                    pi = physics::floor(&p);
+                }
+                already_exist.insert(pi.clone());
+
                 let inst_range = Range::new(0, 255);
 
                 let mut prog = [0; 256];
@@ -287,37 +310,7 @@ pub fn create_world(spec: WorldSpec) -> physics::World {
                 w.cells.push(physics::Cell{
                     id: id,
                     p: p,
-                    pi: physics::floor(&p),
-                    dp: physics::V3(0.0, 0.0, 0.0),
-                    ip: 0,
-                    ext: false,
-                    result: false,
-                    epsilon: 0xff,
-                    decay: 0,
-                    prog: prog,
-                    regs: [0; 4],
-                });
-            }
-        },
-        _ => {
-            w.blocks = Array::from_shape_fn(physics::BLOCKS_SHAPE, |(_, _, z)| if z == 0 {Block::Bedrock} else {Block::Air});
-
-            for _ in 0..100*1000 {
-                let hrange = Range::new(0.0, physics::HSIZE as f64);
-                let vrange = Range::new(1.0, physics::VSIZE as f64);
-                let p = physics::V3(hrange.ind_sample(&mut rng), hrange.ind_sample(&mut rng), vrange.ind_sample(&mut rng));
-                let inst_range = Range::new(0, 255);
-
-                let mut prog = [0; 256];
-                for i in 0..128 {
-                    prog[i] = inst_range.ind_sample(&mut rng);
-                }
-
-                let id = w.issue_id();
-                w.cells.push(physics::Cell{
-                    id: id,
-                    p: p,
-                    pi: physics::floor(&p),
+                    pi: pi,
                     dp: physics::V3(0.0, 0.0, 0.0),
                     ip: 0,
                     ext: false,

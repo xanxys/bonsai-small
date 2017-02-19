@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::collections::HashSet;
 use ndarray::prelude::*;
 
@@ -242,6 +241,9 @@ impl World {
         let mut occupation = self.bedrocks.clone();
 
         // Biochem & Kinetic.
+        for cell in &self.cells {
+            occupation.insert(cell.pi.clone());
+        }
         for cell in &mut self.cells {
             step_code(cell);
 
@@ -260,6 +262,7 @@ impl World {
 
             // Exclusion.
             let edge = 0.999;
+            let pi_curr = cell.pi;
             let pi_next = floor(&cell.p);
             if occupation.contains(&pi_next) {
                 if pi_next.0 != cell.pi.0 {
@@ -304,7 +307,10 @@ impl World {
             } else {
                 cell.pi = pi_next;
             }
-            occupation.insert(cell.pi);
+            if cell.pi != pi_curr {
+                occupation.insert(cell.pi);
+                occupation.remove(&pi_curr);
+            }
         }
         self.cells.retain(|cell| cell.p.2 >= 0.0);
 
