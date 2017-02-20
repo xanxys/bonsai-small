@@ -237,6 +237,7 @@ impl World {
     pub fn step(&mut self) {
         let gravity = 0.01;
         let dissipation = 0.9;
+        let stick = 0.02; // Stronger than gravity.
 
         let mut occupation = self.bedrocks.clone();
 
@@ -248,6 +249,24 @@ impl World {
             step_code(cell);
 
             cell.dp.2 -= gravity;
+
+            if self.blocks[(cell.pi.0 as usize, cell.pi.1 as usize, cell.pi.2 as usize)] == Block::Soil {
+                if cell.p.0.fract() < 0.5 {
+                    cell.dp.0 += stick;
+                } else {
+                    cell.dp.0 -= stick;
+                }
+                if cell.p.1.fract() < 0.5 {
+                    cell.dp.1 += stick;
+                } else {
+                    cell.dp.1 -= stick;
+                }
+                if cell.p.2.fract() < 0.5 {
+                    cell.dp.2 += stick;
+                } else {
+                    cell.dp.2 -= stick;
+                }
+            }
 
             // dissipation
             cell.dp.0 *= dissipation;

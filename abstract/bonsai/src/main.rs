@@ -305,7 +305,7 @@ fn main() {
     thread::spawn(move || {
         let dt_switch = 1e20; // 5.0;
         //let specs = vec![WorldSpec::Creek, WorldSpec::CubeFarm, WorldSpec::TestCellLoad(1000*1000)];
-        let specs = vec![WorldSpec::TestCellLoad(1000*1000)];
+        let specs = vec![WorldSpec::Creek, WorldSpec::TestCellLoad(1000*1000)];
 
         let mut current_ix = 0;
         let mut last_switch_time = time::precise_time_s();
@@ -339,7 +339,9 @@ fn main() {
             let t0 = time::precise_time_s();
             w.step();
             let dt_step = time::precise_time_s() - t0;
-            w.validate();
+            if w.steps % 100 == 0 {
+                w.validate();
+            }
 
             tx.send(gen_cell_view(&w)).unwrap();
 
