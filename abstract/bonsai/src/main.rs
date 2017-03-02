@@ -354,10 +354,11 @@ fn main() {
             }
             mv(0, 0);
             clrtoeol();
-            printw(&format!("SIM step={} dt={:.1}ms", w.steps, dt_step * 1e3));
+            printw(&format!("SIM step={} dt={:.1}ms cells={}", w.steps, dt_step * 1e3, w.cells.len()));
             if w.cells.len() > 0 {
                 mv(1, 0);
-                printw(&format!("{} {} {}", w.cells[0].id, w.cells[0].ip, w.cells[0].epsilon));
+                clrtoeol();
+                printw(&format!("Cell[0] id:{} ip:{} eps:{}", w.cells[0].id, w.cells[0].ip, w.cells[0].epsilon));
             }
 
             mv(2, 0);

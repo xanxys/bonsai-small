@@ -130,11 +130,11 @@ fn step_code(c: &mut Cell, occupation: &HashSet<I3>, blocks: &Array3<Block>) -> 
 
     let mut st_delta = StateDelta::NoChange;
     if inst < 0x04 { // divide
-        let mut target = None;
-        if c.ext && dst != 0 {
-            let btypes = [Block::Bedrock, Block::Soil, Block::Water, Block::Air];
-            let btarget = btypes[dst];
+        let btypes = [Block::Bedrock, Block::Soil, Block::Water, Block::Air];
+        let btarget = btypes[dst];
 
+        let mut target = None;
+        if c.ext && btarget != Block::Bedrock {
             let I3(ix, iy, iz) = c.pi;
             'nsearch: for x in cmp::max(ix-1, 0)..cmp::min(ix+2, HSIZE as i16) {
                 for y in cmp::max(iy-1, 0)..cmp::min(iy+2, HSIZE as i16) {
@@ -301,12 +301,20 @@ impl World {
         for cell in &self.cells {
             occupation.insert(cell.pi.clone());
         }
+        let mut new_cells = vec![];
+        let mut del_cells = HashSet::new();
         for cell in &mut self.cells {
             let st_delta = step_code(cell, &occupation, &self.blocks);
             match st_delta {
                 StateDelta::NoChange => {},
-                StateDelta::AddCell(cell) => {},
-                StateDelta::KillSelf => {},
+                StateDelta::AddCell(mut cell) => {
+                    new_cells.push(cell);
+                },
+                StateDelta::KillSelf => {
+                    occupation.remove(&cell.pi);
+                    del_cells.insert(cell.id);
+                    continue;
+                },
             }
 
             cell.dp.2 -= gravity;
@@ -393,7 +401,11 @@ impl World {
                 occupation.remove(&pi_curr);
             }
         }
-        self.cells.retain(|cell| cell.p.2 >= 0.0);
+        self.cells.retain(|cell| cell.p.2 >= 0.0 && !del_cells.contains(&cell.id));
+        for mut cell in new_cells {
+            cell.id = self.issue_id();
+            self.cells.push(cell);
+        }
 
         // Light transport.
 
