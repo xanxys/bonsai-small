@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::collections::HashMap;
 use ndarray::prelude::*;
 use std::cmp;
 
@@ -110,9 +111,29 @@ enum StateDelta {
     NoChange,
     KillSelf,
     AddCell(Cell),
+    Assimilate(u64),
+    BlockLight,
 }
 
-fn step_code(c: &mut Cell, occupation: &HashSet<I3>, blocks: &Array3<Block>) -> StateDelta {
+fn scan_neighbor<R>(center: I3, pred: &Fn(I3, (usize, usize, usize)) -> Option<R>) -> Option<R> {
+    let I3(ix, iy, iz) = center;
+    'nsearch: for x in cmp::max(ix-1, 0)..cmp::min(ix+2, HSIZE as i16) {
+        for y in cmp::max(iy-1, 0)..cmp::min(iy+2, HSIZE as i16) {
+            for z in cmp::max(iz-1, 0)..cmp::min(iz+2, VSIZE as i16) {
+                let i = I3(x, y, z);
+                if i != center {
+                    match pred(i, (x as usize, y as usize, z as usize)) {
+                        Some(res) => {return Some(res)},
+                        None => {},
+                    }
+                }
+            }
+        }
+    }
+    return None;
+}
+
+fn step_code(c: &mut Cell, occupation: &HashSet<I3>, blocks: &Array3<Block>, cell_tags: &HashMap<I3, (u8, u64)>) -> StateDelta {
     if c.epsilon == 0 {
         c.decay += 1;
         if c.decay == 0xff {
@@ -128,25 +149,21 @@ fn step_code(c: &mut Cell, occupation: &HashSet<I3>, blocks: &Array3<Block>) -> 
     let dst = (inst & 3) as usize;
     let src = ((inst >> 2) & 3) as usize;
 
+    let btypes = [Block::Bedrock, Block::Soil, Block::Water, Block::Air];
+
     let mut st_delta = StateDelta::NoChange;
     if inst < 0x04 { // divide
-        let btypes = [Block::Bedrock, Block::Soil, Block::Water, Block::Air];
         let btarget = btypes[dst];
 
         let mut target = None;
         if c.ext && btarget != Block::Bedrock {
-            let I3(ix, iy, iz) = c.pi;
-            'nsearch: for x in cmp::max(ix-1, 0)..cmp::min(ix+2, HSIZE as i16) {
-                for y in cmp::max(iy-1, 0)..cmp::min(iy+2, HSIZE as i16) {
-                    for z in cmp::max(iz-1, 0)..cmp::min(iz+2, VSIZE as i16) {
-                        let i = I3(x, y, z);
-                        if blocks[(x as usize, y as usize, z as usize)] == btarget && !occupation.contains(&i) && i != c.pi {
-                            target = Some(i);
-                            break 'nsearch;
-                        }
-                    }
+            target = scan_neighbor(c.pi, &|i3, ius| {
+                if blocks[ius] == btarget && !occupation.contains(&i3) {
+                    return Some(i3);
+                } else {
+                    return None;
                 }
-            }
+            });
         }
 
         match target {
@@ -185,10 +202,39 @@ fn step_code(c: &mut Cell, occupation: &HashSet<I3>, blocks: &Array3<Block>) -> 
         }
         c.ext = false;
     } else if inst < 0x08 { // check
+        // check environment of the block containing this cell.
+        let I3(x, y, z) = c.pi;
+        c.result = btypes[dst] == blocks[(x as usize, y as usize, z as usize)];
     } else if inst < 0x0c { // share * 2
+        // Find cell by tag and move energy between this and that.
+        // TODO: implement
     } else if inst < 0x14 { // force * 2
+        // Find cell by tag and apply force between this and that.
+        // TODO: implement
     } else if inst < 0x1c { // fuse
-        c.ext = true;
+        // Find nearby cell with specified tag & assimilate its energy and prog.
+        let target_tag = c.regs[dst];
+        let targ_id = scan_neighbor(c.pi, &|i3, ius| {
+            match cell_tags.get(&i3) {
+                Some(&(tag, id)) => {
+                    if target_tag == tag {
+                        return Some(id);
+                    }
+                }
+                None => {},
+            }
+            return None;
+        });
+        match targ_id {
+            Some(id) => {
+                st_delta = StateDelta::Assimilate(id);
+                c.ext = true;
+                c.result = true;
+            },
+            None => {
+                c.result = false;
+            }
+        }
     } else if inst < 0x20 { // RESERVED.
     } else if inst < 0x21 { // drain
         c.epsilon = 0;
@@ -205,7 +251,11 @@ fn step_code(c: &mut Cell, occupation: &HashSet<I3>, blocks: &Array3<Block>) -> 
     } else if inst < 0x24 { // flip
         c.result = !c.result;
     } else if inst < 0x25 { // get-alpha
+        // Get epsilon by converting env's alpha.
+        // Check env.
+        // TODO: implement
     } else if inst < 0x26 { // get-phi
+        st_delta = StateDelta::BlockLight; // Get epsilon by converting env's phi.
     } else if inst < 0x20 { // RESERVED
     } else if inst < 0x30 { // jmpa
         if src & 1 == 0 || c.result {
@@ -232,7 +282,6 @@ fn step_code(c: &mut Cell, occupation: &HashSet<I3>, blocks: &Array3<Block>) -> 
         }
     } else if inst < 0x80 { // movi
         c.regs[dst] = (inst >> 2) & 0xf;
-    // Upper half: [0x80, 0xff]
     } else if inst < 0x84 { // inspect
         c.regs[dst] = c.epsilon;
     } else if inst < 0x88 { // not
@@ -258,6 +307,25 @@ fn step_code(c: &mut Cell, occupation: &HashSet<I3>, blocks: &Array3<Block>) -> 
         let addr = if c.ext {c.regs[src]} else {c.regs[src] & 0x7f};
         c.regs[dst] = c.prog[addr as usize];
     } else { // nearby
+        let target_env = btypes[src];
+        let result_tag = scan_neighbor(c.pi, &|i3, ius| {
+            if blocks[ius] == target_env {
+                return None;
+            }
+            match cell_tags.get(&i3) {
+                Some(&(tag, _)) => {return Some(tag);},
+                None => {return None},
+            }
+        });
+        match result_tag {
+            Some(tag) => {
+                c.regs[dst] = tag;
+                c.result = true;
+            },
+            None => {
+                c.result = false;
+            }
+        }
     }
     c.ip += 1;
     c.ip &= 0x7f;
@@ -303,8 +371,9 @@ impl World {
         }
         let mut new_cells = vec![];
         let mut del_cells = HashSet::new();
+        let mut cells_tag = HashMap::new();
         for cell in &mut self.cells {
-            let st_delta = step_code(cell, &occupation, &self.blocks);
+            let st_delta = step_code(cell, &occupation, &self.blocks, &cells_tag);
             match st_delta {
                 StateDelta::NoChange => {},
                 StateDelta::AddCell(mut cell) => {
@@ -315,6 +384,8 @@ impl World {
                     del_cells.insert(cell.id);
                     continue;
                 },
+                StateDelta::Assimilate(id) => {},
+                StateDelta::BlockLight => {},
             }
 
             cell.dp.2 -= gravity;
