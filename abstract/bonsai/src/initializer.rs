@@ -175,10 +175,9 @@ fn find_filled(blocks: &Array3<physics::Block>, x: usize, y: usize) -> Option<us
 }
 
 fn sprinkle_cells<R: Rng>(rng: &mut R, w: &mut physics::World) {
-    let x0 = 30;
-    let y0 = 40;
-    for y in y0..y0+10 {
-        for x in x0..x0+10 {
+    let margin = 30;
+    for y in margin..physics::HSIZE-margin {
+        for x in margin..physics::HSIZE-margin {
             if rng.gen_weighted_bool(2) {
                 continue;
             }

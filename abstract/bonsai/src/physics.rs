@@ -112,6 +112,8 @@ enum StateDelta {
     KillSelf,
     AddCell(Cell),
     Assimilate(u64),
+    Repul(u64, bool), // false: attract, true: push
+    SendEps(u64, bool), // false: recv, true: send
     BlockLight,
 }
 
@@ -151,6 +153,21 @@ fn step_code(c: &mut Cell, occupation: &HashSet<I3>, blocks: &Array3<Block>, cel
 
     let btypes = [Block::Bedrock, Block::Soil, Block::Water, Block::Air];
 
+    let cpi = c.pi.clone();
+    let scan_by_tag = |target_tag: u8| {
+        scan_neighbor(cpi, &|i3, _| {
+            match cell_tags.get(&i3) {
+                Some(&(tag, id)) => {
+                    if target_tag == tag {
+                        return Some(id);
+                    }
+                }
+                None => {},
+            }
+            return None;
+        })
+    };
+
     let mut st_delta = StateDelta::NoChange;
     if inst < 0x04 { // divide
         let btarget = btypes[dst];
@@ -189,9 +206,9 @@ fn step_code(c: &mut Cell, occupation: &HashSet<I3>, blocks: &Array3<Block>, cel
                     ext: false,
                     result: false,
                 };
-                for i in 0..128 {
-                    new_cell.prog[i] = c.prog[128 + i];
-                    c.prog[128 + i] = 0;
+                new_cell.prog[..128].copy_from_slice(&c.prog[128..]);
+                for i in 128..256 {
+                    c.prog[i] = 0;
                 }
                 st_delta = StateDelta::AddCell(new_cell);
                 c.result = true;
@@ -206,26 +223,26 @@ fn step_code(c: &mut Cell, occupation: &HashSet<I3>, blocks: &Array3<Block>, cel
         let I3(x, y, z) = c.pi;
         c.result = btypes[dst] == blocks[(x as usize, y as usize, z as usize)];
     } else if inst < 0x0c { // share * 2
-        // Find cell by tag and move energy between this and that.
-        // TODO: implement
+        c.result = false;
+        match scan_by_tag(c.regs[dst]) {
+            Some(id) => {
+                st_delta = StateDelta::SendEps(id, src & 1 == 0);
+                c.result = true;
+            },
+            None => {},
+        }
     } else if inst < 0x14 { // force * 2
-        // Find cell by tag and apply force between this and that.
-        // TODO: implement
+        c.result = false;
+        match scan_by_tag(c.regs[dst]) {
+            Some(id) => {
+                st_delta = StateDelta::Repul(id, src & 1 == 0);
+                c.result = true;
+            },
+            None => {},
+        }
     } else if inst < 0x1c { // fuse
         // Find nearby cell with specified tag & assimilate its energy and prog.
-        let target_tag = c.regs[dst];
-        let targ_id = scan_neighbor(c.pi, &|i3, ius| {
-            match cell_tags.get(&i3) {
-                Some(&(tag, id)) => {
-                    if target_tag == tag {
-                        return Some(id);
-                    }
-                }
-                None => {},
-            }
-            return None;
-        });
-        match targ_id {
+        match scan_by_tag(c.regs[dst]) {
             Some(id) => {
                 st_delta = StateDelta::Assimilate(id);
                 c.ext = true;
@@ -251,9 +268,13 @@ fn step_code(c: &mut Cell, occupation: &HashSet<I3>, blocks: &Array3<Block>, cel
     } else if inst < 0x24 { // flip
         c.result = !c.result;
     } else if inst < 0x25 { // get-alpha
-        // Get epsilon by converting env's alpha.
-        // Check env.
-        // TODO: implement
+        let I3(x, y, z) = c.pi;
+        if blocks[(x as usize, y as usize, z as usize)] == Block::Water {
+            c.epsilon = c.epsilon.saturating_add(16);
+            c.result = true;
+        } else {
+            c.result = false;
+        }
     } else if inst < 0x26 { // get-phi
         st_delta = StateDelta::BlockLight; // Get epsilon by converting env's phi.
     } else if inst < 0x20 { // RESERVED
@@ -381,11 +402,14 @@ impl World {
                 },
                 StateDelta::KillSelf => {
                     occupation.remove(&cell.pi);
+                    cells_tag.remove(&cell.pi);
                     del_cells.insert(cell.id);
                     continue;
                 },
                 StateDelta::Assimilate(id) => {},
                 StateDelta::BlockLight => {},
+                StateDelta::Repul(id, dir) => {},
+                StateDelta::SendEps(id, dir) => {},
             }
 
             cell.dp.2 -= gravity;
@@ -475,7 +499,7 @@ impl World {
         self.cells.retain(|cell| cell.p.2 >= 0.0 && !del_cells.contains(&cell.id));
         for mut cell in new_cells {
             cell.id = self.issue_id();
-            self.cells.push(cell);
+            // self.cells.push(cell);
         }
 
         // Light transport.

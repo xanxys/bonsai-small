@@ -305,8 +305,7 @@ fn main() {
     thread::spawn(move || {
         let dt_switch = 1e20; // 5.0;
         //let specs = vec![WorldSpec::Creek, WorldSpec::CubeFarm, WorldSpec::TestCellLoad(1000*1000)];
-        let specs = vec![WorldSpec::Creek, WorldSpec::TestCellLoad(1000*1000)];
-
+        let specs = vec![WorldSpec::Creek];
         let mut current_ix = 0;
         let mut last_switch_time = time::precise_time_s();
         let mut w = initializer::create_world(specs[current_ix]);
