@@ -2,12 +2,30 @@ use std::collections::HashSet;
 use std::collections::HashMap;
 use ndarray::prelude::*;
 use std::cmp;
+use std::ops;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct V3(pub f64, pub f64, pub f64);
 
 #[derive(Debug, Hash, Eq, PartialEq, Copy, Clone)]
 pub struct I3(pub i16, pub i16, pub i16);
+
+impl ops::Add for V3 {
+    type Output = V3;
+    fn add(self: V3, V3(ox, oy, oz): V3) -> V3 {
+        let V3(x, y, z) = self;
+        V3(x + ox, y + oy, z + oz)
+    }
+}
+
+impl ops::Sub for V3 {
+    type Output = V3;
+    fn sub(self: V3, V3(ox, oy, oz): V3) -> V3 {
+        let V3(x, y, z) = self;
+        V3(x - ox, y - oy, z - oz)
+    }
+}
+
 
 // TODO: Hide this
 #[inline]
@@ -271,7 +289,7 @@ fn step_code(c: &mut Cell, occupation: &HashSet<I3>, blocks: &Array3<Block>, cel
     } else if inst < 0x25 { // get-alpha
         let I3(x, y, z) = c.pi;
         if blocks[(x as usize, y as usize, z as usize)] == Block::Water {
-            c.epsilon = c.epsilon.saturating_add(16);
+            c.epsilon = c.epsilon.saturating_add(128);
             c.result = true;
         } else {
             c.result = false;
@@ -384,16 +402,18 @@ impl World {
         let gravity = 0.01;
         let dissipation = 0.9;
         let stick = 0.02; // Stronger than gravity.
+        let repul = 0.03;
 
         let mut occupation = self.bedrocks.clone();
 
         // Biochem & Kinetic.
-        for cell in &self.cells {
+        for cell in &mut self.cells {
             occupation.insert(cell.pi.clone());
         }
         let mut new_cells = vec![];
         let mut del_cells = HashSet::new();
         let mut cells_tag = HashMap::new();
+        let mut actions = vec![];
         for cell in &mut self.cells {
             let st_delta = step_code(cell, &occupation, &self.blocks, &cells_tag);
             match st_delta {
@@ -411,8 +431,12 @@ impl World {
                 },
                 StateDelta::Assimilate(id) => {},
                 StateDelta::BlockLight => {},
-                StateDelta::Repul(id, dir) => {},
-                StateDelta::SendEps(id, dir) => {},
+                StateDelta::Repul(id, dir) => {
+                    actions.push((cell.id, st_delta));
+                },
+                StateDelta::SendEps(id, dir) => {
+                    actions.push((cell.id, st_delta));
+                },
             }
 
             cell.dp.2 -= gravity;
@@ -499,13 +523,60 @@ impl World {
                 occupation.remove(&pi_curr);
             }
         }
+        {
+            let mut cell_refs = HashMap::new();
+            for cell in &mut self.cells {
+                cell_refs.insert(cell.id, cell);
+            }
+            for (src_id, action) in actions {
+                match action {
+                    StateDelta::Repul(dst_id, dir) => {
+                        let mut ddp_to_commit = None;
+                        match (cell_refs.get(&src_id), cell_refs.get(&dst_id)) {
+                            (Some(sc), Some(dc)) => {
+                                let mut ddp = if dir {dc.p - sc.p} else {sc.p - dc.p};
+                                ddp.0 *= repul;
+                                ddp.1 *= repul;
+                                ddp.2 *= repul;
+                                ddp_to_commit = Some(ddp);
+                            },
+                            _ => {}
+                        }
+                        match ddp_to_commit {
+                            Some(ddp) => {
+                                cell_refs.get_mut(&src_id).unwrap().dp = cell_refs.get_mut(&src_id).unwrap().dp + ddp;
+                                cell_refs.get_mut(&dst_id).unwrap().dp = cell_refs.get_mut(&dst_id).unwrap().dp - ddp;
+                            },
+                            _ => {}
+                        }
+                    },
+                    StateDelta::SendEps(dst_id, dir) => {
+                        let mut deps = 0;
+                        match (cell_refs.get(&src_id), cell_refs.get(&dst_id)) {
+                            (Some(sc), Some(dc)) => {
+                                if dir {
+                                    deps = cmp::min(sc.epsilon, 255 - dc.epsilon) as i16;
+                                } else {
+                                    deps = -(cmp::min(dc.epsilon, 255 - sc.epsilon) as i16)
+                                }
+                            },
+                            _ => {}
+                        }
+                        cell_refs.get_mut(&src_id).unwrap().epsilon = (cell_refs.get_mut(&src_id).unwrap().epsilon as i16 - deps) as u8;
+                        cell_refs.get_mut(&dst_id).unwrap().epsilon = (cell_refs.get_mut(&dst_id).unwrap().epsilon as i16 + deps) as u8;
+                    },
+                    _ => {},
+                }
+            }
+        }
+
         self.cells.retain(|cell| cell.p.2 >= 0.0 && !del_cells.contains(&cell.id));
         for mut cell in new_cells {
             cell.id = self.issue_id();
             self.cells.push(cell);
         }
 
-        // Light transport.
+        // TODO: Light transport.
 
         self.steps += 1;
     }
