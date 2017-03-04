@@ -145,7 +145,7 @@ fn step_code(c: &mut Cell, occupation: &HashSet<I3>, blocks: &Array3<Block>, cel
     }
     // Execute the instruction.
     c.decay = 0;
-    c.epsilon -= if c.ext {2} else {1};
+    c.epsilon = c.epsilon.saturating_sub(if c.ext {2} else {1});
 
     let inst = c.prog[c.ip as usize];
     let dst = (inst & 3) as usize;
@@ -189,6 +189,7 @@ fn step_code(c: &mut Cell, occupation: &HashSet<I3>, blocks: &Array3<Block>, cel
                 let p = V3(x as f64 + 0.5, y as f64 + 0.5, z as f64 + 0.5);
                 let eps_remain = c.epsilon / 2;
                 let eps_new_cell = c.epsilon - eps_remain;
+                c.epsilon = eps_remain;
 
                 let mut new_cell = Cell{
                     id: 0,
@@ -398,6 +399,8 @@ impl World {
             match st_delta {
                 StateDelta::NoChange => {},
                 StateDelta::AddCell(mut cell) => {
+                    // need to reserve, to prevent other cells to move / spawn there.
+                    occupation.insert(cell.pi);
                     new_cells.push(cell);
                 },
                 StateDelta::KillSelf => {
@@ -499,7 +502,7 @@ impl World {
         self.cells.retain(|cell| cell.p.2 >= 0.0 && !del_cells.contains(&cell.id));
         for mut cell in new_cells {
             cell.id = self.issue_id();
-            // self.cells.push(cell);
+            self.cells.push(cell);
         }
 
         // Light transport.
