@@ -225,6 +225,7 @@ pub fn create_world(spec: WorldSpec) -> physics::World {
             // Reduce randomness in valley to make them look like a dried up river.
             let height_soil = (&valley * 50.0 + land_base(&mut rng) * (&valley * 0.5 + 0.5) * 0.5 + avg_ground_z).mapv(|v| v.min((physics::VSIZE - 1) as f32));
             let height_br = land_base(&mut rng) * 0.01 + 1.0;
+            let height_w = 60;
 
             w.blocks = Array::from_shape_fn(physics::BLOCKS_SHAPE, |(x, y, z)| {
                 if (z as f32) < height_br[(x, y)] {
@@ -235,6 +236,8 @@ pub fn create_world(spec: WorldSpec) -> physics::World {
                     } else {
                         return Block::Soil;
                     }
+                } else if z < height_w {
+                    return Block::Water;
                 } else {
                     return Block::Air;
                 }
