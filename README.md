@@ -43,6 +43,21 @@ TODO: Write more details before I forget
 * Automatically share mutated genome to appengine (or something)
 
 
+## Compilation
+
+### ammo.js
+git clone https://github.com/kripken/ammo.js/
+
+Add following line and re-compile ammo.js using docker.
+```
+interface btGeneric6DofConstraint {
+  ...
+  void setFrames([Const, Ref] btTransform frameA, [Const, Ref] btTransform frameB);
+  ...
+}
+```
+
+
 ## References
 
 Not so massive vegetation evolution simulator in browser. (cf. discontinued "massive" version at https://github.com/xanxys/bonsai).

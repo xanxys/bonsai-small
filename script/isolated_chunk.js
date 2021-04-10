@@ -3,9 +3,10 @@ importScripts('./ammo.js');
 importScripts('./chunk.js');
 importScripts('./genome.js');
 
-function startChunkServer() {
+function startChunkServer(Ammo) {
     let _this = this;
 
+    setChunkAmmo(Ammo);
     this.chunk = new Chunk();
 
     // Should be moved to bonsai.js
@@ -77,4 +78,6 @@ function startChunkServer() {
     });
 };
 
-startChunkServer();
+Ammo().then(function (Ammo) {
+    startChunkServer(Ammo);
+});

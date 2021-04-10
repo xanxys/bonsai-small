@@ -1,4 +1,5 @@
 (function () {
+    let Ammo = null;
 
     if (console.assert === undefined) {
         console.assert = function (cond) {
@@ -873,6 +874,7 @@
 
                         // Update joint between current cell and its parent.
                         let joint = this.cell_to_parent_joint.get(cell);
+                        
                         joint.setFrames(tf_cell, tf_parent);
                     }
                     live_cells.add(cell);
@@ -943,6 +945,7 @@
         return r;
     }
 
+    this.setChunkAmmo = (ammo) => Ammo = ammo;
     this.Chunk = Chunk;
 
 })(this);
