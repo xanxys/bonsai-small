@@ -108,21 +108,21 @@ class Bonsai {
 
         this.age = 0;
 
-        this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.005, 15);
+        this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.5, 1500);
         this.camera.up = new THREE.Vector3(0, 0, 1);
-        this.camera.position.set(0.3, 0.3, 0.4);
+        this.camera.position.set(30, 30, 40);
         this.camera.lookAt(new THREE.Vector3(0, 0, 0));
 
         this.scene = new THREE.Scene();
 
         let sunlight = new THREE.DirectionalLight(0xcccccc);
-        sunlight.position.set(0, 0, 1).normalize();
+        sunlight.position.set(0, 0, 100).normalize();
         this.scene.add(sunlight);
 
         this.scene.add(new THREE.AmbientLight(0x333333));
 
         let bg = new THREE.Mesh(
-            new THREE.IcosahedronGeometry(8, 1),
+            new THREE.IcosahedronGeometry(800, 1),
             new THREE.MeshBasicMaterial({
                 wireframe: true,
                 color: '#ccc'
@@ -152,7 +152,7 @@ class Bonsai {
 
         // add mouse control (do this after canvas insertion)
         this.controls = new TrackballControls(this.camera, this.renderer.domElement);
-        this.controls.maxDistance = 5;
+        this.controls.maxDistance = 500;
 
         // Connect signals
         let _this = this;
@@ -415,11 +415,11 @@ class Bonsai {
     // data :: PlantData
     // return :: THREE.Object3D
     serializeSelection(data_plant) {
-        let padding = new THREE.Vector3(5e-3, 5e-3, 5e-3);
+        let padding = new THREE.Vector3(5e-1, 5e-1, 5e-1);
 
         // Calculate AABB of the plant.
-        let v_min = new THREE.Vector3(1e3, 1e3, 1e3);
-        let v_max = new THREE.Vector3(-1e3, -1e3, -1e3);
+        let v_min = new THREE.Vector3(1e5, 1e5, 1e5);
+        let v_max = new THREE.Vector3(-1e5, -1e5, -1e5);
         data_plant.vertices.forEach(data_vertex => {
             let vertex = new THREE.Vector3().copy(data_vertex);
             v_min.min(vertex);
@@ -444,7 +444,7 @@ class Bonsai {
 
         proxy.position.copy(proxy_center
             .clone()
-            .add(new THREE.Vector3(0, 0, 5e-3 + 1e-3)));
+            .add(new THREE.Vector3(0, 0, 5e-1 + 1e-1)));
 
         return proxy;
     }
@@ -488,14 +488,14 @@ class Bonsai {
         tex.needsUpdate = true;
 
         const soil_plate = new THREE.Mesh(
-            new THREE.BoxGeometry(data.soil.size, data.soil.size, 1e-3),
+            new THREE.BoxGeometry(data.soil.size, data.soil.size, 1e-1),
             new THREE.MeshBasicMaterial({map: tex}));
         proxy.add(soil_plate);
         // hides flipped backside texture
         const soilBackPlate = new THREE.Mesh(
-            new THREE.BoxGeometry(data.soil.size, data.soil.size, 1e-2),
+            new THREE.BoxGeometry(data.soil.size, data.soil.size, 1),
             new THREE.MeshBasicMaterial({color: '#333'}));
-        soilBackPlate.position.set(0, 0, -(1e-2 + 1e-3)/2);
+        soilBackPlate.position.set(0, 0, -(1 + 1e-1)/2);
         proxy.add(soilBackPlate);
 
         return proxy;
