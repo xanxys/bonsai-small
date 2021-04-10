@@ -2,7 +2,7 @@
 
     // protein: carrier of information and matter.
     // Codon, amino acids: Roman character
-    let Signal = {
+    const Signal = {
         // Intrinsic signals.
         GROWTH: 'g',
 
@@ -36,26 +36,28 @@
         DIFF_LF: 'dlf',
     };
 
-    let parseIntrinsicSignal = function (sig) {
+    function parseIntrinsicSignal(sig) {
         let inv_table = {};
-        _.each(Signal, function (signal, name) {
+        for (const [name, signal] of Object.entries(Signal)) {
             inv_table[signal] = name;
-        });
+        }
 
-        let signals_simple = [Signal.GROWTH,
-        Signal.HALF, Signal.CHLOROPLAST,
-        Signal.G_DX, Signal.G_DY, Signal.G_DZ];
+        let signals_simple = [
+            Signal.GROWTH,
+            Signal.HALF, Signal.CHLOROPLAST,
+            Signal.G_DX, Signal.G_DY, Signal.G_DZ];
 
-        let signals_standard = [Signal.LEAF,
-        Signal.SHOOT, Signal.SHOOT_END, Signal.FLOWER];
+        let signals_standard = [
+            Signal.LEAF,
+            Signal.SHOOT, Signal.SHOOT_END, Signal.FLOWER];
 
-        if (_.contains(signals_simple, sig)) {
+        if (signals_simple.includes(sig)) {
             return {
                 long: inv_table[sig],
                 raw: sig,
                 type: 'intrinsic'
             };
-        } else if (_.contains(signals_standard, sig)) {
+        } else if (signals_standard.includes(sig)) {
             return {
                 long: inv_table[sig],
                 raw: sig,
@@ -110,165 +112,157 @@
                 type: 'unknown'
             };
         }
-    };
+    }
 
+    class Genome {
+        constructor() {
+            this.unity = [
+                // Topological
+                {
+                    "tracer_desc": "Diff: Produce leaf.",
+                    "when": [
+                        Signal.SHOOT_END, Signal.GROWTH, Signal.HALF, Signal.HALF, Signal.HALF
+                    ],
+                    "emit": [
+                        Signal.SHOOT, Signal.DIFF_SHM, Signal.DIFF_LF,
+                        Signal.REMOVER + Signal.SHOOT_END
+                    ]
+                },
+                {
+                    "tracer_desc": "Diff: Produce branch.",
+                    "when": [
+                        Signal.SHOOT_END, Signal.GROWTH, Signal.HALF, Signal.HALF],
+                    "emit": [
+                        Signal.SHOOT, Signal.DIFF_SHM, Signal.DIFF_SHS,
+                        Signal.REMOVER + Signal.SHOOT_END
+                    ]
+                },
+                {
+                    "tracer_desc": "Diff: Produce flower.",
+                    "when": [
+                        Signal.SHOOT_END, Signal.INVERT + Signal.GROWTH, Signal.HALF, Signal.HALF],
+                    "emit": [
+                        Signal.FLOWER,
+                        Signal.REMOVER + Signal.SHOOT_END]
+                },
+                // Growth
+                {
+                    "tracer_desc": "Flower growth.",
+                    "when": [
+                        Signal.FLOWER, Signal.HALF, Signal.HALF],
+                    "emit": [
+                        Signal.G_DX, Signal.G_DY, Signal.G_DZ]
+                },
+                {
+                    "tracer_desc": "Leaf elongation.",
+                    "when": [
+                        Signal.LEAF],
+                    "emit": [
+                        Signal.G_DZ],
+                },
+                {
+                    "tracer_desc": "Leaf shape adjustment.",
+                    "when": [
+                        Signal.LEAF, Signal.HALF, Signal.HALF, Signal.HALF, Signal.HALF],
+                    "emit": [
+                        Signal.G_DX, Signal.G_DX, Signal.G_DX, Signal.G_DX, Signal.G_DX, Signal.G_DX, Signal.G_DY]
+                },
+                {
+                    "tracer_desc": "Shoot (end) elongation.",
+                    "when": [
+                        Signal.SHOOT],
+                    "emit": [Signal.G_DZ]
+                },
+                {
+                    "tracer_desc": "Shoot thickening.",
+                    "when": [
+                        Signal.SHOOT_END, Signal.HALF, Signal.HALF, Signal.HALF],
+                    "emit": [Signal.G_DX, Signal.G_DY]
+                },
+                {
+                    "tracer_desc": "Chloroplast generation.",
+                    "when": [
+                        Signal.LEAF, Signal.HALF, Signal.HALF, Signal.HALF],
+                    "emit": [
+                        Signal.CHLOROPLAST]
+                }
+            ];
+        }
 
-    let Genome = function () {
-        this.unity = [
-            // Topological
-            {
-                "tracer_desc": "Diff: Produce leaf.",
-                "when": [
-                    Signal.SHOOT_END, Signal.GROWTH, Signal.HALF, Signal.HALF, Signal.HALF
-                ],
-                "emit": [
-                    Signal.SHOOT, Signal.DIFF_SHM, Signal.DIFF_LF,
-                    Signal.REMOVER + Signal.SHOOT_END
-                ]
-            },
-            {
-                "tracer_desc": "Diff: Produce branch.",
-                "when": [
-                    Signal.SHOOT_END, Signal.GROWTH, Signal.HALF, Signal.HALF],
-                "emit": [
-                    Signal.SHOOT, Signal.DIFF_SHM, Signal.DIFF_SHS,
-                    Signal.REMOVER + Signal.SHOOT_END
-                ]
-            },
-            {
-                "tracer_desc": "Diff: Produce flower.",
-                "when": [
-                    Signal.SHOOT_END, Signal.INVERT + Signal.GROWTH, Signal.HALF, Signal.HALF],
-                "emit": [
-                    Signal.FLOWER,
-                    Signal.REMOVER + Signal.SHOOT_END]
-            },
-            // Growth
-            {
-                "tracer_desc": "Flower growth.",
-                "when": [
-                    Signal.FLOWER, Signal.HALF, Signal.HALF],
-                "emit": [
-                    Signal.G_DX, Signal.G_DY, Signal.G_DZ]
-            },
-            {
-                "tracer_desc": "Leaf elongation.",
-                "when": [
-                    Signal.LEAF],
-                "emit": [
-                    Signal.G_DZ],
-            },
-            {
-                "tracer_desc": "Leaf shape adjustment.",
-                "when": [
-                    Signal.LEAF, Signal.HALF, Signal.HALF, Signal.HALF, Signal.HALF],
-                "emit": [
-                    Signal.G_DX, Signal.G_DX, Signal.G_DX, Signal.G_DX, Signal.G_DX, Signal.G_DX, Signal.G_DY]
-            },
-            {
-                "tracer_desc": "Shoot (end) elongation.",
-                "when": [
-                    Signal.SHOOT],
-                "emit": [Signal.G_DZ]
-            },
-            {
-                "tracer_desc": "Shoot thickening.",
-                "when": [
-                    Signal.SHOOT_END, Signal.HALF, Signal.HALF, Signal.HALF],
-                "emit": [Signal.G_DX, Signal.G_DY]
-            },
-            {
-                "tracer_desc": "Chloroplast generation.",
-                "when": [
-                    Signal.LEAF, Signal.HALF, Signal.HALF, Signal.HALF],
-                "emit": [
-                    Signal.CHLOROPLAST]
+        // Clone "naturally" with mutations.
+        // Since real bio is too complex, use a simple rule that can
+        // diffuse into all states.
+        // return :: Genome
+        naturalClone() {
+            let _this = this;
+
+            let genome = new Genome();
+            genome.unity = this._shuffle(this.unity,
+                function (gene) {
+                    return _this._naturalCloneGene(gene, '');
+                },
+                function (gene) {
+                    return _this._naturalCloneGene(gene, '/Duplicated/');
+                });
+
+            return genome;
+        }
+
+        // flag :: A text to attach to description tracer.
+        // return :: Genome.gene
+        _naturalCloneGene(gene_old, flag) {
+            let _this = this;
+
+            let gene = {};
+
+            gene["when"] = this._shuffle(gene_old["when"],
+                function (sig) { return _this._naturalCloneSignal(sig); },
+                function (sig) { return _this._naturalCloneSignal(sig); });
+            gene["emit"] = this._shuffle(gene_old["emit"],
+                function (sig) { return _this._naturalCloneSignal(sig); },
+                function (sig) { return _this._naturalCloneSignal(sig); });
+
+            gene["tracer_desc"] = flag + gene_old["tracer_desc"];
+            return gene;
+        }
+
+        _naturalCloneSignal(sig) {
+            function random_sig1() {
+                let set = 'abcdefghijklmnopqrstuvwxyz';
+                return set[Math.floor(Math.random() * set.length)];
             }
-        ];
-    };
 
-    // Clone "naturally" with mutations.
-    // Since real bio is too complex, use a simple rule that can
-    // diffuse into all states.
-    // return :: Genome
-    Genome.prototype.naturalClone = function () {
-        let _this = this;
+            let new_sig = '';
+            for (let i = 0; i < sig.length; i++) {
+                if (Math.random() > 0.01) {
+                    new_sig += sig[i];
+                }
+                if (Math.random() < 0.01) {
+                    new_sig += random_sig1();
+                }
+            }
+            return new_sig;
+        }
 
-        let genome = new Genome();
-        genome.unity = this._shuffle(this.unity,
-            function (gene) {
-                return _this._naturalCloneGene(gene, '');
-            },
-            function (gene) {
-                return _this._naturalCloneGene(gene, '/Duplicated/');
+        _shuffle(array, modifier_normal, modifier_dup) {
+            let result = [];
+
+            // 1st pass: Copy with occasional misses.
+            array.forEach(elem => {
+                if (Math.random() > 0.01) {
+                    result.push(modifier_normal(elem));
+                }
             });
 
-        return genome;
-    };
+            // 2nd pass: Occasional duplications.
+            array.forEach(elem => {
+                if (Math.random() < 0.01) {
+                    result.push(modifier_dup(elem));
+                }
+            });
 
-    // flag :: A text to attach to description tracer.
-    // return :: Genome.gene
-    Genome.prototype._naturalCloneGene = function (gene_old, flag) {
-        let _this = this;
-
-        let gene = {};
-
-        gene["when"] = this._shuffle(gene_old["when"],
-            function (sig) { return _this._naturalCloneSignal(sig); },
-            function (sig) { return _this._naturalCloneSignal(sig); });
-        gene["emit"] = this._shuffle(gene_old["emit"],
-            function (sig) { return _this._naturalCloneSignal(sig); },
-            function (sig) { return _this._naturalCloneSignal(sig); });
-
-        gene["tracer_desc"] = flag + gene_old["tracer_desc"];
-        return gene;
-    };
-
-
-    Genome.prototype._naturalCloneSignal = function (sig) {
-        function random_sig1() {
-            let set = 'abcdefghijklmnopqrstuvwxyz';
-            return set[Math.floor(Math.random() * set.length)];
+            return result;
         }
-
-        let new_sig = '';
-        for (let i = 0; i < sig.length; i++) {
-            if (Math.random() > 0.01) {
-                new_sig += sig[i];
-            }
-            if (Math.random() < 0.01) {
-                new_sig += random_sig1();
-            }
-        }
-        return new_sig;
-    };
-
-    Genome.prototype._shuffle = function (array, modifier_normal, modifier_dup) {
-        let result = [];
-
-        // 1st pass: Copy with occasional misses.
-        _.each(array, function (elem) {
-            if (Math.random() > 0.01) {
-                result.push(modifier_normal(elem));
-            }
-        });
-
-        // 2nd pass: Occasional duplications.
-        _.each(array, function (elem) {
-            if (Math.random() < 0.01) {
-                result.push(modifier_dup(elem));
-            }
-        });
-
-        return result;
-    };
-
-    // xs :: [num]
-    // return :: num
-    function sum(xs) {
-        return _.reduce(xs, function (x, y) {
-            return x + y;
-        }, 0);
     }
 
     this.Genome = Genome;

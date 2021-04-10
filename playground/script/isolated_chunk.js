@@ -1,10 +1,9 @@
-importScripts('./underscore.js');
 importScripts('./three.js');
 importScripts('./ammo.js');
 importScripts('./chunk.js');
 importScripts('./genome.js');
 
-let ChunkServer = function () {
+function startChunkServer() {
     let _this = this;
 
     this.chunk = new Chunk();
@@ -12,19 +11,19 @@ let ChunkServer = function () {
     // Should be moved to bonsai.js
     let stress = false;
     if (!stress) {
-        _.each(_.range(-2, 3), function (ix) {
-            _.each(_.range(-2, 3), function (iy) {
+        for (let iy = -2; iy <= 2; iy ++) {
+            for (let ix = -2; ix <= 2; ix ++) {
                 this.current_plant = _this.chunk.add_default_plant(
                     new THREE.Vector3(ix * 0.07, iy * 0.07, 0));
-            });
-        });
+            }
+        }
     } else {
-        _.each(_.range(-15, 16), function (ix) {
-            _.each(_.range(-15, 16), function (iy) {
+        for (let iy = -15; iy <= 15; iy ++) {
+            for (let ix = -15; ix <= 15; ix ++) {
                 this.current_plant = _this.chunk.add_default_plant(
                     new THREE.Vector3(ix * 0.01, iy * 0.01, 0));
-            });
-        });
+            }
+        }
     }
 
     self.addEventListener('message', function (ev) {
@@ -65,12 +64,9 @@ let ChunkServer = function () {
                 });
             }
         } catch (e) {
-            self.postMessage({
-                type: 'exception',
-                data: e.message
-            });
+            console.trace(e);
         }
     });
 };
 
-new ChunkServer();
+startChunkServer();

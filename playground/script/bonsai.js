@@ -1,8 +1,5 @@
 "use strict";
 
-// package imports for underscore
-_.mixin(_.str.exports());
-
 // target :: CanvasElement
 class RealtimePlot {
     constructor(canvas) {
@@ -18,28 +15,28 @@ class RealtimePlot {
 
         let width_main = this.canvas.width - 50;
         let height_main = this.canvas.height;
-        _.each(dataset, function (series) {
+        dataset.forEach(series => {
             if (series.data.length === 0) {
                 return;
             }
 
             // Plan layout
-            let scale_y = height_main / _.max(series.data);
+            let scale_y = height_main / Math.max(...series.data);
             let scale_x = Math.min(2, width_main / series.data.length);
 
             // Draw horizontal line with label
             if (series.show_label) {
                 let step;
-                if (_.max(series.data) < max_steps) {
+                if (Math.max(...series.data) < max_steps) {
                     step = 1;
                 } else {
-                    step = Math.floor(_.max(series.data) / max_steps);
+                    step = Math.floor(Math.max(...series.data) / max_steps);
                     if (step <= 0) {
                         step = series.data / max_steps;
                     }
                 }
 
-                _.each(_.range(0, _.max(series.data) + 1, step), function (yv) {
+                for (let yv = 0; yv < Math.max(...series.data) + 1; yv += step) {
                     let y = height_main - yv * scale_y;
 
                     ctx.beginPath();
@@ -52,12 +49,12 @@ class RealtimePlot {
                     ctx.textAlign = 'right';
                     ctx.fillStyle = '#eee';
                     ctx.fillText(yv, 20, y);
-                });
+                }
             }
 
             // draw line segments
             ctx.beginPath();
-            _.each(series.data, function (data, ix) {
+            series.data.forEach((data, ix) => {
                 if (ix === 0) {
                     ctx.moveTo(ix * scale_x, height_main - data * scale_y);
                 } else {
@@ -260,7 +257,7 @@ class Bonsai {
                     _this.scene.remove(curr_selection);
                     curr_selection = null;
                 }
-                let target_plant_data = _.find(ev.data.data.plants, function (dp) {
+                let target_plant_data = ev.data.data.plants.find(dp => {
                     return dp.id === _this.inspect_plant_id;
                 });
                 if (target_plant_data !== undefined) {
@@ -284,8 +281,6 @@ class Bonsai {
                 _this.updatePlantView(ev.data.data.stat);
             } else if (ev.data.type === 'genome-plant') {
                 _this.updateGenomeView(ev.data.data.genome);
-            } else if (ev.data.type === 'exception') {
-                console.log('Exception ocurred in isolated chunk:', ev.data.data);
             }
         }, false);
 
@@ -296,7 +291,12 @@ class Bonsai {
 
     updatePlantView(stat) {
         $('#info-plant').empty();
-        $('#info-plant').append(JSON.stringify(_.omit(stat, 'cells'), null, 2));
+        
+        const reducedStats = {};
+        Object.assign(reducedStats, stat);
+        delete reducedStats.cells;
+        
+        $('#info-plant').append(JSON.stringify(reducedStats, null, 2));
         $('#info-plant').append($('<br/>'));
 
         if (stat !== null) {
@@ -305,14 +305,14 @@ class Bonsai {
 
             let n_cols = 5;
             let curr_row = null;
-            _.each(stat['cells'], function (cell_stat, ix) {
+            stat['cells'].forEach((cell_stat, ix) => {
                 if (ix % n_cols === 0) {
                     curr_row = $('<tr/>');
                     table.append(curr_row);
                 }
 
                 let stat = {};
-                _.each(cell_stat, function (sig) {
+                cell_stat.forEach(sig => {
                     if (stat[sig] !== undefined) {
                         stat[sig] += 1;
                     } else {
@@ -321,13 +321,13 @@ class Bonsai {
                 });
 
                 let cell_info = $('<div/>');
-                _.each(stat, function (n, sig) {
+                for (const [sig, n] of Object.entries(stat)) {
                     let mult = '';
                     if (n > 1) {
                         mult = '*' + n;
                     }
                     cell_info.append($('<span/>').text(sig + mult));
-                });
+                }
                 curr_row.append($('<td/>').append(cell_info));
             });
         }
@@ -339,7 +339,7 @@ class Bonsai {
             let raws = $('<tr/>');
             let descs = $('<tr/>');
 
-            _.each(sigs, function (sig) {
+            sigs.forEach(sig => {
                 let desc = parseIntrinsicSignal(sig);
 
                 let e_raw = $('<td/>').text(desc.raw);
@@ -365,7 +365,7 @@ class Bonsai {
             return;
         }
 
-        _.each(genome.unity, function (gene) {
+        genome.unity.forEach(gene => {
             let gene_vis = $('<div/>').attr('class', 'gene');
 
             gene_vis.append(gene["tracer_desc"]);
@@ -420,7 +420,7 @@ class Bonsai {
         // Calculate AABB of the plant.
         let v_min = new THREE.Vector3(1e3, 1e3, 1e3);
         let v_max = new THREE.Vector3(-1e3, -1e3, -1e3);
-        _.each(data_plant.vertices, function (data_vertex) {
+        data_plant.vertices.forEach(data_vertex => {
             let vertex = new THREE.Vector3().copy(data_vertex);
             v_min.min(vertex);
             v_max.max(vertex);
@@ -455,7 +455,7 @@ class Bonsai {
         let proxy = new THREE.Object3D();
 
         // de-serialize plants
-        _.each(data.plants, function (data_plant) {
+        data.plants.forEach((data_plant) => {
             let geom = new THREE.Geometry();
             geom.vertices = data_plant.vertices;
             geom.faces = data_plant.faces;
@@ -502,7 +502,7 @@ class Bonsai {
 
     /* UI Handlers */
     handle_step(n) {
-        _.each(_.range(n), function (i) {
+        for (let i = 0; i < n; i++) {
             this.isolated_chunk.postMessage({
                 type: 'step'
             });
@@ -510,7 +510,7 @@ class Bonsai {
                 type: 'stat'
             });
             this.requestPlantStatUpdate();
-        }, this);
+        }
         this.isolated_chunk.postMessage({
             type: 'serialize'
         });

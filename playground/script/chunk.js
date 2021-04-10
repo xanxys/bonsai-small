@@ -16,7 +16,6 @@
         }
     };
 
-
     // Collections of cells that forms a "single" plant.
     // This is not biologically accurate depiction of plants,
     // (e.g. vegetative growth, physics)
@@ -62,7 +61,7 @@
 
 
             // Consume/store in-Plant energy.
-            this.energy += this._power_for_plant() * 1;
+            this.energy += this._powerForPlant() * 1;
 
             if (this.energy <= 0 || !mech_valid) {
                 // die
@@ -79,7 +78,7 @@
 
         // return :: THREE.Object3D<world>
         materialize(merge) {
-            let proxies = _.map(this.cells, cell => {
+            let proxies = this.cells.map(cell => {
                 let m = cell.materializeSingle();
 
                 let trans = new THREE.Vector3();
@@ -110,7 +109,7 @@
         }
 
         get_stat() {
-            let stat_cells = _.map(this.cells, cell => cell.signals);
+            let stat_cells = this.cells.map(cell => cell.signals);
 
             let stat = {};
             stat["#cells"] = stat_cells.length;
@@ -125,8 +124,8 @@
             return this.genome;
         }
 
-        _power_for_plant() {
-            return sum(this.cells.map(cell => cell.power_for_plant()));
+        _powerForPlant() {
+            return sum(this.cells.map(cell => cell.powerForPlant()));
         }
     }
 
@@ -179,7 +178,7 @@
 
         // Return net usable power for Plant.
         // return :: float<Energy>
-        power_for_plant() {
+        powerForPlant() {
             return this.power;
         }
 
@@ -232,7 +231,7 @@
 
         _getPhotoSynthesisEfficiency() {
             // 1:1/2, 2:3/4, etc...
-            let num_chl = sum(_.map(this.signals, function (sig) {
+            let num_chl = sum(this.signals.map(sig => {
                 return (sig === Signal.CHLOROPLAST) ? 1 : 0;
             }));
 
@@ -254,7 +253,7 @@
                     return _this.plant.growth_factor();
                 } else if (signal.length >= 2 && signal[0] === Signal.INVERT) {
                     return 1 - unity_calc_prob_term(signal.substr(1));
-                } else if (_.contains(_this.signals, signal)) {
+                } else if (_this.signals.includes(signal)) {
                     return 1;
                 } else {
                     return 0.001;
@@ -262,13 +261,13 @@
             }
 
             function unity_calc_prob(when) {
-                return product(_.map(when, unity_calc_prob_term));
+                return product(when.map(unity_calc_prob_term));
             }
 
             // Gene expression and transcription.
-            _.each(this.plant.genome.unity, function (gene) {
+            this.plant.genome.unity.forEach(gene => {
                 if (unity_calc_prob(gene['when']) > Math.random()) {
-                    let num_codon = sum(_.map(gene['emit'], function (sig) {
+                    let num_codon = sum(gene['emit'].map(sig => {
                         return sig.length
                     }));
 
@@ -281,7 +280,7 @@
             // Bio-physics.
             // TODO: define remover semantics.
             let removers = {};
-            _.each(this.signals, function (signal) {
+            this.signals.forEach(signal => {
                 if (signal.length >= 2 && signal[0] === Signal.REMOVER) {
                     let rm = signal.substr(1);
                     if (removers[rm] !== undefined) {
@@ -293,7 +292,7 @@
             });
 
             let new_signals = [];
-            _.each(this.signals, function (signal) {
+            this.signals.forEach(signal => {
                 if (signal.length === 3 && signal[0] === Signal.DIFF) {
                     _this.add_cont(signal[1], signal[2]);
                 } else if (signal === Signal.G_DX) {
@@ -311,7 +310,7 @@
             this.signals = new_signals;
 
             // Physics
-            if (_.contains(this.signals, Signal.FLOWER)) {
+            if (this.signals.includes(Signal.FLOWER)) {
                 // Disperse seed once in a while.
                 // TODO: this should be handled by physics, not biology.
                 // Maybe dead cells with stored energy survives when fallen off.
@@ -381,7 +380,7 @@
         // return :: THREE.Mesh
         materializeSingle() {
             // Create cell object [-sx/2,sx/2] * [-sy/2,sy/2] * [0, sz]
-            let flr_ratio = (_.contains(this.signals, Signal.FLOWER)) ? 0.5 : 1;
+            let flr_ratio = (this.signals.includes(Signal.FLOWER)) ? 0.5 : 1;
             let chl_ratio = 1 - this._getPhotoSynthesisEfficiency();
 
             let color_diffuse = new THREE.Color();
@@ -535,25 +534,28 @@
             let _this = this;
 
             // Put Plants to all overlapping 2D uniform grid cells.
-            let ng = 15;
-            let grid = _.map(_.range(0, ng), function (ix) {
-                return _.map(_.range(0, ng), function (iy) {
-                    return [];
-                });
-            });
+            const ng = 15;
+            let grid = new Array(ng);
+            for (let ix = 0; ix < ng; ix++) {
+                const row = new Array(ng);
+                for (let iy = 0; iy < ng; iy++) {
+                    row[iy] = new Array();
+                }
+                grid[ix] = row;
+            }
 
-            _.each(this.chunk.plants, function (plant) {
+            this.chunk.plants.forEach(plant => {
                 let object = plant.materialize(false);
                 object.updateMatrixWorld();
 
                 let v_min = new THREE.Vector3();
                 let v_max = new THREE.Vector3();
                 let v_temp = new THREE.Vector3();
-                _.each(object.children, function (child) {
+                object.children.forEach(child => {
                     // Calculate AABB.
                     v_min.set(1e3, 1e3, 1e3);
                     v_max.set(-1e3, -1e3, -1e3);
-                    _.each(child.geometry.vertices, function (vertex) {
+                    child.geometry.vertices.forEach(vertex => {
                         v_temp.set(vertex.x, vertex.y, vertex.z);
                         child.localToWorld(v_temp);
                         v_min.min(v_temp);
@@ -731,12 +733,12 @@
         // Plant :: must be returned by add_plant
         // return :: ()
         remove_plant(plant) {
-            this.plants = _.without(this.plants, plant);
+            this.plants = this.plants.filter(p => p !== plant);
         }
 
         // return :: dict
         get_stat() {
-            let stored_energy = sum(_.map(this.plants, function (plant) {
+            let stored_energy = sum(this.plants.map(plant => {
                 return plant.energy;
             }));
 
@@ -752,7 +754,7 @@
         // return :: dict | null
         get_plant_stat(id) {
             let stat = null;
-            _.each(this.plants, function (plant) {
+            this.plants.forEach(plant => {
                 if (plant.id === id) {
                     stat = plant.get_stat();
                 }
@@ -763,7 +765,7 @@
         // return :: array | null
         get_plant_genome(id) {
             let genome = null;
-            _.each(this.plants, function (plant) {
+            this.plants.forEach(plant =>{
                 if (plant.id === id) {
                     genome = plant.get_genome();
                 }
@@ -779,13 +781,13 @@
             let sim_stats = {};
 
             t0 = now();
-            _.each(this.plants, function (plant) {
+            this.plants.forEach(plant => {
                 plant.step();
-            }, this);
+            });
 
-            _.each(this.seeds, function (seed) {
+            this.seeds.forEach(seed => {
                 this.add_plant(seed.pos, seed.energy, seed.genome);
-            }, this);
+            });
             this.seeds = [];
             sim_stats['bio/ms'] = now() - t0;
 
@@ -899,7 +901,7 @@
 
         serialize() {
             let ser = {};
-            ser['plants'] = _.map(this.plants, function (plant) {
+            ser['plants'] = this.plants.map(plant => {
                 let mesh = plant.materialize(true);
 
                 return {
@@ -907,7 +909,7 @@
                     'vertices': mesh.geometry.vertices,
                     'faces': mesh.geometry.faces
                 };
-            }, this);
+            });
             ser['soil'] = this.soil.serialize();
 
             return ser;
@@ -915,7 +917,7 @@
 
         // Kill plant with specified id.
         kill(id) {
-            this.plants = _.filter(this.plants, function (plant) {
+            this.plants = this.plants.filter(plant => {
                 return (plant.id !== id);
             });
         }
@@ -924,17 +926,21 @@
     // xs :: [num]
     // return :: num
     function sum(xs) {
-        return _.reduce(xs, function (x, y) {
-            return x + y;
-        }, 0);
+        let r = 0;
+        for (const x of xs) {
+            r += x;
+        }
+        return r;
     }
 
     // xs :: [num]
     // return :: num
     function product(xs) {
-        return _.reduce(xs, function (x, y) {
-            return x * y;
-        }, 1);
+        let r = 1;
+        for (const x of xs) {
+            r *= x;
+        }
+        return r;
     }
 
     this.Chunk = Chunk;
