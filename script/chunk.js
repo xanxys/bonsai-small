@@ -1,4 +1,5 @@
 (function () {
+    let Ammo = null;
 
     if (console.assert === undefined) {
         console.assert = function (cond) {
@@ -147,9 +148,9 @@
 
             // in-sim (phys + bio)
             this.loc_to_parent = new THREE.Quaternion();
-            this.sx = 5e-3;
-            this.sy = 5e-3;
-            this.sz = 5e-3;
+            this.sx = 0.5;
+            this.sy = 0.5;
+            this.sz = 0.5;
             this.loc_to_world = new THREE.Matrix4();
 
             // in-sim (bio)
@@ -162,7 +163,7 @@
         }
 
         getMass() {
-            return 1e3 * this.sx * this.sy * this.sz;  // kg
+            return 1e-3 * this.sx * this.sy * this.sz;  // kg
         }
 
         // sub_cell :: Cell
@@ -216,7 +217,7 @@
             delta_static -= 100 * 1e-9;
 
             // -: linear-volume consumption (stands for cell substrate maintainance)
-            let volume_consumption = 1.0;
+            let volume_consumption = 1e-6;
             delta_static -= this.sx * this.sy * this.sz * volume_consumption;
 
             this.photons = 0;
@@ -296,11 +297,11 @@
                 if (signal.length === 3 && signal[0] === Signal.DIFF) {
                     _this.add_cont(signal[1], signal[2]);
                 } else if (signal === Signal.G_DX) {
-                    _this.sx = Math.min(0.05, _this.sx + 1e-3);
+                    _this.sx = Math.min(5, _this.sx + 0.1);
                 } else if (signal === Signal.G_DY) {
-                    _this.sy = Math.min(0.05, _this.sy + 1e-3);
+                    _this.sy = Math.min(5, _this.sy + 0.1);
                 } else if (signal === Signal.G_DZ) {
-                    _this.sz = Math.min(0.05, _this.sz + 1e-3);
+                    _this.sz = Math.min(5, _this.sz + 0.1);
                 } else if (removers[signal] !== undefined && removers[signal] > 0) {
                     removers[signal] -= 1;
                 } else {
@@ -524,6 +525,7 @@
 
             // number of photos that hit ground.
             this.shadow_map = new Float32Array(this.n * this.n);
+            this.updateShadowMapHierarchical();
         }
 
         step() {
@@ -627,6 +629,7 @@
         }
     }
 
+    const AMMO_SCALE = 1;
 
     // A chunk is non-singleton, finite patch of space containing bunch of plants, soil,
     // and light field.
@@ -635,7 +638,7 @@
     class Chunk {
         constructor() {
             // Chunk spatial constants.
-            this.size = 0.5;
+            this.size = 50;
 
             // tracer
             this.age = 0;
@@ -661,7 +664,7 @@
             let overlappingPairCache = new Ammo.btDbvtBroadphase();
             let solver = new Ammo.btSequentialImpulseConstraintSolver();
             let rigid_world = new Ammo.btDiscreteDynamicsWorld(dispatcher, overlappingPairCache, solver, collision_configuration);
-            rigid_world.setGravity(new Ammo.btVector3(0, 0, -1));
+            rigid_world.setGravity(new Ammo.btVector3(0, 0, -100));
 
             // Add ground.
             let ground_shape = new Ammo.btStaticPlaneShape(new Ammo.btVector3(0, 0, 1), 0);
@@ -797,7 +800,7 @@
 
             t0 = now();
             this._export_plants_to_rigid();
-            this.rigid_world.stepSimulation(0.04, 5);
+            this.rigid_world.stepSimulation(0.04, 2);
             this._update_plants_from_rigid();
             sim_stats['rigid/ms'] = now() - t0;
 
@@ -873,6 +876,7 @@
 
                         // Update joint between current cell and its parent.
                         let joint = this.cell_to_parent_joint.get(cell);
+                        
                         joint.setFrames(tf_cell, tf_parent);
                     }
                     live_cells.add(cell);
@@ -943,6 +947,7 @@
         return r;
     }
 
+    this.setChunkAmmo = (ammo) => Ammo = ammo;
     this.Chunk = Chunk;
 
 })(this);

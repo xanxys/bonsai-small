@@ -1,35 +1,28 @@
 importScripts('./three.js');
-importScripts('./ammo.js');
+importScripts('./ammo.wasm.js');
 importScripts('./chunk.js');
 importScripts('./genome.js');
 
-function startChunkServer() {
+function startChunkServer(Ammo) {
     let _this = this;
 
+    setChunkAmmo(Ammo);
     this.chunk = new Chunk();
 
     // Should be moved to bonsai.js
-    let stress = false;
-    if (!stress) {
-        
+    let stressTest = false;
+    if (!stressTest) {
         for (let iy = -2; iy <= 2; iy ++) {
             for (let ix = -2; ix <= 2; ix ++) {
                 this.current_plant = _this.chunk.add_default_plant(
-                    new THREE.Vector3(ix * 0.07, iy * 0.07, 0));
+                    new THREE.Vector3(ix * 7, iy * 7, 0));
             }
         }
-        
-
-        /*
-        _this.chunk.add_default_plant(
-            new THREE.Vector3(0, 0, 0));
-            */
-        
     } else {
-        for (let iy = -15; iy <= 15; iy ++) {
-            for (let ix = -15; ix <= 15; ix ++) {
+        for (let iy = -10; iy <= 10; iy ++) {
+            for (let ix = -10; ix <= 10; ix ++) {
                 this.current_plant = _this.chunk.add_default_plant(
-                    new THREE.Vector3(ix * 0.01, iy * 0.01, 0));
+                    new THREE.Vector3(ix * 3, iy * 3, 0));
             }
         }
     }
@@ -75,6 +68,10 @@ function startChunkServer() {
             console.trace(e);
         }
     });
+
+    self.postMessage({type: 'init-complete'});
 };
 
-startChunkServer();
+Ammo().then(function (Ammo) {
+    startChunkServer(Ammo);
+});

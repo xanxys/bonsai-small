@@ -6,48 +6,39 @@
 
 	<meta charset="utf-8" />
 
-	<link href="./common.css" rel="stylesheet" type="text/css" />
+	<link href="./ui_asset/common.css" rel="stylesheet" type="text/css" />
 	<link rel="icon" href="./favicon.png" type="image/png" />
-
-	<script src="script/stats.min.js"></script>
-	<script src="script/three.js"></script>
-	<script src="script/TrackballControls.js"></script>
-	<script src="script/genome.js"></script>
-	<script src="script/chunk.js"></script>
-	<script src="script/jquery.js"></script>
-	<script src="script/bonsai.js"></script>
 </head>
 
 <body>
 	<div class="logo">
 		<span class="logo-text">Bonsai</span>
-		<!-- <a href="http://www.xanxys.net/bonsai-info">info</a> -->
 	</div>
 
 	<div class="column-buttons">
 		<button id="button_toggle_time" class="active" title="Open/close time control panel.">
-			<img src="icon_time.png" />
+			<img src="ui_asset/icon_time.png" />
 		</button>
 		<button id="button_toggle_chunk" title="Open/close chunk statistics panel.">
-			<img src="icon_chunk.png" />
+			<img src="ui_asset/icon_chunk.png" />
 		</button>
 		<button id="button_toggle_chart" title="Open/close energy and population history.">
-			<img src="icon_chart.png" />
+			<img src="ui_asset/icon_chart.png" />
 		</button>
 
 		<hr />
 
 		<button id="button_toggle_plant" title="Open/close plant statistics.">
-			<img src="icon_plant.png" />
+			<img src="ui_asset/icon_plant.png" />
 		</button>
 		<button id="button_toggle_genome" title="Open/close genome view.">
-			<img src="icon_genome.png" />
+			<img src="ui_asset/icon_genome.png" />
 		</button>
 
 		<hr />
 
 		<button id="button_toggle_about" title="Open/close about.">
-			<img src="icon_about.png" />
+			<img src="ui_asset/icon_about.png" />
 		</button>
 	</div>
 
@@ -150,34 +141,24 @@
 				</li>
 			</ul>
 
-
 			<h2>Problems...?</h2>
 			<p>
 				You need a browser with WebGL &amp; Web Worker support.
 				Also bonsai is only tested on Chrome/Linux.
 			</p>
-
-			<p>
-				If something seems wrong, your options are:
-			<ol>
-				<li>Try using <a href="https://google.com/chrome">Chrome</a></li>
-				<li>Raise <a href="https://bitbucket.org/xanxys/bonsai/issues">an Issue</a> (or send a pull request
-					fixing it)</li>
-				<li>Just give up</li>
-			</ol>
-			</p>
-
-			<h2>Liked?</h2>
-			<a href="https://twitter.com/share" class="twitter-share-button" data-text="Bonsai" data-via="xanxys_"
-				data-count="none">Tweet</a>
-			<script>!function (d, s, id) { var js, fjs = d.getElementsByTagName(s)[0], p = /^http:/.test(d.location) ? 'http' : 'https'; if (!d.getElementById(id)) { js = d.createElement(s); js.id = id; js.src = p + '://platform.twitter.com/widgets.js'; fjs.parentNode.insertBefore(js, fjs); } }(document, 'script', 'twitter-wjs');</script>
-
 		</div>
 	</div>
 
 	<div id="main"></div>
 
-	<!-- %%$$ANALYTICS$$%% -->
+	<script src="script/stats.min.js"></script>
+	<script src="script/three.js"></script>
+	<script src="script/TrackballControls.js"></script>
+	<script src="script/genome.js"></script>
+	<script src="script/chunk.js"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"
+		integrity="sha512-894YE6QWD5I59HgZOGReFYm4dnWc1Qt5NtvYSaNcOP+u1T9qYdvdihz0PPSiiqn/+/3e7Jo4EaG7TubfWGUrMQ==" crossorigin="anonymous"></script>
+	<script src="script/bonsai.js"></script>
 </body>
 
 </html>

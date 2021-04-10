@@ -1,9 +1,7 @@
 # bonsai-small
-![logo](/playground/favicon.png)
+![logo](/favicon.png)
 
-Not so massive vegetation evolution simulator in browser. (cf. discontinued "massive" version at https://github.com/xanxys/bonsai).
-
-You can try hosted one at [bonsai](http://www.xanxys.net/bonsai), which is somewhat stable "production" version I push occasionally.
+Try at https://xanxys.github.io/bonsai-small.
 
 ## Model Overview
 ![Screenvideo](/summary.gif)
@@ -43,3 +41,23 @@ TODO: Write more details before I forget
 * More complex landscape
 * Soil physics (root strength? & water?)
 * Automatically share mutated genome to appengine (or something)
+
+
+## Compilation
+
+### ammo.js
+git clone https://github.com/kripken/ammo.js/
+
+Add following line and re-compile ammo.js using docker.
+```
+interface btGeneric6DofConstraint {
+  ...
+  void setFrames([Const, Ref] btTransform frameA, [Const, Ref] btTransform frameB);
+  ...
+}
+```
+
+
+## References
+
+Not so massive vegetation evolution simulator in browser. (cf. discontinued "massive" version at https://github.com/xanxys/bonsai).
