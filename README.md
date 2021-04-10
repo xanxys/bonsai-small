@@ -1,5 +1,5 @@
 # bonsai-small
-![logo](/playground/favicon.png)
+![logo](/favicon.png)
 
 Not so massive vegetation evolution simulator in browser. (cf. discontinued "massive" version at https://github.com/xanxys/bonsai).
 
