@@ -1,3 +1,0 @@
-You need to run HTTP server to avoid cross-origin restriction for local files.
-A simple way to do that is to run `python -m SimpleHTTPServer 8000` and then go to
-[http://localhost:8000].
