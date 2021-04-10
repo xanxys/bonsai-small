@@ -1,5 +1,5 @@
 importScripts('./three.js');
-importScripts('./ammo.js');
+importScripts('./ammo.wasm.js');
 importScripts('./chunk.js');
 importScripts('./genome.js');
 
