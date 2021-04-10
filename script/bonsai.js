@@ -452,19 +452,16 @@ class Bonsai {
     // data :: ChunkData
     // return :: THREE.Object3D
     deserialize(data) {
-        let proxy = new THREE.Object3D();
+        const proxy = new THREE.Object3D();
 
         // de-serialize plants
+        const plantMat = new THREE.MeshLambertMaterial({vertexColors: true});
         data.plants.forEach((data_plant) => {
-            let geom = new THREE.Geometry();
+            const geom = new THREE.Geometry();
             geom.vertices = data_plant.vertices;
             geom.faces = data_plant.faces;
 
-            let mesh = new THREE.Mesh(geom,
-                new THREE.MeshLambertMaterial({
-                    vertexColors: THREE.VertexColors
-                }));
-
+            const mesh = new THREE.Mesh(geom, plantMat);
             mesh.plant_id = data_plant.id;
             mesh.plant_data = data_plant;
             proxy.add(mesh);
@@ -490,12 +487,16 @@ class Bonsai {
         let tex = new THREE.Texture(canvas);
         tex.needsUpdate = true;
 
-        let soil_plate = new THREE.Mesh(
-            new THREE.CubeGeometry(data.soil.size, data.soil.size, 1e-3),
-            new THREE.MeshBasicMaterial({
-                map: tex
-            }));
+        const soil_plate = new THREE.Mesh(
+            new THREE.BoxGeometry(data.soil.size, data.soil.size, 1e-3),
+            new THREE.MeshBasicMaterial({map: tex}));
         proxy.add(soil_plate);
+        // hides flipped backside texture
+        const soilBackPlate = new THREE.Mesh(
+            new THREE.BoxGeometry(data.soil.size, data.soil.size, 1e-2),
+            new THREE.MeshBasicMaterial({color: '#333'}));
+        soilBackPlate.position.set(0, 0, -(1e-2 + 1e-3)/2);
+        proxy.add(soilBackPlate);
 
         return proxy;
     }
