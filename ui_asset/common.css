@@ -130,10 +130,6 @@ canvas {
 
 
 /* Windows */
-.debug {
-	display: none;
-}
-
 .pane-panel {
 	margin-bottom: 0;
 	padding-left: 10px;
@@ -141,7 +137,7 @@ canvas {
 
 	overflow: hidden;
 	width: 400px;
-	display: none;
+	display: block;
 	margin-bottom: 10px;
 	min-height: 50px;
 	opacity: 0.9;

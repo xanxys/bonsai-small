@@ -1,85 +1,15 @@
 "use strict";
 
-// target :: CanvasElement
-class RealtimePlot {
-    constructor(canvas) {
-        this.canvas = canvas;
-        this.context = canvas.getContext('2d');
-    }
-
-    update(dataset) {
-        let ctx = this.context;
-        let max_steps = 5;
-
-        ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-
-        let width_main = this.canvas.width - 50;
-        let height_main = this.canvas.height;
-        dataset.forEach(series => {
-            if (series.data.length === 0) {
-                return;
-            }
-
-            // Plan layout
-            let scale_y = height_main / Math.max(...series.data);
-            let scale_x = Math.min(2, width_main / series.data.length);
-
-            // Draw horizontal line with label
-            if (series.show_label) {
-                let step;
-                if (Math.max(...series.data) < max_steps) {
-                    step = 1;
-                } else {
-                    step = Math.floor(Math.max(...series.data) / max_steps);
-                    if (step <= 0) {
-                        step = series.data / max_steps;
-                    }
-                }
-
-                for (let yv = 0; yv < Math.max(...series.data) + 1; yv += step) {
-                    let y = height_main - yv * scale_y;
-
-                    ctx.beginPath();
-                    ctx.moveTo(0, y);
-                    ctx.lineTo(width_main, y);
-                    ctx.strokeStyle = '#888';
-                    ctx.lineWidth = 3;
-                    ctx.stroke();
-
-                    ctx.textAlign = 'right';
-                    ctx.fillStyle = '#eee';
-                    ctx.fillText(yv, 20, y);
-                }
-            }
-
-            // draw line segments
-            ctx.beginPath();
-            series.data.forEach((data, ix) => {
-                if (ix === 0) {
-                    ctx.moveTo(ix * scale_x, height_main - data * scale_y);
-                } else {
-                    ctx.lineTo(ix * scale_x, height_main - data * scale_y);
-                }
-            });
-            ctx.lineWidth = 2;
-            ctx.strokeStyle = series.color;
-            ctx.stroke();
-
-            ctx.textAlign = 'left';
-            ctx.fillStyle = series.color;
-            ctx.fillText(
-                series.label,
-                series.data.length * scale_x,
-                height_main - series.data[series.data.length - 1] * scale_y + 10);
-        });
-    }
-}
+Vue.component('line-plot', Vue.extend({
+    extends: VueChartJs.Line,
+    mixins: [VueChartJs.mixins.reactiveProp],
+    props: ['options'],
+    mounted: function() {
+        this.renderChart(this.chartData, this.options);
+    },
+}));
 
 
-// Separate into
-// 1. master class (holds chunk worker)
-// 1': 3D GUI class
-// 2. Panel GUI class
 class Bonsai {
     constructor() {
         this.debug = (location.hash === '#debug');
@@ -104,8 +34,6 @@ class Bonsai {
 
     // return :: ()
     init() {
-        this.chart = new RealtimePlot($('#history')[0]);
-
         this.age = 0;
 
         this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.5, 1500);
@@ -130,7 +58,6 @@ class Bonsai {
         this.scene.add(bg);
 
         // UI state
-        this.playing = null;
         this.num_plant_history = [];
         this.energy_history = [];
 
@@ -148,12 +75,14 @@ class Bonsai {
         });
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         this.renderer.setClearColor('#eee');
-        $('#main').append(this.renderer.domElement);
+
+        document.getElementById('main').append(this.renderer.domElement);
 
         // add mouse control (do this after canvas insertion)
         this.controls = new TrackballControls(this.camera, this.renderer.domElement);
         this.controls.maxDistance = 500;
 
+ 
         // Connect signals
         this.controls.on_click = (pos_ndc) => {
             let caster = new THREE.Raycaster();
@@ -175,53 +104,133 @@ class Bonsai {
             }
         };
 
-        $('.column-buttons button').on('click', (ev) => {
-            let target = $(ev.currentTarget);
+        const app = this;
+        this.vm = new Vue({
+            el: '#ui',
+            data: {
+                timePanelVisible: true,
+                chunkPanelVisible: false,
+                chartPanelVisible: false,
+                plantPanelVisible: false,
+                genomePanelVisible: false,
+                aboutPanelVisible: false,
 
-            let button_window_table = {
-                button_toggle_time: 'bg-time',
-                button_toggle_chunk: 'bg-chunk',
-                button_toggle_chart: 'bg-chart',
-                button_toggle_plant: 'bg-plant',
-                button_toggle_genome: 'bg-genome',
-                button_toggle_about: 'bg-about',
-            };
+                playing: false,
+                age: 0,
 
-            target.toggleClass('active');
-            if (this.debug) {
-                $('.' + button_window_table[target[0].id]).toggle();
-            } else {
-                $('.' + button_window_table[target[0].id] + ':not(.debug)').toggle();
-            }
-        });
+                historydata: {},
+                historyoption: {
+                    color: '#fff',
+                    backgroundColor: '#eee',
+                    borderColor: '#ccc',
+                    responsive: false,
+                    maintainAspectRatio: false,
+                    animation: false, // line drawing can't catch up dynamic update with animation on
+                    elements: {
+                        point:{
+                            radius: 1,
+                        }
+                    },
+                    scales: {
+                        y: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
 
-        $('#button_play').on('click', () => {
-            if (this.playing) {
-                this.playing = false;
-                $('#button_play').html('&#x25b6;'); // play symbol
-            } else {
-                this.playing = true;
-                this.handle_step(1);
-                $('#button_play').html('&#x25a0;'); // stop symbol
-            }
-        });
+                            ticks: {
+                                color: '#fff',
+                            },
+                            
+                        },
+                        y1: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            ticks: {
+                                color: '#fff',
+                            },
 
-        $('#button_step1').on('click', () => {
-            this.playing = false;
-            $('#button_play').html('&#x25b6;'); // play symbol
-            this.handle_step(1);
-        });
+                            // grid line settings
+                            grid: {
+                                drawOnChartArea: false, // only want the grid lines for one axis to show up
+                            },
+                        },
+                    },
+                },
+            },
+            methods: {
+                onClickToggleTime: function() {
+                    this.timePanelVisible = !this.timePanelVisible;
+                },
+                onClickToggleChunk: function() {
+                    this.chunkPanelVisible = !this.chunkPanelVisible;
+                },
+                onClickToggleChart: function() {
+                    this.chartPanelVisible = !this.chartPanelVisible;
+                },
+                onClickTogglePlant: function() {
+                    this.plantPanelVisible = !this.plantPanelVisible;
+                },
+                onClickToggleGenome: function() {
+                    this.genomePanelVisible = !this.genomePanelVisible;
+                },
+                onClickToggleAbout: function() {
+                    this.aboutPanelVisible = !this.aboutPanelVisible;
+                },
 
-        $('#button_step10').on('click', () => {
-            this.playing = false;
-            $('#button_play').html('&#x25b6;'); // play symbol
-            this.handle_step(10);
-        });
+                onClickPlay: function() {
+                    if (this.playing) {
+                        this.playing = false;
+                    } else {
+                        this.playing = true;
+                        this.execStep(1);
+                    }
+                },
+                onClickStep: function(n) {
+                    this.playing = false;
+                    this.execStep(n);
+                },
 
-        $('#button_step50').on('click', () => {
-            this.playing = false;
-            $('#button_play').html('&#x25b6;'); // play symbol
-            this.handle_step(50);
+                execStep: function(n) {
+                    for (let i = 0; i < n; i++) {
+                        app.isolated_chunk.postMessage({
+                            type: 'step'
+                        });
+                        app.isolated_chunk.postMessage({
+                            type: 'stat'
+                        });
+                        app.requestPlantStatUpdate();
+                    }
+                    app.isolated_chunk.postMessage({
+                        type: 'serialize'
+                    });
+                    this.age += n;
+                },
+
+                updateGraph: function() {
+                    const timestamps = [];
+                    for (let i = 0; i < this.age; i++) {
+                        timestamps.push(i + 1);
+                    }
+                    
+                    this.historydata = {
+                        labels: timestamps,
+                        datasets: [
+                            {
+                                label: '#plants',
+                                data: app.num_plant_history
+                            },
+                            {
+                                label: 'stored energy',
+                                data: app.energy_history,
+                                backgroundColor: '#afa',
+                                borderColor: '#afa',
+                                yAxisID: 'y1',
+                            }
+                        ]
+                    };
+                },
+            },
         });
 
         $('#button_kill').on('click', () => {
@@ -270,14 +279,14 @@ class Bonsai {
             } else if (ev.data.type === 'stat-chunk') {
                 this.num_plant_history.push(ev.data.data["plant"]);
                 this.energy_history.push(ev.data.data["stored/E"]);
-                this.updateGraph();
+                this.vm.updateGraph();
 
                 $('#info-chunk').text(JSON.stringify(ev.data.data, null, 2));
             } else if (ev.data.type === 'stat-sim') {
                 $('#info-sim').text(JSON.stringify(ev.data.data, null, 2));
-                if (this.playing) {
+                if (this.vm.playing) {
                     setTimeout(() => {
-                        this.handle_step(1);
+                        this.vm.execStep(1);
                     }, 100);
                 }
             } else if (ev.data.type === 'stat-plant') {
@@ -286,8 +295,6 @@ class Bonsai {
                 this.updateGenomeView(ev.data.data.genome);
             }
         }, false);
-
-
     }
 
     updatePlantView(stat) {
@@ -376,24 +383,6 @@ class Bonsai {
 
             target.append(gene_vis);
         });
-    }
-
-    // return :: ()
-    updateGraph() {
-        this.chart.update([
-            {
-                show_label: true,
-                data: this.num_plant_history,
-                color: '#eee',
-                label: 'Num Plants',
-            },
-            {
-                show_label: false,
-                data: this.energy_history,
-                color: '#e88',
-                label: 'Total Energy',
-            }
-        ]);
     }
 
     // return :: ()
@@ -500,25 +489,6 @@ class Bonsai {
         proxy.add(soilBackPlate);
 
         return proxy;
-    }
-
-    /* UI Handlers */
-    handle_step(n) {
-        for (let i = 0; i < n; i++) {
-            this.isolated_chunk.postMessage({
-                type: 'step'
-            });
-            this.isolated_chunk.postMessage({
-                type: 'stat'
-            });
-            this.requestPlantStatUpdate();
-        }
-        this.isolated_chunk.postMessage({
-            type: 'serialize'
-        });
-        this.age += n;
-
-        $('#ui_abs_time').text(this.age + 'T');
     }
 
     /* UI Utils */
