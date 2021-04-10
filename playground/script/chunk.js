@@ -797,7 +797,7 @@
 
             t0 = now();
             this._export_plants_to_rigid();
-            this.rigid_world.stepSimulation(1 / 60, 0);  // 1 tick = 1/60 sec. Soooo fake phnysics...
+            this.rigid_world.stepSimulation(0.04, 5);
             this._update_plants_from_rigid();
             sim_stats['rigid/ms'] = now() - t0;
 
@@ -850,15 +850,15 @@
                         // Add a joint to the parent (another Cell or Soil).
                         let parent_rb = cell.parent_cell === null ? this.ground_rb : this.cell_to_rigid_body.get(cell.parent_cell);
                         let joint = new Ammo.btGeneric6DofSpringConstraint(rb, parent_rb, tf_cell, tf_parent, true);
-                        joint.setAngularLowerLimit(new Ammo.btVector3(0, 0, 0));
-                        joint.setAngularUpperLimit(new Ammo.btVector3(0, 0, 0));
-                        joint.setLinearLowerLimit(new Ammo.btVector3(0, 0, 0));
-                        joint.setLinearUpperLimit(new Ammo.btVector3(0, 0, 0));
-                        [3, 4, 5].forEach(ix => {
+                        joint.setAngularLowerLimit(new Ammo.btVector3(0.01, 0.01, 0.01));
+                        joint.setAngularUpperLimit(new Ammo.btVector3(-0.01, -0.01, -0.01));
+                        joint.setLinearLowerLimit(new Ammo.btVector3(0.01, 0.01, 0.01));
+                        joint.setLinearUpperLimit(new Ammo.btVector3(-0.01, -0.01, -0.01));
+                        [0, 1, 2, 3, 4, 5].forEach(ix => {
                             joint.enableSpring(ix, true);
-                            joint.setStiffness(ix, 1e3);
-                            joint.setDamping(ix, 0.3);
-                        });  // rotation axes
+                            joint.setStiffness(ix, 100);
+                            joint.setDamping(ix, 0.1);
+                        });
                         joint.setBreakingImpulseThreshold(100);
                         this.rigid_world.addConstraint(joint, true /* no collision between neighbors */);
                         this.cell_to_parent_joint.set(cell, joint);

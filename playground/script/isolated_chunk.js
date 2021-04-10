@@ -11,12 +11,20 @@ function startChunkServer() {
     // Should be moved to bonsai.js
     let stress = false;
     if (!stress) {
+        
         for (let iy = -2; iy <= 2; iy ++) {
             for (let ix = -2; ix <= 2; ix ++) {
                 this.current_plant = _this.chunk.add_default_plant(
                     new THREE.Vector3(ix * 0.07, iy * 0.07, 0));
             }
         }
+        
+
+        /*
+        _this.chunk.add_default_plant(
+            new THREE.Vector3(0, 0, 0));
+            */
+        
     } else {
         for (let iy = -15; iy <= 15; iy ++) {
             for (let ix = -15; ix <= 15; ix ++) {
