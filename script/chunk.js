@@ -525,6 +525,7 @@
 
             // number of photos that hit ground.
             this.shadow_map = new Float32Array(this.n * this.n);
+            this.updateShadowMapHierarchical();
         }
 
         step() {

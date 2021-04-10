@@ -68,6 +68,8 @@ function startChunkServer(Ammo) {
             console.trace(e);
         }
     });
+
+    self.postMessage({type: 'init-complete'});
 };
 
 Ammo().then(function (Ammo) {
