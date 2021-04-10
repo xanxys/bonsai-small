@@ -1,941 +1,942 @@
-(function() {
+(function () {
 
-if(console.assert === undefined) {
-  console.assert = function(cond) {
-    if(!cond) {
-      throw "assertion failed";
-    }
-  };
-}
-
-let now = function() {
-  if(typeof performance !== 'undefined') {
-    return performance.now();
-  } else {
-    return new Date().getTime();
-  }
-};
-
-
-// Collections of cells that forms a "single" plant.
-// This is not biologically accurate depiction of plants,
-// (e.g. vegetative growth, physics)
-// Most plants seems to have some kind of information sharing system within them
-// via transportation of regulation growth factors.
-//
-// 100% efficiency, 0-latency energy storage and transportation within Plant.
-// (n.b. energy = power * time)
-//
-// position :: THREE.Vector3<World>
-class Plant {
-  constructor(position, unsafe_chunk, energy, genome, plant_id) {
-    this.unsafe_chunk = unsafe_chunk;
-
-    // tracer
-    this.age = 0;
-    this.id = plant_id;
-
-    // physics
-    this.seed_innode_to_world = new THREE.Matrix4().compose(
-      position,
-      new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.random() * 2 * Math.PI),
-      new THREE.Vector3(1, 1, 1));
-    this.position = position;
-
-    // biophysics
-    this.energy = energy;
-    this.seed = new Cell(this, Signal.SHOOT_END, null);  // being deprecated
-    this.seed.initPose(this.seed_innode_to_world);
-    this.cells = [this.seed];  // flat cells in world coords
-
-    // genetics
-    this.genome = genome;
-  }
-
-  step() {
-    // Step cells (w/o collecting/stepping separation, infinite growth will occur)
-    this.age += 1;
-    this.cells.forEach(cell => cell.step());
-    console.assert(this.seed.age === this.age);
-
-    let mech_valid = true;
-
-
-    // Consume/store in-Plant energy.
-    this.energy += this._power_for_plant() * 1;
-
-    if(this.energy <= 0 || !mech_valid) {
-      // die
-      this.unsafe_chunk.remove_plant(this);
-    }
-  }
-
-  // Approximates lifetime of the plant.
-  // Max growth=1, zero growth=0.
-  // return :: [0,1]
-  growth_factor() {
-    return Math.exp(-this.age / 20);
-  }
-
-  // return :: THREE.Object3D<world>
-  materialize(merge) {
-    let proxies = _.map(this.cells, cell => {
-      let m = cell.materializeSingle();
-
-      let trans = new THREE.Vector3();
-      let q = new THREE.Quaternion();
-      let s = new THREE.Vector3();
-      cell.loc_to_world.decompose(trans, q, s);
-
-      m.cell = cell;
-      m.position.copy(trans);
-      m.quaternion.copy(q);
-      return m;
-    });
-
-    if(merge) {
-      let merged_geom = new THREE.Geometry();
-      proxies.forEach(proxy => merged_geom.mergeMesh(proxy));
-
-      let merged_plant = new THREE.Mesh(
-        merged_geom,
-        new THREE.MeshLambertMaterial({vertexColors: THREE.VertexColors}));
-
-      return merged_plant;
-    } else {
-      let three_plant = new THREE.Object3D();
-      proxies.forEach(proxy => three_plant.add(proxy));
-      return three_plant;
-    }
-  }
-
-  get_stat() {
-    let stat_cells = _.map(this.cells, cell => cell.signals);
-
-    let stat = {};
-    stat["#cells"] = stat_cells.length;
-    stat['cells'] = stat_cells;
-    stat['age/T'] = this.age;
-    stat['stored/E'] = this.energy;
-    stat['delta/(E/T)'] = this._powerForPlant();
-    return stat;
-  }
-
-  get_genome() {
-    return this.genome;
-  }
-
-  _power_for_plant() {
-    return sum(this.cells.map(cell => cell.power_for_plant()));
-  }
-}
-
-// Cell's local coordinates is symmetric for X,Y, but not Z.
-// Normally Z is growth direction, assuming loc_to_parent to near to identity.
-//
-//  Power Generation (<- Light):
-//    sum of photosynthesis (LEAF)
-//  Power Consumption:
-//    basic (minimum cell volume equivalent)
-//    linear-volume
-class Cell {
-  constructor(plant, initial_signal, parent_cell) {
-    // tracer
-    this.age = 0;
-
-    // in-sim (light)
-    this.photons = 0;
-
-    // in-sim (phys + bio)
-    this.loc_to_parent = new THREE.Quaternion();
-    this.sx = 5e-3;
-    this.sy = 5e-3;
-    this.sz = 5e-3;
-    this.loc_to_world = new THREE.Matrix4();
-
-    // in-sim (bio)
-    this.plant = plant;
-    this.parent_cell = parent_cell;
-    this.power = 0;
-
-    // in-sim (genetics)
-    this.signals = [initial_signal];
-  }
-
-  getMass() {
-    return 1e3 * this.sx * this.sy * this.sz;  // kg
-  }
-
-  // sub_cell :: Cell
-  // return :: ()
-  add(sub_cell) {
-    if(this === sub_cell) {
-      throw new Error("Tried to add itself as child.", sub_cell);
-    } else {
-      sub_cell.initPose(this.getOutNodeToWorld());
-      this.plant.cells.push(sub_cell);
-    }
-  }
-
-  // Return net usable power for Plant.
-  // return :: float<Energy>
-  power_for_plant() {
-    return this.power;
-  }
-
-  _beginUsePower() {
-    this.power = 0;
-  }
-
-  // return :: bool
-  _withdrawEnergy(amount) {
-    if(this.plant.energy > amount) {
-      this.plant.energy -= amount;
-      this.power -= amount;
-
-      return true;
-    } else {
-      return false;
-    }
-  }
-
-  _withdrawVariableEnergy(max_amount) {
-    let amount = Math.min(Math.max(0, this.plant.energy), max_amount);
-    this.plant.energy -= amount;
-    this.power -= amount;
-    return amount;
-  }
-
-  _withdrawStaticEnergy() {
-    let delta_static = 0;
-
-    // +: photo synthesis
-    let efficiency = this._getPhotoSynthesisEfficiency();
-    delta_static += this.photons * 1e-9 * 15000 * efficiency;
-
-    // -: basic consumption (stands for common func.)
-    delta_static -= 100 * 1e-9;
-
-    // -: linear-volume consumption (stands for cell substrate maintainance)
-    let volume_consumption = 1.0;
-    delta_static -= this.sx * this.sy * this.sz * volume_consumption;
-
-    this.photons = 0;
-
-    if(this.plant.energy < delta_static) {
-      this.plant.energy = -1e-3;  // set death flag (TODO: implicit value encoding is bad idea)
-    } else {
-      this.power += delta_static;
-      this.plant.energy += delta_static;
-    }
-  };
-
-  _getPhotoSynthesisEfficiency() {
-    // 1:1/2, 2:3/4, etc...
-    let num_chl = sum(_.map(this.signals, function(sig) {
-      return (sig === Signal.CHLOROPLAST) ? 1 : 0;
-    }));
-
-    return 1 - Math.pow(0.5, num_chl);
-  }
-
-  // return :: ()
-  step() {
-    let _this = this;
-    this.age += 1;
-    this._beginUsePower();
-    this._withdrawStaticEnergy();
-
-    // Unified genome.
-    function unity_calc_prob_term(signal) {
-      if(signal === Signal.HALF) {
-        return 0.5;
-      } else if(signal === Signal.GROWTH) {
-        return _this.plant.growth_factor();
-      } else if(signal.length >= 2 && signal[0] === Signal.INVERT) {
-        return 1 - unity_calc_prob_term(signal.substr(1));
-      } else if(_.contains(_this.signals, signal)) {
-        return 1;
-      } else {
-        return 0.001;
-      }
+    if (console.assert === undefined) {
+        console.assert = function (cond) {
+            if (!cond) {
+                throw "assertion failed";
+            }
+        };
     }
 
-    function unity_calc_prob(when) {
-      return product(_.map(when, unity_calc_prob_term));
-    }
-
-    // Gene expression and transcription.
-    _.each(this.plant.genome.unity, function(gene) {
-      if(unity_calc_prob(gene['when']) > Math.random()) {
-        let num_codon = sum(_.map(gene['emit'], function(sig) {
-          return sig.length
-        }));
-
-        if(_this._withdrawEnergy(num_codon * 1e-10)) {
-          _this.signals = _this.signals.concat(gene['emit']);
-        }
-      }
-    });
-
-    // Bio-physics.
-    // TODO: define remover semantics.
-    let removers = {};
-    _.each(this.signals, function(signal) {
-      if(signal.length >= 2 && signal[0] === Signal.REMOVER) {
-        let rm = signal.substr(1);
-        if(removers[rm] !== undefined) {
-          removers[rm] += 1;
+    let now = function () {
+        if (typeof performance !== 'undefined') {
+            return performance.now();
         } else {
-          removers[rm] = 1;
+            return new Date().getTime();
         }
-      }
-    });
-
-    let new_signals = [];
-    _.each(this.signals, function(signal) {
-      if(signal.length === 3 && signal[0] === Signal.DIFF) {
-        _this.add_cont(signal[1], signal[2]);
-      } else if(signal === Signal.G_DX) {
-        _this.sx = Math.min(0.05, _this.sx + 1e-3);
-      } else if(signal === Signal.G_DY) {
-        _this.sy = Math.min(0.05, _this.sy + 1e-3);
-      } else if(signal === Signal.G_DZ) {
-        _this.sz = Math.min(0.05, _this.sz + 1e-3);
-      } else if(removers[signal] !== undefined && removers[signal] > 0) {
-        removers[signal] -= 1;
-      } else {
-        new_signals.push(signal);
-      }
-    });
-    this.signals = new_signals;
-
-    // Physics
-    if(_.contains(this.signals, Signal.FLOWER)) {
-      // Disperse seed once in a while.
-      // TODO: this should be handled by physics, not biology.
-      // Maybe dead cells with stored energy survives when fallen off.
-      if(Math.random() < 0.01) {
-        let seed_energy = _this._withdrawVariableEnergy(Math.pow(20e-3, 3) * 10);
-
-        // Get world coordinates.
-        let trans = new THREE.Vector3();
-        let _rot = new THREE.Quaternion();
-        let _scale = new THREE.Vector3();
-        this.loc_to_world.decompose(trans, _rot, _scale);
-
-        // TODO: should be world coodinate of the flower
-        this.plant.unsafe_chunk.disperse_seed_from(
-          trans, seed_energy, this.plant.genome.naturalClone());
-      }
-    }
-  };
-
-  initPose(innode_to_world) {
-    // Update this.
-    let parent_to_loc = this.loc_to_parent.clone().inverse();
-
-    let innode_to_center = new THREE.Matrix4().compose(
-      new THREE.Vector3(0, 0, -this.sz / 2),
-      parent_to_loc,
-      new THREE.Vector3(1, 1, 1));
-    let center_to_innode = new THREE.Matrix4().getInverse(innode_to_center);
-    this.loc_to_world =
-        innode_to_world.clone().multiply(center_to_innode);
-  }
-
-  getOutNodeToWorld() {
-    let parent_to_loc = this.loc_to_parent.clone().inverse();
-    let loc_to_outnode = new THREE.Matrix4().compose(
-      new THREE.Vector3(0, 0, -this.sz / 2),
-      parent_to_loc,
-      new THREE.Vector3(1, 1, 1));
-
-    let outnode_to_loc = new THREE.Matrix4().getInverse(loc_to_outnode);
-    return this.loc_to_world.clone().multiply(outnode_to_loc);
-  }
-
-  getBtTransform() {
-    let trans = new THREE.Vector3();
-    let quat = new THREE.Quaternion();
-    let unused_scale = new THREE.Vector3();
-    this.loc_to_world.decompose(trans, quat, unused_scale);
-
-    let tf = new Ammo.btTransform();
-    tf.setIdentity();
-    tf.setOrigin(new Ammo.btVector3(trans.x, trans.y, trans.z));
-    tf.setRotation(new Ammo.btQuaternion(quat.x, quat.y, quat.z, quat.w));
-    return tf;
-  }
-
-  setBtTransform(tf) {
-    let t = tf.getOrigin();
-    let r = tf.getRotation();
-    this.loc_to_world.compose(
-      new THREE.Vector3(t.x(), t.y(), t.z()),
-      new THREE.Quaternion(r.x(), r.y(), r.z(), r.w()),
-      new THREE.Vector3(1, 1, 1));
-  }
-
-  // Create origin-centered, colored AABB for this Cell.
-  // return :: THREE.Mesh
-  materializeSingle() {
-    // Create cell object [-sx/2,sx/2] * [-sy/2,sy/2] * [0, sz]
-    let flr_ratio = (_.contains(this.signals, Signal.FLOWER)) ? 0.5 : 1;
-    let chl_ratio = 1 - this._getPhotoSynthesisEfficiency();
-
-    let color_diffuse = new THREE.Color();
-    color_diffuse.setRGB(
-      chl_ratio,
-      flr_ratio,
-      flr_ratio * chl_ratio);
-
-    if(this.photons === 0) {
-      color_diffuse.offsetHSL(0, 0, -0.2);
-    }
-    if(this.plant.energy < 1e-4) {
-      let t = 1 - this.plant.energy * 1e4;
-      color_diffuse.offsetHSL(0, -t, 0);
-    }
-
-    let geom_cube = new THREE.CubeGeometry(this.sx, this.sy, this.sz);
-    for(let i = 0; i < geom_cube.faces.length; i++) {
-      for(let j = 0; j < 3; j++) {
-        geom_cube.faces[i].vertexColors[j] = color_diffuse;
-      }
-    }
-
-    return new THREE.Mesh(
-      geom_cube,
-      new THREE.MeshLambertMaterial({
-        vertexColors: THREE.VertexColors}));
-  };
-
-  give_photon() {
-    this.photons += 1;
-  }
-
-  // initial :: Signal
-  // locator :: LocatorSignal
-  // return :: ()
-  add_cont(initial, locator) {
-    function calc_rot(desc) {
-      if(desc === Signal.CONICAL) {
-        return new THREE.Quaternion().setFromEuler(new THREE.Euler(
-          Math.random() - 0.5,
-          Math.random() - 0.5,
-          0));
-      } else if(desc === Signal.HALF_CONICAL) {
-        return new THREE.Quaternion().setFromEuler(new THREE.Euler(
-          (Math.random() - 0.5) * 0.5,
-          (Math.random() - 0.5) * 0.5,
-          0));
-      } else if(desc === Signal.FLIP) {
-        return new THREE.Quaternion().setFromEuler(new THREE.Euler(
-          -Math.PI / 2,
-          0,
-          0));
-      } else if(desc === Signal.TWIST) {
-        return new THREE.Quaternion().setFromEuler(new THREE.Euler(
-          0,
-          0,
-          (Math.random() - 0.5) * 1));
-      } else {
-        return new THREE.Quaternion();
-      }
-    }
-
-
-    let new_cell = new Cell(this.plant, initial, this);
-    new_cell.loc_to_parent = calc_rot(locator);
-    this.add(new_cell);
-  }
-}
-
-// Represents soil surface state by a grid.
-// parent :: Chunk
-// size :: float > 0
-class Soil {
-  constructor(parent, size) {
-    this.parent = parent;
-
-    this.n = 35;
-    this.size = size;
-  }
-
-  // return :: THREE.Object3D
-  materialize() {
-    // Create texture.
-    let canvas = this._generateTexture();
-
-    // Attach tiles to the base.
-    let tex = new THREE.Texture(canvas);
-    tex.needsUpdate = true;
-
-    let soil_plate = new THREE.Mesh(
-      new THREE.CubeGeometry(this.size, this.size, 1e-3),
-      new THREE.MeshBasicMaterial({
-        map: tex
-      }));
-    return soil_plate;
-  }
-
-  serialize() {
-    let array = [];
-    for (let y = 0; y < this.n; y++) {
-      for (let x = 0; x < this.n; x++) {
-        let v = Math.min(1, this.parent.light.shadow_map[x + y * this.n] / 2 + 0.1);
-        array.push(v);
-      }
-    }
-    return {
-      luminance: array,
-      n: this.n,
-      size: this.size
     };
-  }
 
-  // return :: Canvas
-  _generateTexture() {
-    let canvas = document.createElement('canvas');
-    canvas.width = this.n;
-    canvas.height = this.n;
-    let context = canvas.getContext('2d');
-    for (let y = 0; y < this.n; y++) {
-      for (let x = 0; x < this.n; x++) {
-        let v = Math.min(1, this.parent.light.shadow_map[x + y * this.n] / 2 + 0.1);
-        let lighting = new THREE.Color().setRGB(v, v, v);
 
-        context.fillStyle = lighting.getStyle();
-        context.fillRect(x, this.n - y, 1, 1);
-      }
-    }
-    return canvas;
-  }
-}
+    // Collections of cells that forms a "single" plant.
+    // This is not biologically accurate depiction of plants,
+    // (e.g. vegetative growth, physics)
+    // Most plants seems to have some kind of information sharing system within them
+    // via transportation of regulation growth factors.
+    //
+    // 100% efficiency, 0-latency energy storage and transportation within Plant.
+    // (n.b. energy = power * time)
+    //
+    // position :: THREE.Vector3<World>
+    class Plant {
+        constructor(position, unsafe_chunk, energy, genome, plant_id) {
+            this.unsafe_chunk = unsafe_chunk;
 
-// Downward directional light.
-class Light {
-  constructor(chunk, size) {
-    this.chunk = chunk;
+            // tracer
+            this.age = 0;
+            this.id = plant_id;
 
-    this.n = 35;
-    this.size = size;
+            // physics
+            this.seed_innode_to_world = new THREE.Matrix4().compose(
+                position,
+                new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.random() * 2 * Math.PI),
+                new THREE.Vector3(1, 1, 1));
+            this.position = position;
 
-    // number of photos that hit ground.
-    this.shadow_map = new Float32Array(this.n * this.n);
-  }
+            // biophysics
+            this.energy = energy;
+            this.seed = new Cell(this, Signal.SHOOT_END, null);  // being deprecated
+            this.seed.initPose(this.seed_innode_to_world);
+            this.cells = [this.seed];  // flat cells in world coords
 
-  step() {
-    this.updateShadowMapHierarchical();
-  }
-
-  updateShadowMapHierarchical() {
-    let _this = this;
-
-    // Put Plants to all overlapping 2D uniform grid cells.
-    let ng = 15;
-    let grid = _.map(_.range(0, ng), function(ix) {
-      return _.map(_.range(0, ng), function(iy) {
-        return [];
-      });
-    });
-
-    _.each(this.chunk.plants, function(plant) {
-      let object = plant.materialize(false);
-      object.updateMatrixWorld();
-
-      let v_min = new THREE.Vector3();
-      let v_max = new THREE.Vector3();
-      let v_temp = new THREE.Vector3();
-      _.each(object.children, function(child) {
-        // Calculate AABB.
-        v_min.set(1e3, 1e3, 1e3);
-        v_max.set(-1e3, -1e3, -1e3);
-        _.each(child.geometry.vertices, function(vertex) {
-          v_temp.set(vertex.x, vertex.y, vertex.z);
-          child.localToWorld(v_temp);
-          v_min.min(v_temp);
-          v_max.max(v_temp);
-        });
-
-        // Store to uniform grid.
-        let vi0 = toIxV_unsafe(v_min);
-        let vi1 = toIxV_unsafe(v_max);
-
-        let ix0 = Math.max(0, Math.floor(vi0.x));
-        let iy0 = Math.max(0, Math.floor(vi0.y));
-        let ix1 = Math.min(ng, Math.ceil(vi1.x));
-        let iy1 = Math.min(ng, Math.ceil(vi1.y));
-
-        for(let ix = ix0; ix < ix1; ix++) {
-          for(let iy = iy0; iy < iy1; iy++) {
-            grid[ix][iy].push(child);
-          }
-        }
-      });
-    });
-
-    function toIxV_unsafe(v3) {
-      v3.multiplyScalar(ng / _this.size);
-      v3.x += ng * 0.5;
-      v3.y += ng * 0.5;
-      return v3;
-    }
-
-    // Accelerated ray tracing w/ the uniform grid.
-    function intersectDown(origin, near, far) {
-      let i = toIxV_unsafe(origin.clone());
-      let ix = Math.floor(i.x);
-      let iy = Math.floor(i.y);
-
-      if(ix < 0 || iy < 0 || ix >= ng || iy >= ng) {
-        return [];
-      }
-
-      return new THREE.Raycaster(origin, new THREE.Vector3(0, 0, -1), near, far)
-        .intersectObjects(grid[ix][iy], true);
-    }
-
-    for(let i = 0; i < this.n; i++) {
-      for(let j = 0; j < this.n; j++) {
-        this.shadow_map[i + j * this.n]  = 0;
-
-        // 50% light in smaller i region
-        if (i < this.n / 2 && Math.random() < 0.5) {
-          continue;
+            // genetics
+            this.genome = genome;
         }
 
-        let isect = intersectDown(
-          new THREE.Vector3(
-            ((i + Math.random()) / this.n - 0.5) * this.size,
-            ((j + Math.random()) / this.n - 0.5) * this.size,
-            10),
-          0.1,
-          1e2);
+        step() {
+            // Step cells (w/o collecting/stepping separation, infinite growth will occur)
+            this.age += 1;
+            this.cells.forEach(cell => cell.step());
+            console.assert(this.seed.age === this.age);
 
-        if(isect.length > 0) {
-          isect[0].object.cell.give_photon();
-        } else {
-          this.shadow_map[i + j * this.n] += 1.0;
-        }
-      }
-    }
-  }
-}
+            let mech_valid = true;
 
 
-// A chunk is non-singleton, finite patch of space containing bunch of plants, soil,
-// and light field.
-// Chunk have no coupling with DOM or external state. Main methods are
-// step & serialize. Other methods are mostly for statistics.
-class Chunk {
-  constructor() {
-    // Chunk spatial constants.
-    this.size = 0.5;
+            // Consume/store in-Plant energy.
+            this.energy += this._power_for_plant() * 1;
 
-    // tracer
-    this.age = 0;
-    this.new_plant_id = 0;
-
-    // Entities.
-    this.plants = [];  // w/ internal "bio" aspect
-    this.soil = new Soil(this, this.size);
-    this.seeds = [];
-
-    // Temporary hacks.
-    this.cell_to_rigid_body = new Map();
-    this.cell_to_parent_joint = new Map();
-
-    // Physical aspects.
-    this.light = new Light(this, this.size);
-    this.rigid_world = this._create_rigid_world();
-  }
-
-　_create_rigid_world() {
-    let collision_configuration = new Ammo.btDefaultCollisionConfiguration();
-    let dispatcher = new Ammo.btCollisionDispatcher(collision_configuration);
-    let overlappingPairCache = new Ammo.btDbvtBroadphase();
-    let solver = new Ammo.btSequentialImpulseConstraintSolver();
-    let rigid_world = new Ammo.btDiscreteDynamicsWorld(dispatcher, overlappingPairCache, solver, collision_configuration);
-    rigid_world.setGravity(new Ammo.btVector3(0, 0, -1));
-
-    // Add ground.
-    let ground_shape = new Ammo.btStaticPlaneShape(new Ammo.btVector3(0, 0, 1), 0);
-    let trans = new Ammo.btTransform();
-    trans.setIdentity();
-
-    let motion = new Ammo.btDefaultMotionState(trans);
-    let rb_info = new Ammo.btRigidBodyConstructionInfo(
-      0 /* mass */, motion, ground_shape, new Ammo.btVector3(0, 0, 0) /* inertia */);
-    let ground = new Ammo.btRigidBody(rb_info);
-    rigid_world.addRigidBody(ground);
-    this.ground_rb = ground;
-
-    return rigid_world;
-  }
-
-  // Add standard plant seed.
-  add_default_plant(pos) {
-    return this.add_plant(
-      pos,
-      Math.pow(20e-3, 3) * 100, // allow 2cm cube for 100T)
-      new Genome());
-  }
-
-  // pos :: THREE.Vector3 (z must be 0)
-  // energy :: Total starting energy for the new plant.
-  // genome :: genome for new plant
-  // return :: Plant
-  add_plant(pos, energy, genome) {
-    console.assert(Math.abs(pos.z) < 1e-3);
-
-    // Torus-like boundary
-    pos = new THREE.Vector3(
-      (pos.x + 1.5 * this.size) % this.size - this.size / 2,
-      (pos.y + 1.5 * this.size) % this.size - this.size / 2,
-      pos.z);
-
-    let shoot = new Plant(pos, this, energy, genome, this.new_plant_id);
-    this.new_plant_id += 1;
-    this.plants.push(shoot);
-
-    return shoot;
-  }
-
-  // pos :: THREE.Vector3
-  // return :: ()
-  disperse_seed_from(pos, energy, genome) {
-    console.assert(pos.z >= 0);
-    // Discard seeds thrown from too low altitude.
-    if(pos.z < 0.01) {
-      return;
-    }
-
-    let angle = Math.PI / 3;
-
-    let sigma = Math.tan(angle) * pos.z;
-
-    // TODO: Use gaussian
-    let dx = sigma * 2 * (Math.random() - 0.5);
-    let dy = sigma * 2 * (Math.random() - 0.5);
-
-    this.seeds.push({
-      pos: new THREE.Vector3(pos.x + dx, pos.y + dy, 0),
-      energy: energy,
-      genome: genome
-    });
-  }
-
-  // Plant :: must be returned by add_plant
-  // return :: ()
-  remove_plant(plant) {
-    this.plants = _.without(this.plants, plant);
-  }
-
-  // return :: dict
-  get_stat() {
-    let stored_energy = sum(_.map(this.plants, function(plant) {
-      return plant.energy;
-    }));
-
-    return {
-      'age/T': this.age,
-      'plant': this.plants.length,
-      'stored/E': stored_energy
-    };
-  }
-
-  // Retrieve current statistics about specified plant id.
-  // id :: int (plant id)
-  // return :: dict | null
-  get_plant_stat(id) {
-    let stat = null;
-    _.each(this.plants, function(plant) {
-      if(plant.id === id) {
-        stat = plant.get_stat();
-      }
-    });
-    return stat;
-  }
-
-  // return :: array | null
-  get_plant_genome(id) {
-    let genome = null;
-    _.each(this.plants, function(plant) {
-      if(plant.id === id) {
-        genome = plant.get_genome();
-      }
-    });
-    return genome;
-  }
-
-  // return :: object (stats)
-  step() {
-    this.age += 1;
-
-    let t0 = 0;
-    let sim_stats = {};
-
-    t0 = now();
-    _.each(this.plants, function(plant) {
-      plant.step();
-    }, this);
-
-    _.each(this.seeds, function(seed) {
-      this.add_plant(seed.pos, seed.energy, seed.genome);
-    }, this);
-    this.seeds = [];
-    sim_stats['bio/ms'] = now() - t0;
-
-    t0 = now();
-    this.light.step();
-    sim_stats['light/ms'] = now() - t0;
-
-    t0 = now();
-    this._export_plants_to_rigid();
-    this.rigid_world.stepSimulation(1/60, 0);  // 1 tick = 1/60 sec. Soooo fake phnysics...
-    this._update_plants_from_rigid();
-    sim_stats['rigid/ms'] = now() - t0;
-
-    if(false) {
-      const v = this.test_sphere.getCenterOfMassTransform().getOrigin();
-      console.log(v.z(), v.x(), v.y());
-    }
-
-    return sim_stats;
-  }
-
-  _export_plants_to_rigid() {
-    // There are three types of changes: add / modify / delete
-    let live_cells = new Set();
-    for(let plant of this.plants) {
-      for(let cell of plant.cells) {
-        let rb = this.cell_to_rigid_body.get(cell);
-
-        // Also add contraint.
-        let tf_cell = new Ammo.btTransform();
-        tf_cell.setIdentity();
-        tf_cell.setOrigin(new Ammo.btVector3(0, 0, -cell.sz / 2)); // innode
-        let tf_parent = new Ammo.btTransform();
-        tf_parent.setIdentity();
-        if (cell.parent_cell === null) {
-          // point on ground
-          tf_parent.setOrigin(new Ammo.btVector3(cell.plant.position.x, cell.plant.position.y, 0));
-        } else {
-          // outnode of parent
-          tf_parent.setOrigin(new Ammo.btVector3(0, 0, cell.parent_cell.sz / 2));
+            if (this.energy <= 0 || !mech_valid) {
+                // die
+                this.unsafe_chunk.remove_plant(this);
+            }
         }
 
-        if(rb === undefined) {
-          // New cell added.
-          let cell_shape = new Ammo.btBoxShape(new Ammo.btVector3(0.5, 0.5, 0.5));  // (1m)^3 cube
-          cell_shape.setLocalScaling(new Ammo.btVector3(cell.sx, cell.sy, cell.sz));
-
-          let local_inertia = new Ammo.btVector3(0, 0, 0);
-          cell_shape.calculateLocalInertia(cell.getMass(), local_inertia);
-          // TODO: Is it correct to use total mass, after LocalScaling??
-
-          let motion_st = new Ammo.btDefaultMotionState(cell.getBtTransform());
-          let rb_info = new Ammo.btRigidBodyConstructionInfo(cell.getMass(), motion_st, cell_shape, local_inertia);
-          let rb = new Ammo.btRigidBody(rb_info);
-          rb.setFriction(0.8);
-
-          this.rigid_world.addRigidBody(rb);
-          this.cell_to_rigid_body.set(cell, rb);
-
-          // Add a joint to the parent (another Cell or Soil).
-          let parent_rb = cell.parent_cell === null ? this.ground_rb : this.cell_to_rigid_body.get(cell.parent_cell);
-          let joint = new Ammo.btGeneric6DofSpringConstraint(rb, parent_rb, tf_cell, tf_parent, true);
-          joint.setAngularLowerLimit(new Ammo.btVector3(0, 0, 0));
-          joint.setAngularUpperLimit(new Ammo.btVector3(0, 0, 0));
-          joint.setLinearLowerLimit(new Ammo.btVector3(0, 0, 0));
-          joint.setLinearUpperLimit(new Ammo.btVector3(0, 0, 0));
-          [3, 4, 5].forEach(ix => {
-            joint.enableSpring(ix, true);
-            joint.setStiffness(ix, 1e5);
-            joint.setDamping(ix, 0.5);
-          });  // rotation axes
-          joint.setBreakingImpulseThreshold(100);
-          this.rigid_world.addConstraint(joint, true /* no collision between neighbors */);
-          this.cell_to_parent_joint.set(cell, joint);
-        } else {
-          // Apply modification.
-          rb.getCollisionShape().setLocalScaling(new Ammo.btVector3(cell.sx, cell.sy, cell.sz));
-          let local_inertia = new Ammo.btVector3(0, 0, 0);
-          rb.getCollisionShape().calculateLocalInertia(cell.getMass(), local_inertia);
-          rb.setMassProps(cell.getMass(), local_inertia);
-          rb.updateInertiaTensor();
-          // TODO: maybe need to call some other updates?
-
-          // Update joint between current cell and its parent.
-          let joint = this.cell_to_parent_joint.get(cell);
-          joint.setFrames(tf_cell, tf_parent);
+        // Approximates lifetime of the plant.
+        // Max growth=1, zero growth=0.
+        // return :: [0,1]
+        growth_factor() {
+            return Math.exp(-this.age / 20);
         }
-        live_cells.add(cell);
-      }
-    }
-    // Apply removal.
-    if(this.cell_to_rigid_body.size > live_cells.size) {
-      for(let [cell, rb] of this.cell_to_rigid_body) {
-        if(!live_cells.has(cell)) {
-          this.rigid_world.removeRigidBody(rb);
-          this.cell_to_rigid_body.delete(cell);
-          this.cell_to_parent_joint.delete(cell);
+
+        // return :: THREE.Object3D<world>
+        materialize(merge) {
+            let proxies = _.map(this.cells, cell => {
+                let m = cell.materializeSingle();
+
+                let trans = new THREE.Vector3();
+                let q = new THREE.Quaternion();
+                let s = new THREE.Vector3();
+                cell.loc_to_world.decompose(trans, q, s);
+
+                m.cell = cell;
+                m.position.copy(trans);
+                m.quaternion.copy(q);
+                return m;
+            });
+
+            if (merge) {
+                let merged_geom = new THREE.Geometry();
+                proxies.forEach(proxy => merged_geom.mergeMesh(proxy));
+
+                let merged_plant = new THREE.Mesh(
+                    merged_geom,
+                    new THREE.MeshLambertMaterial({ vertexColors: THREE.VertexColors }));
+
+                return merged_plant;
+            } else {
+                let three_plant = new THREE.Object3D();
+                proxies.forEach(proxy => three_plant.add(proxy));
+                return three_plant;
+            }
         }
-      }
+
+        get_stat() {
+            let stat_cells = _.map(this.cells, cell => cell.signals);
+
+            let stat = {};
+            stat["#cells"] = stat_cells.length;
+            stat['cells'] = stat_cells;
+            stat['age/T'] = this.age;
+            stat['stored/E'] = this.energy;
+            stat['delta/(E/T)'] = this._powerForPlant();
+            return stat;
+        }
+
+        get_genome() {
+            return this.genome;
+        }
+
+        _power_for_plant() {
+            return sum(this.cells.map(cell => cell.power_for_plant()));
+        }
     }
-  }
 
-  _update_plants_from_rigid() {
-    for(let [cell, rb] of this.cell_to_rigid_body) {
-      cell.setBtTransform(rb.getCenterOfMassTransform());
+    // Cell's local coordinates is symmetric for X,Y, but not Z.
+    // Normally Z is growth direction, assuming loc_to_parent to near to identity.
+    //
+    //  Power Generation (<- Light):
+    //    sum of photosynthesis (LEAF)
+    //  Power Consumption:
+    //    basic (minimum cell volume equivalent)
+    //    linear-volume
+    class Cell {
+        constructor(plant, initial_signal, parent_cell) {
+            // tracer
+            this.age = 0;
+
+            // in-sim (light)
+            this.photons = 0;
+
+            // in-sim (phys + bio)
+            this.loc_to_parent = new THREE.Quaternion();
+            this.sx = 5e-3;
+            this.sy = 5e-3;
+            this.sz = 5e-3;
+            this.loc_to_world = new THREE.Matrix4();
+
+            // in-sim (bio)
+            this.plant = plant;
+            this.parent_cell = parent_cell;
+            this.power = 0;
+
+            // in-sim (genetics)
+            this.signals = [initial_signal];
+        }
+
+        getMass() {
+            return 1e3 * this.sx * this.sy * this.sz;  // kg
+        }
+
+        // sub_cell :: Cell
+        // return :: ()
+        add(sub_cell) {
+            if (this === sub_cell) {
+                throw new Error("Tried to add itself as child.", sub_cell);
+            } else {
+                sub_cell.initPose(this.getOutNodeToWorld());
+                this.plant.cells.push(sub_cell);
+            }
+        }
+
+        // Return net usable power for Plant.
+        // return :: float<Energy>
+        power_for_plant() {
+            return this.power;
+        }
+
+        _beginUsePower() {
+            this.power = 0;
+        }
+
+        // return :: bool
+        _withdrawEnergy(amount) {
+            if (this.plant.energy > amount) {
+                this.plant.energy -= amount;
+                this.power -= amount;
+
+                return true;
+            } else {
+                return false;
+            }
+        }
+
+        _withdrawVariableEnergy(max_amount) {
+            let amount = Math.min(Math.max(0, this.plant.energy), max_amount);
+            this.plant.energy -= amount;
+            this.power -= amount;
+            return amount;
+        }
+
+        _withdrawStaticEnergy() {
+            let delta_static = 0;
+
+            // +: photo synthesis
+            let efficiency = this._getPhotoSynthesisEfficiency();
+            delta_static += this.photons * 1e-9 * 15000 * efficiency;
+
+            // -: basic consumption (stands for common func.)
+            delta_static -= 100 * 1e-9;
+
+            // -: linear-volume consumption (stands for cell substrate maintainance)
+            let volume_consumption = 1.0;
+            delta_static -= this.sx * this.sy * this.sz * volume_consumption;
+
+            this.photons = 0;
+
+            if (this.plant.energy < delta_static) {
+                this.plant.energy = -1e-3;  // set death flag (TODO: implicit value encoding is bad idea)
+            } else {
+                this.power += delta_static;
+                this.plant.energy += delta_static;
+            }
+        };
+
+        _getPhotoSynthesisEfficiency() {
+            // 1:1/2, 2:3/4, etc...
+            let num_chl = sum(_.map(this.signals, function (sig) {
+                return (sig === Signal.CHLOROPLAST) ? 1 : 0;
+            }));
+
+            return 1 - Math.pow(0.5, num_chl);
+        }
+
+        // return :: ()
+        step() {
+            let _this = this;
+            this.age += 1;
+            this._beginUsePower();
+            this._withdrawStaticEnergy();
+
+            // Unified genome.
+            function unity_calc_prob_term(signal) {
+                if (signal === Signal.HALF) {
+                    return 0.5;
+                } else if (signal === Signal.GROWTH) {
+                    return _this.plant.growth_factor();
+                } else if (signal.length >= 2 && signal[0] === Signal.INVERT) {
+                    return 1 - unity_calc_prob_term(signal.substr(1));
+                } else if (_.contains(_this.signals, signal)) {
+                    return 1;
+                } else {
+                    return 0.001;
+                }
+            }
+
+            function unity_calc_prob(when) {
+                return product(_.map(when, unity_calc_prob_term));
+            }
+
+            // Gene expression and transcription.
+            _.each(this.plant.genome.unity, function (gene) {
+                if (unity_calc_prob(gene['when']) > Math.random()) {
+                    let num_codon = sum(_.map(gene['emit'], function (sig) {
+                        return sig.length
+                    }));
+
+                    if (_this._withdrawEnergy(num_codon * 1e-10)) {
+                        _this.signals = _this.signals.concat(gene['emit']);
+                    }
+                }
+            });
+
+            // Bio-physics.
+            // TODO: define remover semantics.
+            let removers = {};
+            _.each(this.signals, function (signal) {
+                if (signal.length >= 2 && signal[0] === Signal.REMOVER) {
+                    let rm = signal.substr(1);
+                    if (removers[rm] !== undefined) {
+                        removers[rm] += 1;
+                    } else {
+                        removers[rm] = 1;
+                    }
+                }
+            });
+
+            let new_signals = [];
+            _.each(this.signals, function (signal) {
+                if (signal.length === 3 && signal[0] === Signal.DIFF) {
+                    _this.add_cont(signal[1], signal[2]);
+                } else if (signal === Signal.G_DX) {
+                    _this.sx = Math.min(0.05, _this.sx + 1e-3);
+                } else if (signal === Signal.G_DY) {
+                    _this.sy = Math.min(0.05, _this.sy + 1e-3);
+                } else if (signal === Signal.G_DZ) {
+                    _this.sz = Math.min(0.05, _this.sz + 1e-3);
+                } else if (removers[signal] !== undefined && removers[signal] > 0) {
+                    removers[signal] -= 1;
+                } else {
+                    new_signals.push(signal);
+                }
+            });
+            this.signals = new_signals;
+
+            // Physics
+            if (_.contains(this.signals, Signal.FLOWER)) {
+                // Disperse seed once in a while.
+                // TODO: this should be handled by physics, not biology.
+                // Maybe dead cells with stored energy survives when fallen off.
+                if (Math.random() < 0.01) {
+                    let seed_energy = _this._withdrawVariableEnergy(Math.pow(20e-3, 3) * 10);
+
+                    // Get world coordinates.
+                    let trans = new THREE.Vector3();
+                    let _rot = new THREE.Quaternion();
+                    let _scale = new THREE.Vector3();
+                    this.loc_to_world.decompose(trans, _rot, _scale);
+
+                    // TODO: should be world coodinate of the flower
+                    this.plant.unsafe_chunk.disperse_seed_from(
+                        trans, seed_energy, this.plant.genome.naturalClone());
+                }
+            }
+        };
+
+        initPose(innode_to_world) {
+            // Update this.
+            let parent_to_loc = this.loc_to_parent.clone().inverse();
+
+            let innode_to_center = new THREE.Matrix4().compose(
+                new THREE.Vector3(0, 0, -this.sz / 2),
+                parent_to_loc,
+                new THREE.Vector3(1, 1, 1));
+            let center_to_innode = new THREE.Matrix4().getInverse(innode_to_center);
+            this.loc_to_world =
+                innode_to_world.clone().multiply(center_to_innode);
+        }
+
+        getOutNodeToWorld() {
+            let parent_to_loc = this.loc_to_parent.clone().inverse();
+            let loc_to_outnode = new THREE.Matrix4().compose(
+                new THREE.Vector3(0, 0, -this.sz / 2),
+                parent_to_loc,
+                new THREE.Vector3(1, 1, 1));
+
+            let outnode_to_loc = new THREE.Matrix4().getInverse(loc_to_outnode);
+            return this.loc_to_world.clone().multiply(outnode_to_loc);
+        }
+
+        getBtTransform() {
+            let trans = new THREE.Vector3();
+            let quat = new THREE.Quaternion();
+            let unused_scale = new THREE.Vector3();
+            this.loc_to_world.decompose(trans, quat, unused_scale);
+
+            let tf = new Ammo.btTransform();
+            tf.setIdentity();
+            tf.setOrigin(new Ammo.btVector3(trans.x, trans.y, trans.z));
+            tf.setRotation(new Ammo.btQuaternion(quat.x, quat.y, quat.z, quat.w));
+            return tf;
+        }
+
+        setBtTransform(tf) {
+            let t = tf.getOrigin();
+            let r = tf.getRotation();
+            this.loc_to_world.compose(
+                new THREE.Vector3(t.x(), t.y(), t.z()),
+                new THREE.Quaternion(r.x(), r.y(), r.z(), r.w()),
+                new THREE.Vector3(1, 1, 1));
+        }
+
+        // Create origin-centered, colored AABB for this Cell.
+        // return :: THREE.Mesh
+        materializeSingle() {
+            // Create cell object [-sx/2,sx/2] * [-sy/2,sy/2] * [0, sz]
+            let flr_ratio = (_.contains(this.signals, Signal.FLOWER)) ? 0.5 : 1;
+            let chl_ratio = 1 - this._getPhotoSynthesisEfficiency();
+
+            let color_diffuse = new THREE.Color();
+            color_diffuse.setRGB(
+                chl_ratio,
+                flr_ratio,
+                flr_ratio * chl_ratio);
+
+            if (this.photons === 0) {
+                color_diffuse.offsetHSL(0, 0, -0.2);
+            }
+            if (this.plant.energy < 1e-4) {
+                let t = 1 - this.plant.energy * 1e4;
+                color_diffuse.offsetHSL(0, -t, 0);
+            }
+
+            let geom_cube = new THREE.CubeGeometry(this.sx, this.sy, this.sz);
+            for (let i = 0; i < geom_cube.faces.length; i++) {
+                for (let j = 0; j < 3; j++) {
+                    geom_cube.faces[i].vertexColors[j] = color_diffuse;
+                }
+            }
+
+            return new THREE.Mesh(
+                geom_cube,
+                new THREE.MeshLambertMaterial({
+                    vertexColors: THREE.VertexColors
+                }));
+        };
+
+        give_photon() {
+            this.photons += 1;
+        }
+
+        // initial :: Signal
+        // locator :: LocatorSignal
+        // return :: ()
+        add_cont(initial, locator) {
+            function calc_rot(desc) {
+                if (desc === Signal.CONICAL) {
+                    return new THREE.Quaternion().setFromEuler(new THREE.Euler(
+                        Math.random() - 0.5,
+                        Math.random() - 0.5,
+                        0));
+                } else if (desc === Signal.HALF_CONICAL) {
+                    return new THREE.Quaternion().setFromEuler(new THREE.Euler(
+                        (Math.random() - 0.5) * 0.5,
+                        (Math.random() - 0.5) * 0.5,
+                        0));
+                } else if (desc === Signal.FLIP) {
+                    return new THREE.Quaternion().setFromEuler(new THREE.Euler(
+                        -Math.PI / 2,
+                        0,
+                        0));
+                } else if (desc === Signal.TWIST) {
+                    return new THREE.Quaternion().setFromEuler(new THREE.Euler(
+                        0,
+                        0,
+                        (Math.random() - 0.5) * 1));
+                } else {
+                    return new THREE.Quaternion();
+                }
+            }
+
+
+            let new_cell = new Cell(this.plant, initial, this);
+            new_cell.loc_to_parent = calc_rot(locator);
+            this.add(new_cell);
+        }
     }
-    for(let [cell, joint] of this.cell_to_parent_joint) {
-    //  console.log(joint.getAppliedImpulse());
+
+    // Represents soil surface state by a grid.
+    // parent :: Chunk
+    // size :: float > 0
+    class Soil {
+        constructor(parent, size) {
+            this.parent = parent;
+
+            this.n = 35;
+            this.size = size;
+        }
+
+        // return :: THREE.Object3D
+        materialize() {
+            // Create texture.
+            let canvas = this._generateTexture();
+
+            // Attach tiles to the base.
+            let tex = new THREE.Texture(canvas);
+            tex.needsUpdate = true;
+
+            let soil_plate = new THREE.Mesh(
+                new THREE.CubeGeometry(this.size, this.size, 1e-3),
+                new THREE.MeshBasicMaterial({
+                    map: tex
+                }));
+            return soil_plate;
+        }
+
+        serialize() {
+            let array = [];
+            for (let y = 0; y < this.n; y++) {
+                for (let x = 0; x < this.n; x++) {
+                    let v = Math.min(1, this.parent.light.shadow_map[x + y * this.n] / 2 + 0.1);
+                    array.push(v);
+                }
+            }
+            return {
+                luminance: array,
+                n: this.n,
+                size: this.size
+            };
+        }
+
+        // return :: Canvas
+        _generateTexture() {
+            let canvas = document.createElement('canvas');
+            canvas.width = this.n;
+            canvas.height = this.n;
+            let context = canvas.getContext('2d');
+            for (let y = 0; y < this.n; y++) {
+                for (let x = 0; x < this.n; x++) {
+                    let v = Math.min(1, this.parent.light.shadow_map[x + y * this.n] / 2 + 0.1);
+                    let lighting = new THREE.Color().setRGB(v, v, v);
+
+                    context.fillStyle = lighting.getStyle();
+                    context.fillRect(x, this.n - y, 1, 1);
+                }
+            }
+            return canvas;
+        }
     }
-  }
 
-  serialize() {
-    let ser = {};
-    ser['plants'] = _.map(this.plants, function(plant) {
-      let mesh = plant.materialize(true);
+    // Downward directional light.
+    class Light {
+        constructor(chunk, size) {
+            this.chunk = chunk;
 
-      return {
-        'id': plant.id,
-        'vertices': mesh.geometry.vertices,
-        'faces': mesh.geometry.faces
-      };
-    }, this);
-    ser['soil'] = this.soil.serialize();
+            this.n = 35;
+            this.size = size;
 
-    return ser;
-  }
+            // number of photos that hit ground.
+            this.shadow_map = new Float32Array(this.n * this.n);
+        }
 
-  // Kill plant with specified id.
-  kill(id) {
-    this.plants = _.filter(this.plants, function(plant) {
-      return (plant.id !== id);
-    });
-  }
-}
+        step() {
+            this.updateShadowMapHierarchical();
+        }
 
-// xs :: [num]
-// return :: num
-function sum(xs) {
-  return _.reduce(xs, function(x, y) {
-    return x + y;
-  }, 0);
-}
+        updateShadowMapHierarchical() {
+            let _this = this;
 
-// xs :: [num]
-// return :: num
-function product(xs) {
-  return _.reduce(xs, function(x, y) {
-    return x * y;
-  }, 1);
-}
+            // Put Plants to all overlapping 2D uniform grid cells.
+            let ng = 15;
+            let grid = _.map(_.range(0, ng), function (ix) {
+                return _.map(_.range(0, ng), function (iy) {
+                    return [];
+                });
+            });
 
-this.Chunk = Chunk;
+            _.each(this.chunk.plants, function (plant) {
+                let object = plant.materialize(false);
+                object.updateMatrixWorld();
+
+                let v_min = new THREE.Vector3();
+                let v_max = new THREE.Vector3();
+                let v_temp = new THREE.Vector3();
+                _.each(object.children, function (child) {
+                    // Calculate AABB.
+                    v_min.set(1e3, 1e3, 1e3);
+                    v_max.set(-1e3, -1e3, -1e3);
+                    _.each(child.geometry.vertices, function (vertex) {
+                        v_temp.set(vertex.x, vertex.y, vertex.z);
+                        child.localToWorld(v_temp);
+                        v_min.min(v_temp);
+                        v_max.max(v_temp);
+                    });
+
+                    // Store to uniform grid.
+                    let vi0 = toIxV_unsafe(v_min);
+                    let vi1 = toIxV_unsafe(v_max);
+
+                    let ix0 = Math.max(0, Math.floor(vi0.x));
+                    let iy0 = Math.max(0, Math.floor(vi0.y));
+                    let ix1 = Math.min(ng, Math.ceil(vi1.x));
+                    let iy1 = Math.min(ng, Math.ceil(vi1.y));
+
+                    for (let ix = ix0; ix < ix1; ix++) {
+                        for (let iy = iy0; iy < iy1; iy++) {
+                            grid[ix][iy].push(child);
+                        }
+                    }
+                });
+            });
+
+            function toIxV_unsafe(v3) {
+                v3.multiplyScalar(ng / _this.size);
+                v3.x += ng * 0.5;
+                v3.y += ng * 0.5;
+                return v3;
+            }
+
+            // Accelerated ray tracing w/ the uniform grid.
+            function intersectDown(origin, near, far) {
+                let i = toIxV_unsafe(origin.clone());
+                let ix = Math.floor(i.x);
+                let iy = Math.floor(i.y);
+
+                if (ix < 0 || iy < 0 || ix >= ng || iy >= ng) {
+                    return [];
+                }
+
+                return new THREE.Raycaster(origin, new THREE.Vector3(0, 0, -1), near, far)
+                    .intersectObjects(grid[ix][iy], true);
+            }
+
+            for (let i = 0; i < this.n; i++) {
+                for (let j = 0; j < this.n; j++) {
+                    this.shadow_map[i + j * this.n] = 0;
+
+                    // 50% light in smaller i region
+                    if (i < this.n / 2 && Math.random() < 0.5) {
+                        continue;
+                    }
+
+                    let isect = intersectDown(
+                        new THREE.Vector3(
+                            ((i + Math.random()) / this.n - 0.5) * this.size,
+                            ((j + Math.random()) / this.n - 0.5) * this.size,
+                            10),
+                        0.1,
+                        1e2);
+
+                    if (isect.length > 0) {
+                        isect[0].object.cell.give_photon();
+                    } else {
+                        this.shadow_map[i + j * this.n] += 1.0;
+                    }
+                }
+            }
+        }
+    }
+
+
+    // A chunk is non-singleton, finite patch of space containing bunch of plants, soil,
+    // and light field.
+    // Chunk have no coupling with DOM or external state. Main methods are
+    // step & serialize. Other methods are mostly for statistics.
+    class Chunk {
+        constructor() {
+            // Chunk spatial constants.
+            this.size = 0.5;
+
+            // tracer
+            this.age = 0;
+            this.new_plant_id = 0;
+
+            // Entities.
+            this.plants = [];  // w/ internal "bio" aspect
+            this.soil = new Soil(this, this.size);
+            this.seeds = [];
+
+            // Temporary hacks.
+            this.cell_to_rigid_body = new Map();
+            this.cell_to_parent_joint = new Map();
+
+            // Physical aspects.
+            this.light = new Light(this, this.size);
+            this.rigid_world = this._create_rigid_world();
+        }
+
+        _create_rigid_world() {
+            let collision_configuration = new Ammo.btDefaultCollisionConfiguration();
+            let dispatcher = new Ammo.btCollisionDispatcher(collision_configuration);
+            let overlappingPairCache = new Ammo.btDbvtBroadphase();
+            let solver = new Ammo.btSequentialImpulseConstraintSolver();
+            let rigid_world = new Ammo.btDiscreteDynamicsWorld(dispatcher, overlappingPairCache, solver, collision_configuration);
+            rigid_world.setGravity(new Ammo.btVector3(0, 0, -1));
+
+            // Add ground.
+            let ground_shape = new Ammo.btStaticPlaneShape(new Ammo.btVector3(0, 0, 1), 0);
+            let trans = new Ammo.btTransform();
+            trans.setIdentity();
+
+            let motion = new Ammo.btDefaultMotionState(trans);
+            let rb_info = new Ammo.btRigidBodyConstructionInfo(
+                0 /* mass */, motion, ground_shape, new Ammo.btVector3(0, 0, 0) /* inertia */);
+            let ground = new Ammo.btRigidBody(rb_info);
+            rigid_world.addRigidBody(ground);
+            this.ground_rb = ground;
+
+            return rigid_world;
+        }
+
+        // Add standard plant seed.
+        add_default_plant(pos) {
+            return this.add_plant(
+                pos,
+                Math.pow(20e-3, 3) * 100, // allow 2cm cube for 100T)
+                new Genome());
+        }
+
+        // pos :: THREE.Vector3 (z must be 0)
+        // energy :: Total starting energy for the new plant.
+        // genome :: genome for new plant
+        // return :: Plant
+        add_plant(pos, energy, genome) {
+            console.assert(Math.abs(pos.z) < 1e-3);
+
+            // Torus-like boundary
+            pos = new THREE.Vector3(
+                (pos.x + 1.5 * this.size) % this.size - this.size / 2,
+                (pos.y + 1.5 * this.size) % this.size - this.size / 2,
+                pos.z);
+
+            let shoot = new Plant(pos, this, energy, genome, this.new_plant_id);
+            this.new_plant_id += 1;
+            this.plants.push(shoot);
+
+            return shoot;
+        }
+
+        // pos :: THREE.Vector3
+        // return :: ()
+        disperse_seed_from(pos, energy, genome) {
+            console.assert(pos.z >= 0);
+            // Discard seeds thrown from too low altitude.
+            if (pos.z < 0.01) {
+                return;
+            }
+
+            let angle = Math.PI / 3;
+
+            let sigma = Math.tan(angle) * pos.z;
+
+            // TODO: Use gaussian
+            let dx = sigma * 2 * (Math.random() - 0.5);
+            let dy = sigma * 2 * (Math.random() - 0.5);
+
+            this.seeds.push({
+                pos: new THREE.Vector3(pos.x + dx, pos.y + dy, 0),
+                energy: energy,
+                genome: genome
+            });
+        }
+
+        // Plant :: must be returned by add_plant
+        // return :: ()
+        remove_plant(plant) {
+            this.plants = _.without(this.plants, plant);
+        }
+
+        // return :: dict
+        get_stat() {
+            let stored_energy = sum(_.map(this.plants, function (plant) {
+                return plant.energy;
+            }));
+
+            return {
+                'age/T': this.age,
+                'plant': this.plants.length,
+                'stored/E': stored_energy
+            };
+        }
+
+        // Retrieve current statistics about specified plant id.
+        // id :: int (plant id)
+        // return :: dict | null
+        get_plant_stat(id) {
+            let stat = null;
+            _.each(this.plants, function (plant) {
+                if (plant.id === id) {
+                    stat = plant.get_stat();
+                }
+            });
+            return stat;
+        }
+
+        // return :: array | null
+        get_plant_genome(id) {
+            let genome = null;
+            _.each(this.plants, function (plant) {
+                if (plant.id === id) {
+                    genome = plant.get_genome();
+                }
+            });
+            return genome;
+        }
+
+        // return :: object (stats)
+        step() {
+            this.age += 1;
+
+            let t0 = 0;
+            let sim_stats = {};
+
+            t0 = now();
+            _.each(this.plants, function (plant) {
+                plant.step();
+            }, this);
+
+            _.each(this.seeds, function (seed) {
+                this.add_plant(seed.pos, seed.energy, seed.genome);
+            }, this);
+            this.seeds = [];
+            sim_stats['bio/ms'] = now() - t0;
+
+            t0 = now();
+            this.light.step();
+            sim_stats['light/ms'] = now() - t0;
+
+            t0 = now();
+            this._export_plants_to_rigid();
+            this.rigid_world.stepSimulation(1 / 60, 0);  // 1 tick = 1/60 sec. Soooo fake phnysics...
+            this._update_plants_from_rigid();
+            sim_stats['rigid/ms'] = now() - t0;
+
+            if (false) {
+                const v = this.test_sphere.getCenterOfMassTransform().getOrigin();
+                console.log(v.z(), v.x(), v.y());
+            }
+
+            return sim_stats;
+        }
+
+        _export_plants_to_rigid() {
+            // There are three types of changes: add / modify / delete
+            let live_cells = new Set();
+            for (let plant of this.plants) {
+                for (let cell of plant.cells) {
+                    let rb = this.cell_to_rigid_body.get(cell);
+
+                    // Also add contraint.
+                    let tf_cell = new Ammo.btTransform();
+                    tf_cell.setIdentity();
+                    tf_cell.setOrigin(new Ammo.btVector3(0, 0, -cell.sz / 2)); // innode
+                    let tf_parent = new Ammo.btTransform();
+                    tf_parent.setIdentity();
+                    if (cell.parent_cell === null) {
+                        // point on ground
+                        tf_parent.setOrigin(new Ammo.btVector3(cell.plant.position.x, cell.plant.position.y, 0));
+                    } else {
+                        // outnode of parent
+                        tf_parent.setOrigin(new Ammo.btVector3(0, 0, cell.parent_cell.sz / 2));
+                    }
+
+                    if (rb === undefined) {
+                        // New cell added.
+                        let cell_shape = new Ammo.btBoxShape(new Ammo.btVector3(0.5, 0.5, 0.5));  // (1m)^3 cube
+                        cell_shape.setLocalScaling(new Ammo.btVector3(cell.sx, cell.sy, cell.sz));
+
+                        let local_inertia = new Ammo.btVector3(0, 0, 0);
+                        cell_shape.calculateLocalInertia(cell.getMass(), local_inertia);
+                        // TODO: Is it correct to use total mass, after LocalScaling??
+
+                        let motion_st = new Ammo.btDefaultMotionState(cell.getBtTransform());
+                        let rb_info = new Ammo.btRigidBodyConstructionInfo(cell.getMass(), motion_st, cell_shape, local_inertia);
+                        let rb = new Ammo.btRigidBody(rb_info);
+                        rb.setFriction(0.8);
+
+                        this.rigid_world.addRigidBody(rb);
+                        this.cell_to_rigid_body.set(cell, rb);
+
+                        // Add a joint to the parent (another Cell or Soil).
+                        let parent_rb = cell.parent_cell === null ? this.ground_rb : this.cell_to_rigid_body.get(cell.parent_cell);
+                        let joint = new Ammo.btGeneric6DofSpringConstraint(rb, parent_rb, tf_cell, tf_parent, true);
+                        joint.setAngularLowerLimit(new Ammo.btVector3(0, 0, 0));
+                        joint.setAngularUpperLimit(new Ammo.btVector3(0, 0, 0));
+                        joint.setLinearLowerLimit(new Ammo.btVector3(0, 0, 0));
+                        joint.setLinearUpperLimit(new Ammo.btVector3(0, 0, 0));
+                        [3, 4, 5].forEach(ix => {
+                            joint.enableSpring(ix, true);
+                            joint.setStiffness(ix, 1e3);
+                            joint.setDamping(ix, 0.3);
+                        });  // rotation axes
+                        joint.setBreakingImpulseThreshold(100);
+                        this.rigid_world.addConstraint(joint, true /* no collision between neighbors */);
+                        this.cell_to_parent_joint.set(cell, joint);
+                    } else {
+                        // Apply modification.
+                        rb.getCollisionShape().setLocalScaling(new Ammo.btVector3(cell.sx, cell.sy, cell.sz));
+                        let local_inertia = new Ammo.btVector3(0, 0, 0);
+                        rb.getCollisionShape().calculateLocalInertia(cell.getMass(), local_inertia);
+                        rb.setMassProps(cell.getMass(), local_inertia);
+                        rb.updateInertiaTensor();
+                        // TODO: maybe need to call some other updates?
+
+                        // Update joint between current cell and its parent.
+                        let joint = this.cell_to_parent_joint.get(cell);
+                        joint.setFrames(tf_cell, tf_parent);
+                    }
+                    live_cells.add(cell);
+                }
+            }
+            // Apply removal.
+            if (this.cell_to_rigid_body.size > live_cells.size) {
+                for (let [cell, rb] of this.cell_to_rigid_body) {
+                    if (!live_cells.has(cell)) {
+                        this.rigid_world.removeRigidBody(rb);
+                        this.cell_to_rigid_body.delete(cell);
+                        this.cell_to_parent_joint.delete(cell);
+                    }
+                }
+            }
+        }
+
+        _update_plants_from_rigid() {
+            for (let [cell, rb] of this.cell_to_rigid_body) {
+                cell.setBtTransform(rb.getCenterOfMassTransform());
+            }
+            for (let [cell, joint] of this.cell_to_parent_joint) {
+                //  console.log(joint.getAppliedImpulse());
+            }
+        }
+
+        serialize() {
+            let ser = {};
+            ser['plants'] = _.map(this.plants, function (plant) {
+                let mesh = plant.materialize(true);
+
+                return {
+                    'id': plant.id,
+                    'vertices': mesh.geometry.vertices,
+                    'faces': mesh.geometry.faces
+                };
+            }, this);
+            ser['soil'] = this.soil.serialize();
+
+            return ser;
+        }
+
+        // Kill plant with specified id.
+        kill(id) {
+            this.plants = _.filter(this.plants, function (plant) {
+                return (plant.id !== id);
+            });
+        }
+    }
+
+    // xs :: [num]
+    // return :: num
+    function sum(xs) {
+        return _.reduce(xs, function (x, y) {
+            return x + y;
+        }, 0);
+    }
+
+    // xs :: [num]
+    // return :: num
+    function product(xs) {
+        return _.reduce(xs, function (x, y) {
+            return x * y;
+        }, 1);
+    }
+
+    this.Chunk = Chunk;
 
 })(this);
