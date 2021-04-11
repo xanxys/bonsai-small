@@ -20,7 +20,7 @@
             this.id = plantId;
 
             // physics
-            this.seedInnodeToWorld = new THREE.Matrix4().compose(
+            const seedInnodeToWorld = new THREE.Matrix4().compose(
                 position,
                 new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.random() * 2 * Math.PI),
                 new THREE.Vector3(1, 1, 1));
@@ -28,9 +28,8 @@
 
             // biophysics
             this.energy = energy;
-            this.seed = new Cell(this, Signal.SHOOT_END, null);  // being deprecated
-            this.seed.initPose(this.seedInnodeToWorld);
-            this.cells = [this.seed];  // flat cells in world coords
+            const seed = new Cell(this, Signal.SHOOT_END, null, seedInnodeToWorld);
+            this.cells = [seed];  // flat cells in world coords
 
             // genetics
             this.genome = genome;
@@ -40,7 +39,6 @@
             // Step cells (w/o collecting/stepping separation, infinite growth will occur)
             this.age += 1;
             this.cells.forEach(cell => cell.step());
-            console.assert(this.seed.age === this.age);
 
             // Consume/store in-Plant energy.
             this.energy += this._powerForPlant() * 1;
@@ -69,7 +67,7 @@
                 let trans = new THREE.Vector3();
                 let q = new THREE.Quaternion();
                 let s = new THREE.Vector3();
-                cell.locToWorld.decompose(trans, q, s);
+                cell.cellToWorld.decompose(trans, q, s);
 
                 m.cell = cell;
                 m.position.copy(trans);
@@ -111,7 +109,7 @@
     //    basic (minimum cell volume equivalent)
     //    linear-volume
     class Cell {
-        constructor(plant, initialSignal, parentCell) {
+        constructor(plant, initialSignal, parentCell, cellToWorld) {
             // tracer
             this.age = 0;
 
@@ -119,11 +117,10 @@
             this.photons = 0;
 
             // in-sim (phys + bio)
-            this.locToParent = new THREE.Quaternion();
             this.sx = 0.5;
             this.sy = 0.5;
             this.sz = 0.5;
-            this.locToWorld = new THREE.Matrix4();
+            this.cellToWorld = cellToWorld;
 
             // in-sim (bio)
             this.plant = plant;
@@ -283,7 +280,7 @@
                     let trans = new THREE.Vector3();
                     let _rot = new THREE.Quaternion();
                     let _scale = new THREE.Vector3();
-                    this.locToWorld.decompose(trans, _rot, _scale);
+                    this.cellToWorld.decompose(trans, _rot, _scale);
 
                     // TODO: should be world coodinate of the flower
                     this.plant.unsafeChunk.disperseSeedFrom(
@@ -292,37 +289,21 @@
             }
         }
 
-        initPose(innodeToWorld) {
-            const parentToLoc = this.locToParent.clone().inverse();
-            const innodeToCenter = new THREE.Matrix4().compose(
-                new THREE.Vector3(0, 0, -this.sz / 2),
-                parentToLoc,
-                new THREE.Vector3(1, 1, 1));
-            const centerToInnode = new THREE.Matrix4().getInverse(innodeToCenter);
-            this.locToWorld =
-                innodeToWorld.clone().multiply(centerToInnode);
-        }
-
         /**
          * 
          * @returns {THREE.Matrix4}
          */
         getOutNodeToWorld() {
-            const parentToLoc = this.locToParent.clone().inverse();
-            const locToOutnode = new THREE.Matrix4().compose(
-                new THREE.Vector3(0, 0, -this.sz / 2),
-                parentToLoc,
-                new THREE.Vector3(1, 1, 1));
-
+            const locToOutnode = new THREE.Matrix4().makeTranslation(0, 0, -this.sz / 2);
             const outnodeToLoc = new THREE.Matrix4().getInverse(locToOutnode);
-            return this.locToWorld.clone().multiply(outnodeToLoc);
+            return this.cellToWorld.clone().multiply(outnodeToLoc);
         }
 
         getBtTransform() {
             const trans = new THREE.Vector3();
             const quat = new THREE.Quaternion();
             const unusedScale = new THREE.Vector3();
-            this.locToWorld.decompose(trans, quat, unusedScale);
+            this.cellToWorld.decompose(trans, quat, unusedScale);
 
             const tf = new Ammo.btTransform();
             tf.setIdentity();
@@ -334,7 +315,7 @@
         setBtTransform(tf) {
             const t = tf.getOrigin();
             const r = tf.getRotation();
-            this.locToWorld.compose(
+            this.cellToWorld.compose(
                 new THREE.Vector3(t.x(), t.y(), t.z()),
                 new THREE.Quaternion(r.x(), r.y(), r.z(), r.w()),
                 new THREE.Vector3(1, 1, 1));
@@ -409,9 +390,7 @@
             }
 
 
-            const newCell = new Cell(this.plant, initial, this);
-            newCell.locToParent = calcRot(locator);
-            newCell.initPose(this.getOutNodeToWorld());
+            const newCell = new Cell(this.plant, initial, this, this.getOutNodeToWorld());
             this.plant.cells.push(newCell);            
         }
     }
