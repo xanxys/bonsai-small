@@ -45,8 +45,8 @@ class Bonsai {
             caster.setFromCamera(posNdc, this.camera);
             const intersections = caster.intersectObject(this.scene, true);
 
-            if (intersections.length > 0 && intersections[0].object.plantId !== undefined) {
-                this.selectedPlantId = intersections[0].object.plantId;
+            if (intersections.length > 0 && intersections[0].object.instanceIdToPlantId !== undefined) {
+                this.selectedPlantId = intersections[0].object.instanceIdToPlantId.get(intersections[0].instanceId);
             } else {
                 this.selectedPlantId = null;
             }
@@ -376,7 +376,7 @@ class Bonsai {
         const cursorCenter = vMax.clone().add(vMin).multiplyScalar(0.5);
 
         const cursor = new THREE.Mesh(
-            new THREE.CubeGeometry(cursorSize.x, cursorSize.y, cursorSize.z),
+            new THREE.BoxGeometry(cursorSize.x, cursorSize.y, cursorSize.z),
             new THREE.MeshBasicMaterial({
                 wireframe: true,
                 color: new THREE.Color("rgb(173,127,168)"),
@@ -394,21 +394,33 @@ class Bonsai {
         const proxy = new THREE.Object3D();
 
         // de-serialize plants
+        const cellInstanceGeom = new THREE.BoxGeometry(1, 1, 1);
+        const cellInstanceMat = new THREE.MeshLambertMaterial();
+
+        let cellCount = 0;
+        chunk.plants.forEach(plant => {
+            cellCount += plant.cells.length;
+        });
+
+        const cellMesh = new THREE.InstancedMesh(cellInstanceGeom, cellInstanceMat, cellCount);
+        const instanceIdToPlantId = new Map();
+        let cellIndex = 0;
         chunk.plants.forEach(plant => {
             plant.cells.forEach(cell => {
-                const mat = new THREE.MeshLambertMaterial({color: new THREE.Color(cell.col.r, cell.col.g, cell.col.b)});
-                const geom = new THREE.BoxGeometry(1, 1, 1);
-                const cellMesh = new THREE.Mesh(geom, mat);
-                cellMesh.plantId = plant.id;
-                 
-                proxy.add(cellMesh);
-                cellMesh.matrixAutoUpdate = false;
-                cellMesh.matrix.set(...cell.mat);
-                cellMesh.matrix.transpose();
-                cellMesh.matrix.scale(new THREE.Vector3(...cell.size));
-                cellMesh.matrixWorldNeedsUpdate = true;
+                const m = new THREE.Matrix4();
+                m.set(...cell.mat);
+                m.transpose();
+                m.scale(new THREE.Vector3(...cell.size));
+
+                cellMesh.setColorAt(cellIndex, new THREE.Color(cell.col.r, cell.col.g, cell.col.b));
+                cellMesh.setMatrixAt(cellIndex, m);
+                instanceIdToPlantId.set(cellIndex, plant.id);
+
+                cellIndex++;
             });
         });
+        cellMesh.instanceIdToPlantId = instanceIdToPlantId;
+        proxy.add(cellMesh);
 
         // Attach tiles to the base.
         const tex = this._deserializeSoilTexture(chunk.soil);
