@@ -12,15 +12,15 @@
     //
     // position :: THREE.Vector3<World>
     class Plant {
-        constructor(position, unsafe_chunk, energy, genome, plant_id) {
-            this.unsafe_chunk = unsafe_chunk;
+        constructor(position, unsafeChunk, energy, genome, plantId) {
+            this.unsafeChunk = unsafeChunk;
 
             // tracer
             this.age = 0;
-            this.id = plant_id;
+            this.id = plantId;
 
             // physics
-            this.seed_innode_to_world = new THREE.Matrix4().compose(
+            this.seedInnodeToWorld = new THREE.Matrix4().compose(
                 position,
                 new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.random() * 2 * Math.PI),
                 new THREE.Vector3(1, 1, 1));
@@ -29,7 +29,7 @@
             // biophysics
             this.energy = energy;
             this.seed = new Cell(this, Signal.SHOOT_END, null);  // being deprecated
-            this.seed.initPose(this.seed_innode_to_world);
+            this.seed.initPose(this.seedInnodeToWorld);
             this.cells = [this.seed];  // flat cells in world coords
 
             // genetics
@@ -42,22 +42,19 @@
             this.cells.forEach(cell => cell.step());
             console.assert(this.seed.age === this.age);
 
-            let mech_valid = true;
-
-
             // Consume/store in-Plant energy.
             this.energy += this._powerForPlant() * 1;
 
-            if (this.energy <= 0 || !mech_valid) {
+            if (this.energy <= 0) {
                 // die
-                this.unsafe_chunk.remove_plant(this);
+                this.unsafeChunk.removePlant(this);
             }
         }
 
         // Approximates lifetime of the plant.
         // Max growth=1, zero growth=0.
         // return :: [0,1]
-        growth_factor() {
+        growthFactor() {
             return Math.exp(-this.age / 20);
         }
 
@@ -72,7 +69,7 @@
                 let trans = new THREE.Vector3();
                 let q = new THREE.Quaternion();
                 let s = new THREE.Vector3();
-                cell.loc_to_world.decompose(trans, q, s);
+                cell.locToWorld.decompose(trans, q, s);
 
                 m.cell = cell;
                 m.position.copy(trans);
@@ -85,19 +82,18 @@
             return mergedGeom;
         }
 
-        get_stat() {
-            let stat_cells = this.cells.map(cell => cell.signals);
-
-            let stat = {};
-            stat["#cells"] = stat_cells.length;
-            stat['cells'] = stat_cells;
+        getStat() {
+            const statCells = this.cells.map(cell => cell.signals);
+            const stat = {};
+            stat["#cells"] = statCells.length;
+            stat['cells'] = statCells;
             stat['age/T'] = this.age;
             stat['stored/E'] = this.energy;
             stat['delta/(E/T)'] = this._powerForPlant();
             return stat;
         }
 
-        get_genome() {
+        getGenome() {
             return this.genome;
         }
 
@@ -115,7 +111,7 @@
     //    basic (minimum cell volume equivalent)
     //    linear-volume
     class Cell {
-        constructor(plant, initial_signal, parent_cell) {
+        constructor(plant, initialSignal, parentCell) {
             // tracer
             this.age = 0;
 
@@ -123,19 +119,19 @@
             this.photons = 0;
 
             // in-sim (phys + bio)
-            this.loc_to_parent = new THREE.Quaternion();
+            this.locToParent = new THREE.Quaternion();
             this.sx = 0.5;
             this.sy = 0.5;
             this.sz = 0.5;
-            this.loc_to_world = new THREE.Matrix4();
+            this.locToWorld = new THREE.Matrix4();
 
             // in-sim (bio)
             this.plant = plant;
-            this.parent_cell = parent_cell;
+            this.parentCell = parentCell;
             this.power = 0;
 
             // in-sim (genetics)
-            this.signals = [initial_signal];
+            this.signals = [initialSignal];
         }
 
         getMass() {
@@ -227,7 +223,7 @@
                 if (signal === Signal.HALF) {
                     return 0.5;
                 } else if (signal === Signal.GROWTH) {
-                    return _this.plant.growth_factor();
+                    return _this.plant.growthFactor();
                 } else if (signal.length >= 2 && signal[0] === Signal.INVERT) {
                     return 1 - unity_calc_prob_term(signal.substr(1));
                 } else if (_this.signals.includes(signal)) {
@@ -271,7 +267,7 @@
             let new_signals = [];
             this.signals.forEach(signal => {
                 if (signal.length === 3 && signal[0] === Signal.DIFF) {
-                    _this.add_cont(signal[1], signal[2]);
+                    _this.addCont(signal[1], signal[2]);
                 } else if (signal === Signal.G_DX) {
                     _this.sx = Math.min(5, _this.sx + 0.1);
                 } else if (signal === Signal.G_DY) {
@@ -292,52 +288,52 @@
                 // TODO: this should be handled by physics, not biology.
                 // Maybe dead cells with stored energy survives when fallen off.
                 if (Math.random() < 0.01) {
-                    let seed_energy = _this._withdrawVariableEnergy(Math.pow(20e-3, 3) * 10);
+                    let seedEnergy = _this._withdrawVariableEnergy(Math.pow(20e-3, 3) * 10);
 
                     // Get world coordinates.
                     let trans = new THREE.Vector3();
                     let _rot = new THREE.Quaternion();
                     let _scale = new THREE.Vector3();
-                    this.loc_to_world.decompose(trans, _rot, _scale);
+                    this.locToWorld.decompose(trans, _rot, _scale);
 
                     // TODO: should be world coodinate of the flower
-                    this.plant.unsafe_chunk.disperse_seed_from(
-                        trans, seed_energy, this.plant.genome.naturalClone());
+                    this.plant.unsafeChunk.disperseSeedFrom(
+                        trans, seedEnergy, this.plant.genome.naturalClone());
                 }
             }
         };
 
         initPose(innode_to_world) {
             // Update this.
-            let parent_to_loc = this.loc_to_parent.clone().inverse();
+            let parent_to_loc = this.locToParent.clone().inverse();
 
             let innode_to_center = new THREE.Matrix4().compose(
                 new THREE.Vector3(0, 0, -this.sz / 2),
                 parent_to_loc,
                 new THREE.Vector3(1, 1, 1));
             let center_to_innode = new THREE.Matrix4().getInverse(innode_to_center);
-            this.loc_to_world =
+            this.locToWorld =
                 innode_to_world.clone().multiply(center_to_innode);
         }
 
         getOutNodeToWorld() {
-            let parent_to_loc = this.loc_to_parent.clone().inverse();
-            let loc_to_outnode = new THREE.Matrix4().compose(
+            const parentToLoc = this.locToParent.clone().inverse();
+            const locToOutnode = new THREE.Matrix4().compose(
                 new THREE.Vector3(0, 0, -this.sz / 2),
-                parent_to_loc,
+                parentToLoc,
                 new THREE.Vector3(1, 1, 1));
 
-            let outnode_to_loc = new THREE.Matrix4().getInverse(loc_to_outnode);
-            return this.loc_to_world.clone().multiply(outnode_to_loc);
+            const outnodeToLoc = new THREE.Matrix4().getInverse(locToOutnode);
+            return this.locToWorld.clone().multiply(outnodeToLoc);
         }
 
         getBtTransform() {
-            let trans = new THREE.Vector3();
-            let quat = new THREE.Quaternion();
-            let unused_scale = new THREE.Vector3();
-            this.loc_to_world.decompose(trans, quat, unused_scale);
+            const trans = new THREE.Vector3();
+            const quat = new THREE.Quaternion();
+            const unusedScale = new THREE.Vector3();
+            this.locToWorld.decompose(trans, quat, unusedScale);
 
-            let tf = new Ammo.btTransform();
+            const tf = new Ammo.btTransform();
             tf.setIdentity();
             tf.setOrigin(new Ammo.btVector3(trans.x, trans.y, trans.z));
             tf.setRotation(new Ammo.btQuaternion(quat.x, quat.y, quat.z, quat.w));
@@ -345,9 +341,9 @@
         }
 
         setBtTransform(tf) {
-            let t = tf.getOrigin();
-            let r = tf.getRotation();
-            this.loc_to_world.compose(
+            const t = tf.getOrigin();
+            const r = tf.getRotation();
+            this.locToWorld.compose(
                 new THREE.Vector3(t.x(), t.y(), t.z()),
                 new THREE.Quaternion(r.x(), r.y(), r.z(), r.w()),
                 new THREE.Vector3(1, 1, 1));
@@ -357,45 +353,44 @@
         // return :: THREE.Mesh
         materializeSingle() {
             // Create cell object [-sx/2,sx/2] * [-sy/2,sy/2] * [0, sz]
-            let flr_ratio = (this.signals.includes(Signal.FLOWER)) ? 0.5 : 1;
-            let chl_ratio = 1 - this._getPhotoSynthesisEfficiency();
+            let flrRatio = (this.signals.includes(Signal.FLOWER)) ? 0.5 : 1;
+            let chlRatio = 1 - this._getPhotoSynthesisEfficiency();
 
-            let color_diffuse = new THREE.Color();
-            color_diffuse.setRGB(
-                chl_ratio,
-                flr_ratio,
-                flr_ratio * chl_ratio);
+            const colorDiffuse = new THREE.Color();
+            colorDiffuse.setRGB(
+                chlRatio,
+                flrRatio,
+                flrRatio * chlRatio);
 
             if (this.photons === 0) {
-                color_diffuse.offsetHSL(0, 0, -0.2);
+                colorDiffuse.offsetHSL(0, 0, -0.2);
             }
             if (this.plant.energy < 1e-4) {
                 let t = 1 - this.plant.energy * 1e4;
-                color_diffuse.offsetHSL(0, -t, 0);
+                colorDiffuse.offsetHSL(0, -t, 0);
             }
 
-            let geom_cube = new THREE.CubeGeometry(this.sx, this.sy, this.sz);
-            for (let i = 0; i < geom_cube.faces.length; i++) {
+            const geomCube = new THREE.CubeGeometry(this.sx, this.sy, this.sz);
+            for (let i = 0; i < geomCube.faces.length; i++) {
                 for (let j = 0; j < 3; j++) {
-                    geom_cube.faces[i].vertexColors[j] = color_diffuse;
+                    geomCube.faces[i].vertexColors[j] = colorDiffuse;
                 }
             }
-
             return new THREE.Mesh(
-                geom_cube,
+                geomCube,
                 new THREE.MeshLambertMaterial({
                     vertexColors: THREE.VertexColors
                 }));
         };
 
-        give_photon() {
+        givePhoton() {
             this.photons += 1;
         }
 
         // initial :: Signal
         // locator :: LocatorSignal
         // return :: ()
-        add_cont(initial, locator) {
+        addCont(initial, locator) {
             function calc_rot(desc) {
                 if (desc === Signal.CONICAL) {
                     return new THREE.Quaternion().setFromEuler(new THREE.Euler(
@@ -423,9 +418,9 @@
             }
 
 
-            let new_cell = new Cell(this.plant, initial, this);
-            new_cell.loc_to_parent = calc_rot(locator);
-            this.add(new_cell);
+            let newCell = new Cell(this.plant, initial, this);
+            newCell.locToParent = calc_rot(locator);
+            this.add(newCell);
         }
     }
 
@@ -444,7 +439,7 @@
             let array = [];
             for (let y = 0; y < this.n; y++) {
                 for (let x = 0; x < this.n; x++) {
-                    let v = Math.min(1, this.parent.light.shadow_map[x + y * this.n] / 2 + 0.1);
+                    let v = Math.min(1, this.parent.light.shadowMap[x + y * this.n] / 2 + 0.1);
                     array.push(v);
                 }
             }
@@ -465,17 +460,17 @@
             this.size = size;
 
             // number of photos that hit ground.
-            this.shadow_map = new Float32Array(this.n * this.n);
+            this.shadowMap = new Float32Array(this.n * this.n);
         }
 
         step() {
-            this._updateShadowMap(this.chunk.rigid_world, this.chunk.cellMapping);
+            this._updateShadowMap(this.chunk.rigidWorld, this.chunk.cellMapping);
         }
 
         _updateShadowMap(rigidWorld, cellMapping) {
             for (let i = 0; i < this.n; i++) {
                 for (let j = 0; j < this.n; j++) {
-                    this.shadow_map[i + j * this.n] = 0;
+                    this.shadowMap[i + j * this.n] = 0;
 
                     // 50% light in smaller i region
                     if (i < this.n / 2 && Math.random() < 0.5) {
@@ -492,10 +487,10 @@
                         const uIndex = cb.m_collisionObject.getUserIndex();
                         const cell = cellMapping.get(uIndex);
                         if (cell !== undefined) {
-                            cell.give_photon();
+                            cell.givePhoton();
                         } else {
                             // hit ground
-                            this.shadow_map[i + j * this.n] += 1.0;    
+                            this.shadowMap[i + j * this.n] += 1.0;    
                         }
                     } else {
                         // hit nothing (shouldn't happen)
@@ -526,15 +521,15 @@
             this.seeds = [];
 
             // Temporary hacks.
-            this.cell_to_rigid_body = new Map();
-            this.cell_to_parent_joint = new Map();
+            this.cellToRigidBody = new Map();
+            this.cellToParentJoint = new Map();
 
             this.userIndex = 1;
             this.cellMapping = new Map();
 
             // Physical aspects.
             this.light = new Light(this, this.size);
-            this.rigid_world = this._createRigidWorld();
+            this.rigidWorld = this._createRigidWorld();
             this.light.step(); // update shadow map
         }
 
@@ -557,14 +552,14 @@
             let ground = new Ammo.btRigidBody(rb_info);
             ground.setUserIndex(0);
             rigid_world.addRigidBody(ground);
-            this.ground_rb = ground;
+            this.groundRb = ground;
 
             return rigid_world;
         }
 
         // Add standard plant seed.
-        add_default_plant(pos) {
-            return this.add_plant(
+        addDefaultPlant(pos) {
+            return this.addPlant(
                 pos,
                 Math.pow(20e-3, 3) * 100, // allow 2cm cube for 100T)
                 new Genome());
@@ -574,7 +569,7 @@
         // energy :: Total starting energy for the new plant.
         // genome :: genome for new plant
         // return :: Plant
-        add_plant(pos, energy, genome) {
+        addPlant(pos, energy, genome) {
             console.assert(Math.abs(pos.z) < 1e-3);
 
             // Torus-like boundary
@@ -592,7 +587,7 @@
 
         // pos :: THREE.Vector3
         // return :: ()
-        disperse_seed_from(pos, energy, genome) {
+        disperseSeedFrom(pos, energy, genome) {
             console.assert(pos.z >= 0);
             // Discard seeds thrown from too low altitude.
             if (pos.z < 0.01) {
@@ -616,20 +611,20 @@
 
         // Plant :: must be returned by add_plant
         // return :: ()
-        remove_plant(plant) {
+        removePlant(plant) {
             this.plants = this.plants.filter(p => p !== plant);
         }
 
         // return :: dict
-        get_stat() {
-            let stored_energy = sum(this.plants.map(plant => {
+        getStat() {
+            let storedEnergy = sum(this.plants.map(plant => {
                 return plant.energy;
             }));
 
             return {
                 'age/T': this.age,
                 'plant': this.plants.length,
-                'stored/E': stored_energy
+                'stored/E': storedEnergy
             };
         }
 
@@ -638,11 +633,11 @@
          * @param {number} plant id 
          * @returns {Object | null}
          */
-        get_plant_stat(id) {
+        getPlantStat(plantId) {
             let stat = null;
             this.plants.forEach(plant => {
-                if (plant.id === id) {
-                    stat = plant.get_stat();
+                if (plant.id === plantId) {
+                    stat = plant.getStat();
                 }
             });
             return stat;
@@ -650,14 +645,14 @@
 
         /**
          * 
-         * @param {*} id 
+         * @param {*} plantId 
          * @returns {Array | null}
          */
-        get_plant_genome(id) {
+        getPlantGenome(plantId) {
             let genome = null;
             this.plants.forEach(plant =>{
-                if (plant.id === id) {
-                    genome = plant.get_genome();
+                if (plant.id === plantId) {
+                    genome = plant.getGenome();
                 }
             });
             return genome;
@@ -678,69 +673,69 @@
             });
 
             this.seeds.forEach(seed => {
-                this.add_plant(seed.pos, seed.energy, seed.genome);
+                this.addPlant(seed.pos, seed.energy, seed.genome);
             });
             this.seeds = [];
             sim_stats['bio/ms'] = performance.now() - t0;
 
             t0 = performance.now();
-            this._export_plants_to_rigid();
+            this._exportPlantsToRigid();
             sim_stats['bio->rigid/ms'] = performance.now() - t0;
 
             t0 = performance.now();
-            this.light.step(this.rigid_world, this.cellMapping);
+            this.light.step(this.rigidWorld, this.cellMapping);
             sim_stats['light/ms'] = performance.now() - t0;
 
             t0 = performance.now();
-            this.rigid_world.stepSimulation(0.04, 2);
-            this._update_plants_from_rigid();
+            this.rigidWorld.stepSimulation(0.04, 2);
+            this._updatePlantsFromRigid();
             sim_stats['rigid/ms'] = performance.now() - t0;
 
             return sim_stats;
         }
 
-        _export_plants_to_rigid() {
+        _exportPlantsToRigid() {
             // There are three types of changes: add / modify / delete
             let live_cells = new Set();
             for (let plant of this.plants) {
                 for (let cell of plant.cells) {
-                    let rb = this.cell_to_rigid_body.get(cell);
+                    let rb = this.cellToRigidBody.get(cell);
 
                     // Also add contraint.
-                    let tf_cell = new Ammo.btTransform();
-                    tf_cell.setIdentity();
-                    tf_cell.setOrigin(new Ammo.btVector3(0, 0, -cell.sz / 2)); // innode
-                    let tf_parent = new Ammo.btTransform();
-                    tf_parent.setIdentity();
-                    if (cell.parent_cell === null) {
+                    let tfCell = new Ammo.btTransform();
+                    tfCell.setIdentity();
+                    tfCell.setOrigin(new Ammo.btVector3(0, 0, -cell.sz / 2)); // innode
+                    let tfParent = new Ammo.btTransform();
+                    tfParent.setIdentity();
+                    if (cell.parentCell === null) {
                         // point on ground
-                        tf_parent.setOrigin(new Ammo.btVector3(cell.plant.position.x, cell.plant.position.y, 0));
+                        tfParent.setOrigin(new Ammo.btVector3(cell.plant.position.x, cell.plant.position.y, 0));
                     } else {
                         // outnode of parent
-                        tf_parent.setOrigin(new Ammo.btVector3(0, 0, cell.parent_cell.sz / 2));
+                        tfParent.setOrigin(new Ammo.btVector3(0, 0, cell.parentCell.sz / 2));
                     }
 
                     if (rb === undefined) {
                         // New cell added.
-                        let cell_shape = new Ammo.btBoxShape(new Ammo.btVector3(0.5, 0.5, 0.5));  // (1m)^3 cube
-                        cell_shape.setLocalScaling(new Ammo.btVector3(cell.sx, cell.sy, cell.sz));
+                        let cellShape = new Ammo.btBoxShape(new Ammo.btVector3(0.5, 0.5, 0.5));  // (1m)^3 cube
+                        cellShape.setLocalScaling(new Ammo.btVector3(cell.sx, cell.sy, cell.sz));
 
-                        let local_inertia = new Ammo.btVector3(0, 0, 0);
-                        cell_shape.calculateLocalInertia(cell.getMass(), local_inertia);
+                        let localInertia = new Ammo.btVector3(0, 0, 0);
+                        cellShape.calculateLocalInertia(cell.getMass(), localInertia);
                         // TODO: Is it correct to use total mass, after LocalScaling??
 
-                        let motion_st = new Ammo.btDefaultMotionState(cell.getBtTransform());
-                        let rb_info = new Ammo.btRigidBodyConstructionInfo(cell.getMass(), motion_st, cell_shape, local_inertia);
+                        let motionState = new Ammo.btDefaultMotionState(cell.getBtTransform());
+                        let rb_info = new Ammo.btRigidBodyConstructionInfo(cell.getMass(), motionState, cellShape, localInertia);
                         let rb = new Ammo.btRigidBody(rb_info);
                         this.associateCell(rb, cell);
                         rb.setFriction(0.8);
 
-                        this.rigid_world.addRigidBody(rb);
-                        this.cell_to_rigid_body.set(cell, rb);
+                        this.rigidWorld.addRigidBody(rb);
+                        this.cellToRigidBody.set(cell, rb);
 
                         // Add a joint to the parent (another Cell or Soil).
-                        let parent_rb = cell.parent_cell === null ? this.ground_rb : this.cell_to_rigid_body.get(cell.parent_cell);
-                        let joint = new Ammo.btGeneric6DofSpringConstraint(rb, parent_rb, tf_cell, tf_parent, true);
+                        let parentRb = cell.parentCell === null ? this.groundRb : this.cellToRigidBody.get(cell.parentCell);
+                        let joint = new Ammo.btGeneric6DofSpringConstraint(rb, parentRb, tfCell, tfParent, true);
                         joint.setAngularLowerLimit(new Ammo.btVector3(0.01, 0.01, 0.01));
                         joint.setAngularUpperLimit(new Ammo.btVector3(-0.01, -0.01, -0.01));
                         joint.setLinearLowerLimit(new Ammo.btVector3(0.01, 0.01, 0.01));
@@ -751,32 +746,32 @@
                             joint.setDamping(ix, 0.1);
                         });
                         joint.setBreakingImpulseThreshold(100);
-                        this.rigid_world.addConstraint(joint, true /* no collision between neighbors */);
-                        this.cell_to_parent_joint.set(cell, joint);
+                        this.rigidWorld.addConstraint(joint, true /* no collision between neighbors */);
+                        this.cellToParentJoint.set(cell, joint);
                     } else {
                         // Apply modification.
                         rb.getCollisionShape().setLocalScaling(new Ammo.btVector3(cell.sx, cell.sy, cell.sz));
-                        let local_inertia = new Ammo.btVector3(0, 0, 0);
-                        rb.getCollisionShape().calculateLocalInertia(cell.getMass(), local_inertia);
-                        rb.setMassProps(cell.getMass(), local_inertia);
+                        const localInertia = new Ammo.btVector3(0, 0, 0);
+                        rb.getCollisionShape().calculateLocalInertia(cell.getMass(), localInertia);
+                        rb.setMassProps(cell.getMass(), localInertia);
                         rb.updateInertiaTensor();
                         // TODO: maybe need to call some other updates?
 
                         // Update joint between current cell and its parent.
-                        let joint = this.cell_to_parent_joint.get(cell);
+                        let joint = this.cellToParentJoint.get(cell);
                         
-                        joint.setFrames(tf_cell, tf_parent);
+                        joint.setFrames(tfCell, tfParent);
                     }
                     live_cells.add(cell);
                 }
             }
             // Apply removal.
-            if (this.cell_to_rigid_body.size > live_cells.size) {
-                for (let [cell, rb] of this.cell_to_rigid_body) {
+            if (this.cellToRigidBody.size > live_cells.size) {
+                for (let [cell, rb] of this.cellToRigidBody) {
                     if (!live_cells.has(cell)) {
-                        this.rigid_world.removeRigidBody(rb);
-                        this.cell_to_rigid_body.delete(cell);
-                        this.cell_to_parent_joint.delete(cell);
+                        this.rigidWorld.removeRigidBody(rb);
+                        this.cellToRigidBody.delete(cell);
+                        this.cellToParentJoint.delete(cell);
                     }
                 }
             }
@@ -793,8 +788,8 @@
             }
         }
 
-        _update_plants_from_rigid() {
-            for (let [cell, rb] of this.cell_to_rigid_body) {
+        _updatePlantsFromRigid() {
+            for (let [cell, rb] of this.cellToRigidBody) {
                 cell.setBtTransform(rb.getCenterOfMassTransform());
             }
         }

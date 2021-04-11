@@ -12,14 +12,14 @@ function startChunkWorker(Ammo) {
     if (!stressTest) {
         for (let iy = -2; iy <= 2; iy ++) {
             for (let ix = -2; ix <= 2; ix ++) {
-                this.current_plant = chunk.add_default_plant(
+                this.current_plant = chunk.addDefaultPlant(
                     new THREE.Vector3(ix * 7, iy * 7, 0));
             }
         }
     } else {
         for (let iy = -10; iy <= 10; iy ++) {
             for (let ix = -10; ix <= 10; ix ++) {
-                this.current_plant = chunk.add_default_plant(
+                this.current_plant = chunk.addDefaultPlant(
                     new THREE.Vector3(ix * 3, iy * 3, 0));
             }
         }
@@ -46,14 +46,14 @@ function startChunkWorker(Ammo) {
             } else if (msgType === 'stat') {
                 self.postMessage({
                     type: 'stat-chunk',
-                    data: chunk.get_stat()
+                    data: chunk.getStat()
                 });
             } else if (msgType === 'stat-plant') {
                 self.postMessage({
                     type: 'stat-plant',
                     data: {
                         id: payload.id,
-                        stat: chunk.get_plant_stat(payload.id)
+                        stat: chunk.getPlantStat(payload.id)
                     }
                 });
             } else if (msgType === 'genome-plant') {
@@ -61,7 +61,7 @@ function startChunkWorker(Ammo) {
                     type: 'genome-plant',
                     data: {
                         id: payload.id,
-                        genome: chunk.get_plant_genome(payload.id)
+                        genome: chunk.getPlantGenome(payload.id)
                     }
                 });
             }
