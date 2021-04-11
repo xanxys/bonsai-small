@@ -1,22 +1,6 @@
 (function () {
     let Ammo = null;
 
-    if (console.assert === undefined) {
-        console.assert = function (cond) {
-            if (!cond) {
-                throw "assertion failed";
-            }
-        };
-    }
-
-    let now = function () {
-        if (typeof performance !== 'undefined') {
-            return performance.now();
-        } else {
-            return new Date().getTime();
-        }
-    };
-
     // Collections of cells that forms a "single" plant.
     // This is not biologically accurate depiction of plants,
     // (e.g. vegetative growth, physics)
@@ -629,12 +613,13 @@
         }
     }
 
-    const AMMO_SCALE = 1;
 
-    // A chunk is non-singleton, finite patch of space containing bunch of plants, soil,
-    // and light field.
-    // Chunk have no coupling with DOM or external state. Main methods are
-    // step & serialize. Other methods are mostly for statistics.
+    /**
+     * A chunk is non-singleton, finite patch of space containing bunch of plants, soil,
+     * and light field.
+     * Chunk have no coupling with DOM or external state. Main methods are
+     * step & serialize. Other methods are mostly for statistics.
+     */  
     class Chunk {
         constructor() {
             // Chunk spatial constants.
@@ -752,9 +737,11 @@
             };
         }
 
-        // Retrieve current statistics about specified plant id.
-        // id :: int (plant id)
-        // return :: dict | null
+        /**
+         * Retrieve current statistics about specified plant id.
+         * @param {number} plant id 
+         * @returns {Object | null}
+         */
         get_plant_stat(id) {
             let stat = null;
             this.plants.forEach(plant => {
@@ -765,7 +752,11 @@
             return stat;
         }
 
-        // return :: array | null
+        /**
+         * 
+         * @param {*} id 
+         * @returns {Array | null}
+         */
         get_plant_genome(id) {
             let genome = null;
             this.plants.forEach(plant =>{
@@ -776,14 +767,16 @@
             return genome;
         }
 
-        // return :: object (stats)
+        /**
+         * @returns {Object} stats
+         */
         step() {
             this.age += 1;
 
             let t0 = 0;
             let sim_stats = {};
 
-            t0 = now();
+            t0 = performance.now();
             this.plants.forEach(plant => {
                 plant.step();
             });
@@ -792,22 +785,17 @@
                 this.add_plant(seed.pos, seed.energy, seed.genome);
             });
             this.seeds = [];
-            sim_stats['bio/ms'] = now() - t0;
+            sim_stats['bio/ms'] = performance.now() - t0;
 
-            t0 = now();
+            t0 = performance.now();
             this.light.step();
-            sim_stats['light/ms'] = now() - t0;
+            sim_stats['light/ms'] = performance.now() - t0;
 
-            t0 = now();
+            t0 = performance.now();
             this._export_plants_to_rigid();
             this.rigid_world.stepSimulation(0.04, 2);
             this._update_plants_from_rigid();
-            sim_stats['rigid/ms'] = now() - t0;
-
-            if (false) {
-                const v = this.test_sphere.getCenterOfMassTransform().getOrigin();
-                console.log(v.z(), v.x(), v.y());
-            }
+            sim_stats['rigid/ms'] = performance.now() - t0;
 
             return sim_stats;
         }
@@ -897,9 +885,6 @@
         _update_plants_from_rigid() {
             for (let [cell, rb] of this.cell_to_rigid_body) {
                 cell.setBtTransform(rb.getCenterOfMassTransform());
-            }
-            for (let [cell, joint] of this.cell_to_parent_joint) {
-                //  console.log(joint.getAppliedImpulse());
             }
         }
 
