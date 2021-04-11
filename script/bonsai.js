@@ -353,15 +353,22 @@ class Bonsai {
         // Calculate AABB of the plant.
         const vMin = new THREE.Vector3(1e5, 1e5, 1e5);
         const vMax = new THREE.Vector3(-1e5, -1e5, -1e5);
-        const vTemp = new THREE.Vector3();
-        plant.vertices.forEach(data_vertex => {
-            vTemp.copy(data_vertex);
-            vMin.min(vTemp);
-            vMax.max(vTemp);
+        plant.cells.forEach(cell => {
+            const m = new THREE.Matrix4();
+            m.set(...cell.mat);
+            m.transpose();
+
+            const t = new THREE.Vector3();
+            const r = new THREE.Quaternion();
+            const s = new THREE.Vector3();
+            m.decompose(t, r, s);
+
+            vMin.min(t);
+            vMax.max(t);
         });
 
         // Create cursor.
-        const padding = new THREE.Vector3(5e-1, 5e-1, 5e-1);
+        const padding = new THREE.Vector3(1, 1, 1);
         vMin.sub(padding);
         vMax.add(padding);
 
@@ -387,15 +394,20 @@ class Bonsai {
         const proxy = new THREE.Object3D();
 
         // de-serialize plants
-        const plantMat = new THREE.MeshLambertMaterial({vertexColors: true});
         chunk.plants.forEach(plant => {
-            const geom = new THREE.Geometry();
-            geom.vertices = plant.vertices;
-            geom.faces = plant.faces;
-
-            const mesh = new THREE.Mesh(geom, plantMat);
-            mesh.plantId = plant.id;
-            proxy.add(mesh);
+            plant.cells.forEach(cell => {
+                const mat = new THREE.MeshLambertMaterial({color: new THREE.Color(cell.col.r, cell.col.g, cell.col.b)});
+                const geom = new THREE.BoxGeometry(1, 1, 1);
+                const cellMesh = new THREE.Mesh(geom, mat);
+                cellMesh.plantId = plant.id;
+                 
+                proxy.add(cellMesh);
+                cellMesh.matrixAutoUpdate = false;
+                cellMesh.matrix.set(...cell.mat);
+                cellMesh.matrix.transpose();
+                cellMesh.matrix.scale(new THREE.Vector3(...cell.size));
+                cellMesh.matrixWorldNeedsUpdate = true;
+            });
         });
 
         // Attach tiles to the base.

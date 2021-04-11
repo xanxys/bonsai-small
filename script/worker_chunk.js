@@ -56,28 +56,14 @@
             return Math.exp(-this.age / 20);
         }
 
-        /**
-         * 
-         * @returns {THREE.Geometry}
-         */
-        materialize() {
-            let proxies = this.cells.map(cell => {
-                let m = cell.materializeSingle();
-
-                let trans = new THREE.Vector3();
-                let q = new THREE.Quaternion();
-                let s = new THREE.Vector3();
-                cell.cellToWorld.decompose(trans, q, s);
-
-                m.cell = cell;
-                m.position.copy(trans);
-                m.quaternion.copy(q);
-                return m;
+        serializeCells() {
+            return this.cells.map(cell => {
+                return {
+                    'mat': cell.cellToWorld.elements,
+                    'size': [cell.sx, cell.sy, cell.sz],
+                    'col': cell.getCellColor(),
+                };
             });
-
-            const mergedGeom = new THREE.Geometry();
-            proxies.forEach(proxy => mergedGeom.mergeMesh(proxy));
-            return mergedGeom;
         }
 
         getStat() {
@@ -321,9 +307,7 @@
                 new THREE.Vector3(1, 1, 1));
         }
 
-        // Create origin-centered, colored AABB for this Cell.
-        // return :: THREE.Mesh
-        materializeSingle() {
+        getCellColor() {
             // Create cell object [-sx/2,sx/2] * [-sy/2,sy/2] * [0, sz]
             let flrRatio = (this.signals.includes(Signal.FLOWER)) ? 0.5 : 1;
             let chlRatio = 1 - this._getPhotoSynthesisEfficiency();
@@ -341,19 +325,8 @@
                 let t = 1 - this.plant.energy * 1e4;
                 colorDiffuse.offsetHSL(0, -t, 0);
             }
-
-            const geomCube = new THREE.CubeGeometry(this.sx, this.sy, this.sz);
-            for (let i = 0; i < geomCube.faces.length; i++) {
-                for (let j = 0; j < 3; j++) {
-                    geomCube.faces[i].vertexColors[j] = colorDiffuse;
-                }
-            }
-            return new THREE.Mesh(
-                geomCube,
-                new THREE.MeshLambertMaterial({
-                    vertexColors: THREE.VertexColors
-                }));
-        };
+            return colorDiffuse;
+        }
 
         givePhoton() {
             this.photons += 1;
@@ -769,12 +742,9 @@
         serialize() {
             let ser = {};
             ser['plants'] = this.plants.map(plant => {
-                let geom = plant.materialize(true);
-
                 return {
                     'id': plant.id,
-                    'vertices': geom.vertices,
-                    'faces': geom.faces
+                    'cells': plant.serializeCells(),
                 };
             });
             ser['soil'] = this.soil.serialize();
