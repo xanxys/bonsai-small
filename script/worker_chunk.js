@@ -281,7 +281,7 @@
          */
         getOutNodeToWorld() {
             const locToOutnode = new THREE.Matrix4().makeTranslation(0, 0, -this.sz / 2);
-            const outnodeToLoc = new THREE.Matrix4().getInverse(locToOutnode);
+            const outnodeToLoc = new THREE.Matrix4().copy(locToOutnode).invert();
             return this.cellToWorld.clone().multiply(outnodeToLoc);
         }
 
