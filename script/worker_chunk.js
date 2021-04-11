@@ -389,8 +389,9 @@
                 }
             }
 
-
-            const newCell = new Cell(this.plant, initial, this, this.getOutNodeToWorld());
+            const newcellToOutnode = new THREE.Matrix4().makeRotationFromQuaternion(calcRot(locator));
+            const newcellToWorld = newcellToOutnode.multiply(this.getOutNodeToWorld());
+            const newCell = new Cell(this.plant, initial, this, newcellToWorld);
             this.plant.cells.push(newCell);            
         }
     }
