@@ -61,8 +61,11 @@
             return Math.exp(-this.age / 20);
         }
 
-        // return :: THREE.Object3D<world>
-        materialize(merge) {
+        /**
+         * 
+         * @returns {THREE.Geometry}
+         */
+        materialize() {
             let proxies = this.cells.map(cell => {
                 let m = cell.materializeSingle();
 
@@ -77,20 +80,9 @@
                 return m;
             });
 
-            if (merge) {
-                let merged_geom = new THREE.Geometry();
-                proxies.forEach(proxy => merged_geom.mergeMesh(proxy));
-
-                let merged_plant = new THREE.Mesh(
-                    merged_geom,
-                    new THREE.MeshLambertMaterial({ vertexColors: THREE.VertexColors }));
-
-                return merged_plant;
-            } else {
-                let three_plant = new THREE.Object3D();
-                proxies.forEach(proxy => three_plant.add(proxy));
-                return three_plant;
-            }
+            const mergedGeom = new THREE.Geometry();
+            proxies.forEach(proxy => mergedGeom.mergeMesh(proxy));
+            return mergedGeom;
         }
 
         get_stat() {
@@ -448,23 +440,6 @@
             this.size = size;
         }
 
-        // return :: THREE.Object3D
-        materialize() {
-            // Create texture.
-            let canvas = this._generateTexture();
-
-            // Attach tiles to the base.
-            let tex = new THREE.Texture(canvas);
-            tex.needsUpdate = true;
-
-            let soil_plate = new THREE.Mesh(
-                new THREE.CubeGeometry(this.size, this.size, 1e-3),
-                new THREE.MeshBasicMaterial({
-                    map: tex
-                }));
-            return soil_plate;
-        }
-
         serialize() {
             let array = [];
             for (let y = 0; y < this.n; y++) {
@@ -478,24 +453,6 @@
                 n: this.n,
                 size: this.size
             };
-        }
-
-        // return :: Canvas
-        _generateTexture() {
-            let canvas = document.createElement('canvas');
-            canvas.width = this.n;
-            canvas.height = this.n;
-            let context = canvas.getContext('2d');
-            for (let y = 0; y < this.n; y++) {
-                for (let x = 0; x < this.n; x++) {
-                    let v = Math.min(1, this.parent.light.shadow_map[x + y * this.n] / 2 + 0.1);
-                    let lighting = new THREE.Color().setRGB(v, v, v);
-
-                    context.fillStyle = lighting.getStyle();
-                    context.fillRect(x, this.n - y, 1, 1);
-                }
-            }
-            return canvas;
         }
     }
 
@@ -512,10 +469,10 @@
         }
 
         step() {
-            this.updateShadowMapAmmo(this.chunk.rigid_world, this.chunk.cellMapping);
+            this._updateShadowMap(this.chunk.rigid_world, this.chunk.cellMapping);
         }
 
-        updateShadowMapAmmo(rigid_world, cellMapping) {
+        _updateShadowMap(rigidWorld, cellMapping) {
             for (let i = 0; i < this.n; i++) {
                 for (let j = 0; j < this.n; j++) {
                     this.shadow_map[i + j * this.n] = 0;
@@ -529,7 +486,7 @@
                     const x = ((i + Math.random()) / this.n - 0.5) * this.size;
                     const y = ((j + Math.random()) / this.n - 0.5) * this.size;
                     const org = new Ammo.btVector3(x, y, 100);
-                    rigid_world.rayTest(org, new Ammo.btVector3(x, y, -1), cb);
+                    rigidWorld.rayTest(org, new Ammo.btVector3(x, y, -1), cb);
 
                     if (cb.hasHit()) {
                         const uIndex = cb.m_collisionObject.getUserIndex();
@@ -577,11 +534,11 @@
 
             // Physical aspects.
             this.light = new Light(this, this.size);
-            this.rigid_world = this._create_rigid_world();
+            this.rigid_world = this._createRigidWorld();
             this.light.step(); // update shadow map
         }
 
-        _create_rigid_world() {
+        _createRigidWorld() {
             let collision_configuration = new Ammo.btDefaultCollisionConfiguration();
             let dispatcher = new Ammo.btCollisionDispatcher(collision_configuration);
             let overlappingPairCache = new Ammo.btDbvtBroadphase();
@@ -845,12 +802,12 @@
         serialize() {
             let ser = {};
             ser['plants'] = this.plants.map(plant => {
-                let mesh = plant.materialize(true);
+                let geom = plant.materialize(true);
 
                 return {
                     'id': plant.id,
-                    'vertices': mesh.geometry.vertices,
-                    'faces': mesh.geometry.faces
+                    'vertices': geom.vertices,
+                    'faces': geom.faces
                 };
             });
             ser['soil'] = this.soil.serialize();
