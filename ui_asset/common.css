@@ -186,19 +186,8 @@ canvas {
 	font-weight: 800;
 }
 
-/* Time Panel */
-#ui_abs_time {
-	font-size: 150%;
-}
-
-#button_play {
-	width: 2em;
-	height: 2em;
-	font-family: sans-serif;
-}
-
 /* Plant Panel */
-.bg-plant span {
+.bg-plant td {
 	background-color: #ccc;
 	margin-right: 2px;
 

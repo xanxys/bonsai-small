@@ -9,30 +9,11 @@ Vue.component('line-plot', Vue.extend({
     },
 }));
 
-
 class Bonsai {
     constructor() {
-        this.debug = (location.hash === '#debug');
-
-        this.add_stats();
         this.init();
     }
 
-    add_stats() {
-        this.stats = new Stats();
-        this.stats.setMode(1); // 0: fps, 1: ms
-
-        // Align top-left
-        this.stats.domElement.style.position = 'absolute';
-        this.stats.domElement.style.right = '0px';
-        this.stats.domElement.style.top = '0px';
-
-        if (this.debug) {
-            document.body.appendChild(this.stats.domElement);
-        }
-    }
-
-    // return :: ()
     init() {
         this.age = 0;
 
@@ -118,6 +99,9 @@ class Bonsai {
                 playing: false,
                 age: 0,
 
+                chunkInfoText: '',
+                simInfoText: '',
+
                 historydata: {},
                 historyoption: {
                     color: '#fff',
@@ -157,6 +141,11 @@ class Bonsai {
                         },
                     },
                 },
+
+                plantInfoText: '',
+                cells: [],
+
+                genome: [],
             },
             methods: {
                 onClickToggleTime: function() {
@@ -189,6 +178,23 @@ class Bonsai {
                 onClickStep: function(n) {
                     this.playing = false;
                     this.execStep(n);
+                },
+
+                onClickKillPlant: function() {
+                    if (app.curr_selection !== null) {
+                        app.isolated_chunk.postMessage({
+                            type: 'kill',
+                            data: {
+                                id: app.inspect_plant_id
+                            }
+                        });
+        
+                        app.isolated_chunk.postMessage({
+                            type: 'serialize'
+                        });
+        
+                        app.requestPlantStatUpdate();
+                    }
                 },
 
                 execStep: function(n) {
@@ -230,25 +236,53 @@ class Bonsai {
                         ]
                     };
                 },
+
+                updatePlantView: function(stat) {
+                    const statsWithoutCellDetail = {};
+                    Object.assign(statsWithoutCellDetail, stat);
+                    delete statsWithoutCellDetail.cells;
+                    this.plantInfoText = JSON.stringify(statsWithoutCellDetail, null, 2);
+             
+                    let cells = [];
+                    if (stat !== null) {
+                        cells = stat['cells'].map(cellStat => JSON.stringify(cellStat, null, 0));
+                    }
+                    this.cells = cells;
+                },
+
+                updateGenomeView: function(genome) {
+                    function convertSignals(sigs) {
+                        return sigs.map(sig => {
+                            const desc = parseIntrinsicSignal(sig);
+            
+                            const classObj = {};
+                            classObj['ct-' + desc.type] = true;
+            
+                            const role = desc.long === '' ? ' ' : desc.long;
+                            return {
+                                seq: desc.raw,
+                                classObj: classObj,
+                                role: role,
+                            };
+                        });
+                    }
+            
+                    if (genome === null) {
+                        this.genome = [];
+                        return;
+                    }
+            
+                    this.genome = genome.unity.map(gene => {
+                        return {
+                            name: gene["tracer_desc"],
+                            when: convertSignals(gene.when),
+                            emit: convertSignals(gene.emit),
+                        };
+                    });
+                }
             },
         });
 
-        $('#button_kill').on('click', () => {
-            if (curr_selection !== null) {
-                this.isolated_chunk.postMessage({
-                    type: 'kill',
-                    data: {
-                        id: this.inspect_plant_id
-                    }
-                });
-
-                this.isolated_chunk.postMessage({
-                    type: 'serialize'
-                });
-
-                this.requestPlantStatUpdate();
-            }
-        })
         this.isolated_chunk.addEventListener('message', ev => {
             if (ev.data.type === 'init-complete') {
                 this.isolated_chunk.postMessage({
@@ -280,112 +314,22 @@ class Bonsai {
                 this.num_plant_history.push(ev.data.data["plant"]);
                 this.energy_history.push(ev.data.data["stored/E"]);
                 this.vm.updateGraph();
-
-                $('#info-chunk').text(JSON.stringify(ev.data.data, null, 2));
+                this.vm.chunkInfoText = JSON.stringify(ev.data.data, null, 2);
             } else if (ev.data.type === 'stat-sim') {
-                $('#info-sim').text(JSON.stringify(ev.data.data, null, 2));
+                this.vm.simInfoText = JSON.stringify(ev.data.data, null, 2);
                 if (this.vm.playing) {
                     setTimeout(() => {
                         this.vm.execStep(1);
                     }, 100);
                 }
             } else if (ev.data.type === 'stat-plant') {
-                this.updatePlantView(ev.data.data.stat);
+                this.vm.updatePlantView(ev.data.data.stat);
             } else if (ev.data.type === 'genome-plant') {
-                this.updateGenomeView(ev.data.data.genome);
+                this.vm.updateGenomeView(ev.data.data.genome);
             }
         }, false);
     }
 
-    updatePlantView(stat) {
-        $('#info-plant').empty();
-        
-        const reducedStats = {};
-        Object.assign(reducedStats, stat);
-        delete reducedStats.cells;
-        
-        $('#info-plant').append(JSON.stringify(reducedStats, null, 2));
-        $('#info-plant').append($('<br/>'));
-
-        if (stat !== null) {
-            let table = $('<table/>');
-            $('#info-plant').append(table);
-
-            let n_cols = 5;
-            let curr_row = null;
-            stat['cells'].forEach((cell_stat, ix) => {
-                if (ix % n_cols === 0) {
-                    curr_row = $('<tr/>');
-                    table.append(curr_row);
-                }
-
-                let stat = {};
-                cell_stat.forEach(sig => {
-                    if (stat[sig] !== undefined) {
-                        stat[sig] += 1;
-                    } else {
-                        stat[sig] = 1;
-                    }
-                });
-
-                let cell_info = $('<div/>');
-                for (const [sig, n] of Object.entries(stat)) {
-                    let mult = '';
-                    if (n > 1) {
-                        mult = '*' + n;
-                    }
-                    cell_info.append($('<span/>').text(sig + mult));
-                }
-                curr_row.append($('<td/>').append(cell_info));
-            });
-        }
-    }
-
-    updateGenomeView(genome) {
-        function visualizeSignals(sigs) {
-            // Parse signals.
-            let raws = $('<tr/>');
-            let descs = $('<tr/>');
-
-            sigs.forEach(sig => {
-                let desc = parseIntrinsicSignal(sig);
-
-                let e_raw = $('<td/>').text(desc.raw);
-                e_raw.addClass('ct-' + desc.type);
-                raws.append(e_raw);
-
-                let e_desc = $('<td/>').text(desc.long);
-                if (desc.long === '') {
-                    e_desc.text(' ');
-                }
-                descs.append(e_desc);
-            });
-
-            let element = $('<table/>');
-            element.append(raws);
-            element.append(descs);
-            return element;
-        }
-
-        let target = $('#genome-plant');
-        target.empty();
-        if (genome === null) {
-            return;
-        }
-
-        genome.unity.forEach(gene => {
-            let gene_vis = $('<div/>').attr('class', 'gene');
-
-            gene_vis.append(gene["tracer_desc"]);
-            gene_vis.append($('<br/>'));
-            gene_vis.append(visualizeSignals(gene["when"]));
-            gene_vis.append(visualizeSignals(gene["emit"]));
-
-            target.append(gene_vis);
-        });
-    }
-
-    // return :: ()
     requestPlantStatUpdate() {
         this.isolated_chunk.postMessage({
             type: 'stat-plant',
@@ -491,24 +435,13 @@ class Bonsai {
         return proxy;
     }
 
-    /* UI Utils */
     animate() {
-        this.stats.begin();
-
-        // note: three.js includes requestAnimationFrame shim
-        let _this = this;
-        requestAnimationFrame(() => { this.animate(); });
-
+        requestAnimationFrame(() => this.animate());
         this.renderer.render(this.scene, this.camera);
         this.controls.update();
-
-        this.stats.end();
     }
 }
 
-
 // run app
-$(document).ready(() => {
-    const bonsai = new Bonsai();
-    bonsai.animate();
-});
+const bonsai = new Bonsai();
+bonsai.animate();

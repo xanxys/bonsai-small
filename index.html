@@ -17,28 +17,28 @@
 		</div>
 
 		<div class="column-buttons">
-			<button id="button_toggle_time" v-on:click="onClickToggleTime" v-bind:class="{active: timePanelVisible}" title="Open/close time control panel.">
+			<button v-on:click="onClickToggleTime" v-bind:class="{active: timePanelVisible}" title="Open/close time control panel.">
 				<img src="ui_asset/icon_time.png" />
 			</button>
-			<button id="button_toggle_chunk" v-on:click="onClickToggleChunk" v-bind:class="{active: chunkPanelVisible}" title="Open/close chunk statistics panel.">
+			<button v-on:click="onClickToggleChunk" v-bind:class="{active: chunkPanelVisible}" title="Open/close chunk statistics panel.">
 				<img src="ui_asset/icon_chunk.png" />
 			</button>
-			<button id="button_toggle_chart" v-on:click="onClickToggleChart" v-bind:class="{active: chartPanelVisible}" title="Open/close energy and population history.">
+			<button v-on:click="onClickToggleChart" v-bind:class="{active: chartPanelVisible}" title="Open/close energy and population history.">
 				<img src="ui_asset/icon_chart.png" />
 			</button>
 
 			<hr />
 
-			<button id="button_toggle_plant" v-on:click="onClickTogglePlant" v-bind:class="{active: plantPanelVisible}" title="Open/close plant statistics.">
+			<button v-on:click="onClickTogglePlant" v-bind:class="{active: plantPanelVisible}" title="Open/close plant statistics.">
 				<img src="ui_asset/icon_plant.png" />
 			</button>
-			<button id="button_toggle_genome" v-on:click="onClickToggleGenome" v-bind:class="{active: genomePanelVisible}" title="Open/close genome view.">
+			<button v-on:click="onClickToggleGenome" v-bind:class="{active: genomePanelVisible}" title="Open/close genome view.">
 				<img src="ui_asset/icon_genome.png" />
 			</button>
 
 			<hr />
 
-			<button id="button_toggle_about" v-on:click="onClickToggleAbout" v-bind:class="{active: aboutPanelVisible}" title="Open/close about.">
+			<button v-on:click="onClickToggleAbout" v-bind:class="{active: aboutPanelVisible}" title="Open/close about.">
 				<img src="ui_asset/icon_about.png" />
 			</button>
 		</div>
@@ -46,7 +46,7 @@
 		<div class="column-windows">
 			<div class="pane-panel bg-time" v-show="timePanelVisible">
 				<h1>Time</h1>
-				<span>{{age}}T</span>
+				<span style="font-size: 150%">{{age}}T</span>
 				<button v-on:click="onClickPlay" v-if="!playing">&#x25b6;</button>
 				<button v-on:click="onClickPlay" v-if="playing">&#x25a0;</button>
 
@@ -57,12 +57,12 @@
 
 			<div class="pane-panel bg-chunk" v-show="chunkPanelVisible">
 				<h1>Chunk</h1>
-				<pre id="info-chunk"></pre>
+				<pre>{{chunkInfoText}}</pre>
 			</div>
 
 			<div class="pane-panel bg-chunk" v-show="chunkPanelVisible">
 				<h1>Simulation</h1>
-				<pre id="info-sim"></pre>
+				<pre>{{simInfoText}}</pre>
 			</div>
 
 			<div class="pane-panel bg-chart" v-show="chartPanelVisible">
@@ -72,16 +72,31 @@
 
 			<div class="pane-panel bg-plant" v-show="plantPanelVisible">
 				<h1>Plant</h1>
-				<pre id="info-plant"></pre>
-
-				<button id="button_kill">Kill</button>
+				<pre>{{plantInfoText}}</pre>
+				<button v-on:click="onClickKillPlant">Kill</button>
+				<br/>
+				Cells
+				<table>
+					<tr v-for="cellStat in cells">
+						<td>{{cellStat}}</td>
+					</tr>
+				</table>
 			</div>
 
 			<div class="pane-panel bg-genome" v-show="genomePanelVisible">
 				<h1>Genome</h1>
 				Click a plant to see its genome.
 				<div class="figure">
-					<pre id="genome-plant"></pre>
+					<div class="gene" v-for="gene in genome">{{gene.name}}<br/>
+						<table>
+							<tr><td v-for="elem in gene.when" v-bind:class="elem.classObj">{{elem.seq}}</td></tr>
+							<tr><td v-for="elem in gene.when">{{elem.role}}</td></tr>
+						</table>
+						<table>
+							<tr><td v-for="elem in gene.emit" v-bind:class="elem.classObj">{{elem.seq}}</td></tr>
+							<tr><td v-for="elem in gene.emit">{{elem.role}}</td></tr>
+						</table>
+					</div>
 				</div>
 			</div>
 
@@ -153,13 +168,10 @@
 
 	<div id="main"></div>
 
-	<script src="script/stats.min.js"></script>
 	<script src="script/three.js"></script>
 	<script src="script/TrackballControls.js"></script>
 	<script src="script/genome.js"></script>
 	<script src="script/chunk.js"></script>
-	<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"
-		integrity="sha512-894YE6QWD5I59HgZOGReFYm4dnWc1Qt5NtvYSaNcOP+u1T9qYdvdihz0PPSiiqn/+/3e7Jo4EaG7TubfWGUrMQ==" crossorigin="anonymous"></script>
 	<script src="https://cdnjs.cloudflare.com/ajax/libs/vue/2.6.12/vue.min.js"
 		integrity="sha512-BKbSR+cfyxLdMAsE0naLReFSLg8/pjbgfxHh/k/kUC82Hy7r6HtR5hLhobaln2gcTvzkyyehrdREdjpsQwy2Jw==" crossorigin="anonymous"></script>
 	<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.0.2/chart.min.js"
