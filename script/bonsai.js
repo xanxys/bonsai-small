@@ -11,69 +11,46 @@ Vue.component('line-plot', Vue.extend({
 
 class Bonsai {
     constructor() {
+        this.scene = new THREE.Scene();
+
         this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.5, 1500);
         this.camera.up = new THREE.Vector3(0, 0, 1);
         this.camera.position.set(30, 30, 40);
         this.camera.lookAt(new THREE.Vector3(0, 0, 0));
 
-        this.scene = new THREE.Scene();
+        this._insertBackground();
 
-        let sunlight = new THREE.DirectionalLight(0xcccccc);
-        sunlight.position.set(0, 0, 100).normalize();
-        this.scene.add(sunlight);
-
-        this.scene.add(new THREE.AmbientLight(0x333333));
-
-        let bg = new THREE.Mesh(
-            new THREE.IcosahedronGeometry(800, 1),
-            new THREE.MeshBasicMaterial({
-                wireframe: true,
-                color: '#ccc'
-            }));
-        this.scene.add(bg);
-
-        // UI state
+        // 3D view data
+        this.chunkState = {};
+        this.selectedPlantId = null;
         this.num_plant_history = [];
         this.energy_history = [];
 
-        // new, web worker API
-        let curr_proxy = null;
-        this.isolated_chunk = new Worker('script/worker.js');
-
-        // Selection
-        this.inspect_plant_id = null;
-        let curr_selection = null;
+        // 3D view presentation
+        this.currProxy = null;
+        this.selectionCursor = null;
 
         // start canvas
-        this.renderer = new THREE.WebGLRenderer({
-            antialias: true
-        });
+        this.renderer = new THREE.WebGLRenderer({antialias: true});
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         this.renderer.setClearColor('#eee');
-
         document.getElementById('main').append(this.renderer.domElement);
 
-        // add mouse control (do this after canvas insertion)
+        // add mouse control (need to be done after canvas insertion)
         this.controls = new TrackballControls(this.camera, this.renderer.domElement);
         this.controls.maxDistance = 500;
  
-        // Connect signals
         this.controls.on_click = posNdc => {
             const caster = new THREE.Raycaster();
             caster.setFromCamera(posNdc, this.camera);
-            let intersections = caster.intersectObject(this.scene, true);
+            const intersections = caster.intersectObject(this.scene, true);
 
             if (intersections.length > 0 && intersections[0].object.plant_id !== undefined) {
-                let plant = intersections[0].object;
-                this.inspect_plant_id = plant.plant_id;
-
-                if (curr_selection !== null) {
-                    this.scene.remove(curr_selection);
-                }
-                curr_selection = this.serializeSelection(plant.plant_data);
-                this.scene.add(curr_selection);
-                this.requestPlantStatUpdate();
+                this.selectedPlantId = intersections[0].object.plant_id;
+            } else {
+                this.selectedPlantId = null;
             }
+            this._updatePlantSelection();
         };
 
         const app = this;
@@ -180,7 +157,7 @@ class Bonsai {
 
                 onClickKillPlant: function() {
                     if (app.curr_selection !== null) {
-                        app.requestKillPlant(app.inspect_plant_id);
+                        app.requestKillPlant(app.selectedPlantId);
                         app.requestPlantStatUpdate();
                     }
                 },
@@ -255,36 +232,19 @@ class Bonsai {
             },
         });
 
-        this.isolated_chunk.addEventListener('message', ev => {
+        this.chunkWorker = new Worker('script/worker.js');
+        this.chunkWorker.addEventListener('message', ev => {
             const msgType = ev.data.type;
             const payload = ev.data.data;
 
             if (msgType === 'init-complete') {
-                this.isolated_chunk.postMessage({
+                this.chunkWorker.postMessage({
                     type: 'serialize'
                 });
             } else if (msgType === 'serialize') {
-                let proxy = this.deserialize(payload);
-
-                // Update chunk proxy.
-                if (curr_proxy) {
-                    this.scene.remove(curr_proxy);
-                }
-                curr_proxy = proxy;
-                this.scene.add(curr_proxy);
-
-                // Update selection proxy if exists.
-                if (curr_selection !== null) {
-                    this.scene.remove(curr_selection);
-                    curr_selection = null;
-                }
-                let target_plant_data = payload.plants.find(dp => {
-                    return dp.id === this.inspect_plant_id;
-                });
-                if (target_plant_data !== undefined) {
-                    curr_selection = this.serializeSelection(target_plant_data);
-                    this.scene.add(curr_selection);
-                }
+                this.chunkState = payload;
+                this._updateProxy();
+                this._updatePlantSelection();
             } else if (msgType === 'stat-chunk') {
                 this.vm.age = payload['age/T'];
                 this.num_plant_history.push(payload["plant"]);
@@ -302,71 +262,113 @@ class Bonsai {
         }, false);
     }
 
+    /* chunk worker interface */
     requestKillPlant(plantId) {
-        this.isolated_chunk.postMessage({
+        this.chunkWorker.postMessage({
             type: 'kill',
             data: {id: plantId}
         });
-        this.isolated_chunk.postMessage({
+        this.chunkWorker.postMessage({
             type: 'serialize'
         });
     }
 
     requestExecStep(n) {
         for (let i = 0; i < n; i++) {
-            this.isolated_chunk.postMessage({
+            this.chunkWorker.postMessage({
                 type: 'step'
             });
-            this.isolated_chunk.postMessage({
+            this.chunkWorker.postMessage({
                 type: 'stat'
             });
             this.requestPlantStatUpdate();
         }
-        this.isolated_chunk.postMessage({
+        this.chunkWorker.postMessage({
             type: 'serialize'
         });   
     }
 
     requestPlantStatUpdate() {
-        this.isolated_chunk.postMessage({
+        this.chunkWorker.postMessage({
             type: 'stat-plant',
             data: {
-                id: this.inspect_plant_id
+                id: this.selectedPlantId
             }
         });
-        this.isolated_chunk.postMessage({
+        this.chunkWorker.postMessage({
             type: 'genome-plant',
             data: {
-                id: this.inspect_plant_id
+                id: this.selectedPlantId
             }
         });
     }
 
+    /* 3D UI */
+    _insertBackground() {
+        const sunlight = new THREE.DirectionalLight(0xcccccc);
+        sunlight.position.set(0, 0, 100).normalize();
+        this.scene.add(sunlight);
+
+        this.scene.add(new THREE.AmbientLight(0x333333));
+
+        const bg = new THREE.Mesh(
+            new THREE.IcosahedronGeometry(800, 1),
+            new THREE.MeshBasicMaterial({
+                wireframe: true,
+                color: '#ccc'
+            }));
+        this.scene.add(bg);
+    }
+
+    _updatePlantSelection() {
+        if (this.selectionCursor !== null) {
+            this.scene.remove(this.selectionCursor);
+        }
+
+        const plant = this.chunkState.plants.find(plant => plant.id === this.selectedPlantId);
+        if (plant === undefined) {
+            return;
+        }
+
+        this.selectionCursor = this.createSelectionCursor(plant);
+        this.scene.add(this.selectionCursor);
+        this.requestPlantStatUpdate();
+    }
+
+    _updateProxy() {
+        const proxy = this._createProxy(this.chunkState);
+
+        if (this.currProxy !== null) {
+            this.scene.remove(this.currProxy);
+        }
+        this.scene.add(proxy);
+        this.currProxy = proxy;
+    }
+
     /**
-     * @param {PlantData} data_plant 
+     * @param {PlantData} plant 
      * @returns {THREE.Object3D}
      */
-    serializeSelection(data_plant) {
-        let padding = new THREE.Vector3(5e-1, 5e-1, 5e-1);
-
+    createSelectionCursor(plant) {
         // Calculate AABB of the plant.
-        let v_min = new THREE.Vector3(1e5, 1e5, 1e5);
-        let v_max = new THREE.Vector3(-1e5, -1e5, -1e5);
-        data_plant.vertices.forEach(data_vertex => {
+        const v_min = new THREE.Vector3(1e5, 1e5, 1e5);
+        const v_max = new THREE.Vector3(-1e5, -1e5, -1e5);
+        plant.vertices.forEach(data_vertex => {
             let vertex = new THREE.Vector3().copy(data_vertex);
             v_min.min(vertex);
             v_max.max(vertex);
         });
 
-        // Create proxy.
+        // Create cursor.
+        const padding = new THREE.Vector3(5e-1, 5e-1, 5e-1);
         v_min.sub(padding);
         v_max.add(padding);
 
-        let proxy_size = v_max.clone().sub(v_min);
-        let proxy_center = v_max.clone().add(v_min).multiplyScalar(0.5);
+        const cursorSize = v_max.clone().sub(v_min);
+        const cursorCenter = v_max.clone().add(v_min).multiplyScalar(0.5);
 
-        let proxy = new THREE.Mesh(
-            new THREE.CubeGeometry(proxy_size.x, proxy_size.y, proxy_size.z),
+        const cursor = new THREE.Mesh(
+            new THREE.CubeGeometry(cursorSize.x, cursorSize.y, cursorSize.z),
             new THREE.MeshBasicMaterial({
                 wireframe: true,
                 color: new THREE.Color("rgb(173,127,168)"),
@@ -374,23 +376,23 @@ class Bonsai {
 
             }));
 
-        proxy.position.copy(proxy_center
+        cursor.position.copy(cursorCenter
             .clone()
             .add(new THREE.Vector3(0, 0, 5e-1 + 1e-1)));
 
-        return proxy;
+        return cursor;
     }
 
     /**
-     * @param {ChunkData} data 
+     * @param {ChunkData} chunk 
      * @returns {THREE.Object3D}
      */
-    deserialize(data) {
+    _createProxy(chunk) {
         const proxy = new THREE.Object3D();
 
         // de-serialize plants
         const plantMat = new THREE.MeshLambertMaterial({vertexColors: true});
-        data.plants.forEach((data_plant) => {
+        chunk.plants.forEach((data_plant) => {
             const geom = new THREE.Geometry();
             geom.vertices = data_plant.vertices;
             geom.faces = data_plant.faces;
@@ -402,15 +404,15 @@ class Bonsai {
         });
 
         // Attach tiles to the base.
-        const tex = this._deserializeSoilTexture(data.soil);
+        const tex = this._deserializeSoilTexture(chunk.soil);
         const soil_plate = new THREE.Mesh(
-            new THREE.BoxGeometry(data.soil.size, data.soil.size, 1e-1),
+            new THREE.BoxGeometry(chunk.soil.size, chunk.soil.size, 1e-1),
             new THREE.MeshBasicMaterial({map: tex}));
         proxy.add(soil_plate);
 
         // hides flipped backside texture
         const soilBackPlate = new THREE.Mesh(
-            new THREE.BoxGeometry(data.soil.size, data.soil.size, 1),
+            new THREE.BoxGeometry(chunk.soil.size, chunk.soil.size, 1),
             new THREE.MeshBasicMaterial({color: '#333'}));
         soilBackPlate.position.set(0, 0, -(1 + 1e-1)/2);
         proxy.add(soilBackPlate);
