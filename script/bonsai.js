@@ -256,12 +256,15 @@ class Bonsai {
         });
 
         this.isolated_chunk.addEventListener('message', ev => {
-            if (ev.data.type === 'init-complete') {
+            const msgType = ev.data.type;
+            const payload = ev.data.data;
+
+            if (msgType === 'init-complete') {
                 this.isolated_chunk.postMessage({
                     type: 'serialize'
                 });
-            } else if (ev.data.type === 'serialize') {
-                let proxy = this.deserialize(ev.data.data);
+            } else if (msgType === 'serialize') {
+                let proxy = this.deserialize(payload);
 
                 // Update chunk proxy.
                 if (curr_proxy) {
@@ -275,26 +278,26 @@ class Bonsai {
                     this.scene.remove(curr_selection);
                     curr_selection = null;
                 }
-                let target_plant_data = ev.data.data.plants.find(dp => {
+                let target_plant_data = payload.plants.find(dp => {
                     return dp.id === this.inspect_plant_id;
                 });
                 if (target_plant_data !== undefined) {
                     curr_selection = this.serializeSelection(target_plant_data);
                     this.scene.add(curr_selection);
                 }
-            } else if (ev.data.type === 'stat-chunk') {
-                this.vm.age = ev.data.data['age/T'];
-                this.num_plant_history.push(ev.data.data["plant"]);
-                this.energy_history.push(ev.data.data["stored/E"]);
+            } else if (msgType === 'stat-chunk') {
+                this.vm.age = payload['age/T'];
+                this.num_plant_history.push(payload["plant"]);
+                this.energy_history.push(payload["stored/E"]);
                 this.vm.updateGraph();
-                this.vm.chunkInfoText = JSON.stringify(ev.data.data, null, 2);
-            } else if (ev.data.type === 'step-complete') {
-                this.vm.simInfoText = JSON.stringify(ev.data.data, null, 2);
+                this.vm.chunkInfoText = JSON.stringify(payload, null, 2);
+            } else if (msgType === 'step-complete') {
+                this.vm.simInfoText = JSON.stringify(payload, null, 2);
                 this.vm.notifyStepComplete();
-            } else if (ev.data.type === 'stat-plant') {
-                this.vm.updatePlantView(ev.data.data.stat);
-            } else if (ev.data.type === 'genome-plant') {
-                this.vm.updateGenomeView(ev.data.data.genome);
+            } else if (msgType === 'stat-plant') {
+                this.vm.updatePlantView(payload.stat);
+            } else if (msgType === 'genome-plant') {
+                this.vm.updateGenomeView(payload.genome);
             }
         }, false);
     }
