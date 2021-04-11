@@ -60,4 +60,5 @@ interface btGeneric6DofConstraint {
 
 ## References
 
-Not so massive vegetation evolution simulator in browser. (cf. discontinued "massive" version at https://github.com/xanxys/bonsai).
+* Discontinued "massive" version at https://github.com/xanxys/bonsai-massive
+

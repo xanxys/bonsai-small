@@ -1,544 +1,482 @@
 "use strict";
 
-// target :: CanvasElement
-class RealtimePlot {
-    constructor(canvas) {
-        this.canvas = canvas;
-        this.context = canvas.getContext('2d');
-    }
+Vue.component('line-plot', Vue.extend({
+    extends: VueChartJs.Line,
+    mixins: [VueChartJs.mixins.reactiveProp],
+    props: ['options'],
+    mounted: function() {
+        this.renderChart(this.chartData, this.options);
+    },
+}));
 
-    update(dataset) {
-        let ctx = this.context;
-        let max_steps = 5;
-
-        ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-
-        let width_main = this.canvas.width - 50;
-        let height_main = this.canvas.height;
-        dataset.forEach(series => {
-            if (series.data.length === 0) {
-                return;
-            }
-
-            // Plan layout
-            let scale_y = height_main / Math.max(...series.data);
-            let scale_x = Math.min(2, width_main / series.data.length);
-
-            // Draw horizontal line with label
-            if (series.show_label) {
-                let step;
-                if (Math.max(...series.data) < max_steps) {
-                    step = 1;
-                } else {
-                    step = Math.floor(Math.max(...series.data) / max_steps);
-                    if (step <= 0) {
-                        step = series.data / max_steps;
-                    }
-                }
-
-                for (let yv = 0; yv < Math.max(...series.data) + 1; yv += step) {
-                    let y = height_main - yv * scale_y;
-
-                    ctx.beginPath();
-                    ctx.moveTo(0, y);
-                    ctx.lineTo(width_main, y);
-                    ctx.strokeStyle = '#888';
-                    ctx.lineWidth = 3;
-                    ctx.stroke();
-
-                    ctx.textAlign = 'right';
-                    ctx.fillStyle = '#eee';
-                    ctx.fillText(yv, 20, y);
-                }
-            }
-
-            // draw line segments
-            ctx.beginPath();
-            series.data.forEach((data, ix) => {
-                if (ix === 0) {
-                    ctx.moveTo(ix * scale_x, height_main - data * scale_y);
-                } else {
-                    ctx.lineTo(ix * scale_x, height_main - data * scale_y);
-                }
-            });
-            ctx.lineWidth = 2;
-            ctx.strokeStyle = series.color;
-            ctx.stroke();
-
-            ctx.textAlign = 'left';
-            ctx.fillStyle = series.color;
-            ctx.fillText(
-                series.label,
-                series.data.length * scale_x,
-                height_main - series.data[series.data.length - 1] * scale_y + 10);
-        });
-    }
-}
-
-
-// Separate into
-// 1. master class (holds chunk worker)
-// 1': 3D GUI class
-// 2. Panel GUI class
 class Bonsai {
     constructor() {
-        this.debug = (location.hash === '#debug');
-
-        this.add_stats();
-        this.init();
-    }
-
-    add_stats() {
-        this.stats = new Stats();
-        this.stats.setMode(1); // 0: fps, 1: ms
-
-        // Align top-left
-        this.stats.domElement.style.position = 'absolute';
-        this.stats.domElement.style.right = '0px';
-        this.stats.domElement.style.top = '0px';
-
-        if (this.debug) {
-            document.body.appendChild(this.stats.domElement);
-        }
-    }
-
-    // return :: ()
-    init() {
-        this.chart = new RealtimePlot($('#history')[0]);
-
-        this.age = 0;
+        this.scene = new THREE.Scene();
 
         this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.5, 1500);
         this.camera.up = new THREE.Vector3(0, 0, 1);
         this.camera.position.set(30, 30, 40);
         this.camera.lookAt(new THREE.Vector3(0, 0, 0));
 
-        this.scene = new THREE.Scene();
+        this._insertBackground();
 
-        let sunlight = new THREE.DirectionalLight(0xcccccc);
+        // 3D view data
+        this.chunkState = {};
+        this.selectedPlantId = null;
+        this.num_plant_history = [];
+        this.energy_history = [];
+
+        // 3D view presentation
+        this.currProxy = null;
+        this.selectionCursor = null;
+
+        // start canvas
+        this.renderer = new THREE.WebGLRenderer({antialias: true});
+        this.renderer.setSize(window.innerWidth, window.innerHeight);
+        this.renderer.setClearColor('#eee');
+        document.getElementById('main').append(this.renderer.domElement);
+
+        // add mouse control (need to be done after canvas insertion)
+        this.controls = new TrackballControls(this.camera, this.renderer.domElement);
+        this.controls.maxDistance = 500;
+ 
+        this.controls.on_click = posNdc => {
+            const caster = new THREE.Raycaster();
+            caster.setFromCamera(posNdc, this.camera);
+            const intersections = caster.intersectObject(this.scene, true);
+
+            if (intersections.length > 0 && intersections[0].object.instanceIdToPlantId !== undefined) {
+                this.selectedPlantId = intersections[0].object.instanceIdToPlantId.get(intersections[0].instanceId);
+            } else {
+                this.selectedPlantId = null;
+            }
+            this._updatePlantSelection();
+        };
+
+        const app = this;
+        this.vm = new Vue({
+            el: '#ui',
+            data: {
+                timePanelVisible: true,
+                chunkPanelVisible: false,
+                chartPanelVisible: false,
+                plantPanelVisible: false,
+                genomePanelVisible: false,
+                aboutPanelVisible: false,
+
+                playing: false,
+                age: 0,
+
+                chunkInfoText: '',
+                simInfoText: '',
+
+                historydata: {},
+                historyoption: {
+                    color: '#fff',
+                    backgroundColor: '#eee',
+                    borderColor: '#ccc',
+                    responsive: false,
+                    maintainAspectRatio: false,
+                    animation: false, // line drawing can't catch up dynamic update with animation on
+                    elements: {
+                        point:{
+                            radius: 1,
+                        }
+                    },
+                    scales: {
+                        y: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+
+                            ticks: {
+                                color: '#fff',
+                            },
+                            
+                        },
+                        y1: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            ticks: {
+                                color: '#fff',
+                            },
+
+                            // grid line settings
+                            grid: {
+                                drawOnChartArea: false, // only want the grid lines for one axis to show up
+                            },
+                        },
+                    },
+                },
+
+                plantInfoText: '',
+                cells: [],
+
+                genome: [],
+            },
+            methods: {
+                onClickToggleTime: function() {
+                    this.timePanelVisible = !this.timePanelVisible;
+                },
+                onClickToggleChunk: function() {
+                    this.chunkPanelVisible = !this.chunkPanelVisible;
+                },
+                onClickToggleChart: function() {
+                    this.chartPanelVisible = !this.chartPanelVisible;
+                },
+                onClickTogglePlant: function() {
+                    this.plantPanelVisible = !this.plantPanelVisible;
+                },
+                onClickToggleGenome: function() {
+                    this.genomePanelVisible = !this.genomePanelVisible;
+                },
+                onClickToggleAbout: function() {
+                    this.aboutPanelVisible = !this.aboutPanelVisible;
+                },
+
+                onClickPlay: function() {
+                    if (this.playing) {
+                        this.playing = false;
+                    } else {
+                        this.playing = true;
+                        app.requestExecStep(1);
+                    }
+                },
+                onClickStep: function(n) {
+                    this.playing = false;
+                    app.requestExecStep(n);
+                },
+                notifyStepComplete: function() {
+                    if (this.playing) {
+                        setTimeout(() => {
+                            app.requestExecStep(1);
+                        }, 50);
+                    }
+                },
+
+                onClickKillPlant: function() {
+                    if (app.curr_selection !== null) {
+                        app.requestKillPlant(app.selectedPlantId);
+                        app.requestPlantStatUpdate();
+                    }
+                },
+
+                updateGraph: function() {
+                    const timestamps = [];
+                    for (let i = 0; i < this.age; i++) {
+                        timestamps.push(i + 1);
+                    }
+                    
+                    this.historydata = {
+                        labels: timestamps,
+                        datasets: [
+                            {
+                                label: '#plants',
+                                data: app.num_plant_history
+                            },
+                            {
+                                label: 'stored energy',
+                                data: app.energy_history,
+                                backgroundColor: '#afa',
+                                borderColor: '#afa',
+                                yAxisID: 'y1',
+                            }
+                        ]
+                    };
+                },
+
+                updatePlantView: function(stat) {
+                    const statsWithoutCellDetail = {};
+                    Object.assign(statsWithoutCellDetail, stat);
+                    delete statsWithoutCellDetail.cells;
+                    this.plantInfoText = JSON.stringify(statsWithoutCellDetail, null, 2);
+             
+                    let cells = [];
+                    if (stat !== null) {
+                        cells = stat['cells'].map(cellStat => JSON.stringify(cellStat, null, 0));
+                    }
+                    this.cells = cells;
+                },
+
+                updateGenomeView: function(genome) {
+                    function convertSignals(sigs) {
+                        return sigs.map(sig => {
+                            const desc = parseIntrinsicSignal(sig);
+            
+                            const classObj = {};
+                            classObj['ct-' + desc.type] = true;
+            
+                            const role = desc.long === '' ? ' ' : desc.long;
+                            return {
+                                seq: desc.raw,
+                                classObj: classObj,
+                                role: role,
+                            };
+                        });
+                    }
+            
+                    if (genome === null) {
+                        this.genome = [];
+                        return;
+                    }
+            
+                    this.genome = genome.unity.map(gene => {
+                        return {
+                            name: gene["tracer_desc"],
+                            when: convertSignals(gene.when),
+                            emit: convertSignals(gene.emit),
+                        };
+                    });
+                }
+            },
+        });
+
+        this.chunkWorker = new Worker('script/worker.js');
+        this.chunkWorker.addEventListener('message', ev => {
+            const msgType = ev.data.type;
+            const payload = ev.data.data;
+
+            if (msgType === 'init-complete') {
+                this.chunkWorker.postMessage({
+                    type: 'serialize'
+                });
+            } else if (msgType === 'serialize') {
+                this.chunkState = payload;
+                this._updateProxy();
+                this._updatePlantSelection();
+            } else if (msgType === 'stat-chunk') {
+                this.vm.age = payload['age/T'];
+                this.num_plant_history.push(payload["plant"]);
+                this.energy_history.push(payload["stored/E"]);
+                this.vm.updateGraph();
+                this.vm.chunkInfoText = JSON.stringify(payload, null, 2);
+            } else if (msgType === 'step-complete') {
+                this.vm.simInfoText = JSON.stringify(payload, null, 2);
+                this.vm.notifyStepComplete();
+            } else if (msgType === 'stat-plant') {
+                this.vm.updatePlantView(payload.stat);
+            } else if (msgType === 'genome-plant') {
+                this.vm.updateGenomeView(payload.genome);
+            }
+        }, false);
+    }
+
+    /* chunk worker interface */
+    requestKillPlant(plantId) {
+        this.chunkWorker.postMessage({
+            type: 'kill',
+            data: {id: plantId}
+        });
+        this.chunkWorker.postMessage({
+            type: 'serialize'
+        });
+    }
+
+    requestExecStep(n) {
+        for (let i = 0; i < n; i++) {
+            this.chunkWorker.postMessage({
+                type: 'step'
+            });
+            this.chunkWorker.postMessage({
+                type: 'stat'
+            });
+            this.requestPlantStatUpdate();
+        }
+        this.chunkWorker.postMessage({
+            type: 'serialize'
+        });   
+    }
+
+    requestPlantStatUpdate() {
+        this.chunkWorker.postMessage({
+            type: 'stat-plant',
+            data: {
+                id: this.selectedPlantId
+            }
+        });
+        this.chunkWorker.postMessage({
+            type: 'genome-plant',
+            data: {
+                id: this.selectedPlantId
+            }
+        });
+    }
+
+    /* 3D UI */
+    _insertBackground() {
+        const sunlight = new THREE.DirectionalLight(0xcccccc);
         sunlight.position.set(0, 0, 100).normalize();
         this.scene.add(sunlight);
 
         this.scene.add(new THREE.AmbientLight(0x333333));
 
-        let bg = new THREE.Mesh(
+        const bg = new THREE.Mesh(
             new THREE.IcosahedronGeometry(800, 1),
             new THREE.MeshBasicMaterial({
                 wireframe: true,
                 color: '#ccc'
             }));
         this.scene.add(bg);
-
-        // UI state
-        this.playing = null;
-        this.num_plant_history = [];
-        this.energy_history = [];
-
-        // new, web worker API
-        let curr_proxy = null;
-        this.isolated_chunk = new Worker('script/isolated_chunk.js');
-
-        // Selection
-        this.inspect_plant_id = null;
-        let curr_selection = null;
-
-        // start canvas
-        this.renderer = new THREE.WebGLRenderer({
-            antialias: true
-        });
-        this.renderer.setSize(window.innerWidth, window.innerHeight);
-        this.renderer.setClearColor('#eee');
-        $('#main').append(this.renderer.domElement);
-
-        // add mouse control (do this after canvas insertion)
-        this.controls = new TrackballControls(this.camera, this.renderer.domElement);
-        this.controls.maxDistance = 500;
-
-        // Connect signals
-        this.controls.on_click = (pos_ndc) => {
-            let caster = new THREE.Raycaster();
-            caster.setFromCamera(pos_ndc, this.camera);
-            //let caster = new THREE.Projector().pickingRay(pos_ndc, this.camera);
-            let intersections = caster.intersectObject(this.scene, true);
-
-            if (intersections.length > 0 &&
-                intersections[0].object.plant_id !== undefined) {
-                let plant = intersections[0].object;
-                this.inspect_plant_id = plant.plant_id;
-
-                if (curr_selection !== null) {
-                    this.scene.remove(curr_selection);
-                }
-                curr_selection = this.serializeSelection(plant.plant_data);
-                this.scene.add(curr_selection);
-                this.requestPlantStatUpdate();
-            }
-        };
-
-        $('.column-buttons button').on('click', (ev) => {
-            let target = $(ev.currentTarget);
-
-            let button_window_table = {
-                button_toggle_time: 'bg-time',
-                button_toggle_chunk: 'bg-chunk',
-                button_toggle_chart: 'bg-chart',
-                button_toggle_plant: 'bg-plant',
-                button_toggle_genome: 'bg-genome',
-                button_toggle_about: 'bg-about',
-            };
-
-            target.toggleClass('active');
-            if (this.debug) {
-                $('.' + button_window_table[target[0].id]).toggle();
-            } else {
-                $('.' + button_window_table[target[0].id] + ':not(.debug)').toggle();
-            }
-        });
-
-        $('#button_play').on('click', () => {
-            if (this.playing) {
-                this.playing = false;
-                $('#button_play').html('&#x25b6;'); // play symbol
-            } else {
-                this.playing = true;
-                this.handle_step(1);
-                $('#button_play').html('&#x25a0;'); // stop symbol
-            }
-        });
-
-        $('#button_step1').on('click', () => {
-            this.playing = false;
-            $('#button_play').html('&#x25b6;'); // play symbol
-            this.handle_step(1);
-        });
-
-        $('#button_step10').on('click', () => {
-            this.playing = false;
-            $('#button_play').html('&#x25b6;'); // play symbol
-            this.handle_step(10);
-        });
-
-        $('#button_step50').on('click', () => {
-            this.playing = false;
-            $('#button_play').html('&#x25b6;'); // play symbol
-            this.handle_step(50);
-        });
-
-        $('#button_kill').on('click', () => {
-            if (curr_selection !== null) {
-                this.isolated_chunk.postMessage({
-                    type: 'kill',
-                    data: {
-                        id: this.inspect_plant_id
-                    }
-                });
-
-                this.isolated_chunk.postMessage({
-                    type: 'serialize'
-                });
-
-                this.requestPlantStatUpdate();
-            }
-        })
-        this.isolated_chunk.addEventListener('message', ev => {
-            if (ev.data.type === 'init-complete') {
-                this.isolated_chunk.postMessage({
-                    type: 'serialize'
-                });
-            } else if (ev.data.type === 'serialize') {
-                let proxy = this.deserialize(ev.data.data);
-
-                // Update chunk proxy.
-                if (curr_proxy) {
-                    this.scene.remove(curr_proxy);
-                }
-                curr_proxy = proxy;
-                this.scene.add(curr_proxy);
-
-                // Update selection proxy if exists.
-                if (curr_selection !== null) {
-                    this.scene.remove(curr_selection);
-                    curr_selection = null;
-                }
-                let target_plant_data = ev.data.data.plants.find(dp => {
-                    return dp.id === this.inspect_plant_id;
-                });
-                if (target_plant_data !== undefined) {
-                    curr_selection = this.serializeSelection(target_plant_data);
-                    this.scene.add(curr_selection);
-                }
-            } else if (ev.data.type === 'stat-chunk') {
-                this.num_plant_history.push(ev.data.data["plant"]);
-                this.energy_history.push(ev.data.data["stored/E"]);
-                this.updateGraph();
-
-                $('#info-chunk').text(JSON.stringify(ev.data.data, null, 2));
-            } else if (ev.data.type === 'stat-sim') {
-                $('#info-sim').text(JSON.stringify(ev.data.data, null, 2));
-                if (this.playing) {
-                    setTimeout(() => {
-                        this.handle_step(1);
-                    }, 100);
-                }
-            } else if (ev.data.type === 'stat-plant') {
-                this.updatePlantView(ev.data.data.stat);
-            } else if (ev.data.type === 'genome-plant') {
-                this.updateGenomeView(ev.data.data.genome);
-            }
-        }, false);
-
-
     }
 
-    updatePlantView(stat) {
-        $('#info-plant').empty();
-        
-        const reducedStats = {};
-        Object.assign(reducedStats, stat);
-        delete reducedStats.cells;
-        
-        $('#info-plant').append(JSON.stringify(reducedStats, null, 2));
-        $('#info-plant').append($('<br/>'));
-
-        if (stat !== null) {
-            let table = $('<table/>');
-            $('#info-plant').append(table);
-
-            let n_cols = 5;
-            let curr_row = null;
-            stat['cells'].forEach((cell_stat, ix) => {
-                if (ix % n_cols === 0) {
-                    curr_row = $('<tr/>');
-                    table.append(curr_row);
-                }
-
-                let stat = {};
-                cell_stat.forEach(sig => {
-                    if (stat[sig] !== undefined) {
-                        stat[sig] += 1;
-                    } else {
-                        stat[sig] = 1;
-                    }
-                });
-
-                let cell_info = $('<div/>');
-                for (const [sig, n] of Object.entries(stat)) {
-                    let mult = '';
-                    if (n > 1) {
-                        mult = '*' + n;
-                    }
-                    cell_info.append($('<span/>').text(sig + mult));
-                }
-                curr_row.append($('<td/>').append(cell_info));
-            });
-        }
-    }
-
-    updateGenomeView(genome) {
-        function visualizeSignals(sigs) {
-            // Parse signals.
-            let raws = $('<tr/>');
-            let descs = $('<tr/>');
-
-            sigs.forEach(sig => {
-                let desc = parseIntrinsicSignal(sig);
-
-                let e_raw = $('<td/>').text(desc.raw);
-                e_raw.addClass('ct-' + desc.type);
-                raws.append(e_raw);
-
-                let e_desc = $('<td/>').text(desc.long);
-                if (desc.long === '') {
-                    e_desc.text(' ');
-                }
-                descs.append(e_desc);
-            });
-
-            let element = $('<table/>');
-            element.append(raws);
-            element.append(descs);
-            return element;
+    _updatePlantSelection() {
+        if (this.selectionCursor !== null) {
+            this.scene.remove(this.selectionCursor);
         }
 
-        let target = $('#genome-plant');
-        target.empty();
-        if (genome === null) {
+        const plant = this.chunkState.plants.find(plant => plant.id === this.selectedPlantId);
+        if (plant === undefined) {
             return;
         }
 
-        genome.unity.forEach(gene => {
-            let gene_vis = $('<div/>').attr('class', 'gene');
-
-            gene_vis.append(gene["tracer_desc"]);
-            gene_vis.append($('<br/>'));
-            gene_vis.append(visualizeSignals(gene["when"]));
-            gene_vis.append(visualizeSignals(gene["emit"]));
-
-            target.append(gene_vis);
-        });
+        this.selectionCursor = this.createSelectionCursor(plant);
+        this.scene.add(this.selectionCursor);
+        this.requestPlantStatUpdate();
     }
 
-    // return :: ()
-    updateGraph() {
-        this.chart.update([
-            {
-                show_label: true,
-                data: this.num_plant_history,
-                color: '#eee',
-                label: 'Num Plants',
-            },
-            {
-                show_label: false,
-                data: this.energy_history,
-                color: '#e88',
-                label: 'Total Energy',
-            }
-        ]);
+    _updateProxy() {
+        const proxy = this._createProxy(this.chunkState);
+
+        if (this.currProxy !== null) {
+            this.scene.remove(this.currProxy);
+        }
+        this.scene.add(proxy);
+        this.currProxy = proxy;
     }
 
-    // return :: ()
-    requestPlantStatUpdate() {
-        this.isolated_chunk.postMessage({
-            type: 'stat-plant',
-            data: {
-                id: this.inspect_plant_id
-            }
-        });
-
-        this.isolated_chunk.postMessage({
-            type: 'genome-plant',
-            data: {
-                id: this.inspect_plant_id
-            }
-        });
-    }
-
-    // data :: PlantData
-    // return :: THREE.Object3D
-    serializeSelection(data_plant) {
-        let padding = new THREE.Vector3(5e-1, 5e-1, 5e-1);
-
+    /**
+     * @param {PlantData} plant 
+     * @returns {THREE.Object3D}
+     */
+    createSelectionCursor(plant) {
         // Calculate AABB of the plant.
-        let v_min = new THREE.Vector3(1e5, 1e5, 1e5);
-        let v_max = new THREE.Vector3(-1e5, -1e5, -1e5);
-        data_plant.vertices.forEach(data_vertex => {
-            let vertex = new THREE.Vector3().copy(data_vertex);
-            v_min.min(vertex);
-            v_max.max(vertex);
+        const vMin = new THREE.Vector3(1e5, 1e5, 1e5);
+        const vMax = new THREE.Vector3(-1e5, -1e5, -1e5);
+        plant.cells.forEach(cell => {
+            const m = new THREE.Matrix4();
+            m.set(...cell.mat);
+            m.transpose();
+
+            const t = new THREE.Vector3();
+            const r = new THREE.Quaternion();
+            const s = new THREE.Vector3();
+            m.decompose(t, r, s);
+
+            vMin.min(t);
+            vMax.max(t);
         });
 
-        // Create proxy.
-        v_min.sub(padding);
-        v_max.add(padding);
+        // Create cursor.
+        const padding = new THREE.Vector3(1, 1, 1);
+        vMin.sub(padding);
+        vMax.add(padding);
 
-        let proxy_size = v_max.clone().sub(v_min);
-        let proxy_center = v_max.clone().add(v_min).multiplyScalar(0.5);
+        const cursorSize = vMax.clone().sub(vMin);
+        const cursorCenter = vMax.clone().add(vMin).multiplyScalar(0.5);
 
-        let proxy = new THREE.Mesh(
-            new THREE.CubeGeometry(proxy_size.x, proxy_size.y, proxy_size.z),
+        const cursor = new THREE.Mesh(
+            new THREE.BoxGeometry(cursorSize.x, cursorSize.y, cursorSize.z),
             new THREE.MeshBasicMaterial({
                 wireframe: true,
                 color: new THREE.Color("rgb(173,127,168)"),
                 wireframeLinewidth: 2,
-
             }));
-
-        proxy.position.copy(proxy_center
-            .clone()
-            .add(new THREE.Vector3(0, 0, 5e-1 + 1e-1)));
-
-        return proxy;
+        cursor.position.copy(cursorCenter.clone().add(new THREE.Vector3(0, 0, 5e-1 + 1e-1)));
+        return cursor;
     }
 
-    // data :: ChunkData
-    // return :: THREE.Object3D
-    deserialize(data) {
+    /**
+     * @param {ChunkData} chunk 
+     * @returns {THREE.Object3D}
+     */
+    _createProxy(chunk) {
         const proxy = new THREE.Object3D();
 
         // de-serialize plants
-        const plantMat = new THREE.MeshLambertMaterial({vertexColors: true});
-        data.plants.forEach((data_plant) => {
-            const geom = new THREE.Geometry();
-            geom.vertices = data_plant.vertices;
-            geom.faces = data_plant.faces;
+        const cellInstanceGeom = new THREE.BoxGeometry(1, 1, 1);
+        const cellInstanceMat = new THREE.MeshToonMaterial();
 
-            const mesh = new THREE.Mesh(geom, plantMat);
-            mesh.plant_id = data_plant.id;
-            mesh.plant_data = data_plant;
-            proxy.add(mesh);
+        let cellCount = 0;
+        chunk.plants.forEach(plant => {
+            cellCount += plant.cells.length;
         });
 
-        // de-serialize soil
-        const tex_size = 64;
-        let canvas = document.createElement('canvas');
-        canvas.width = tex_size;
-        canvas.height = tex_size;
-        let context = canvas.getContext('2d');
-        context.scale(tex_size / data.soil.n, tex_size / data.soil.n);
-        for (let y = 0; y < data.soil.n; y++) {
-            for (let x = 0; x < data.soil.n; x++) {
-                const v = data.soil.luminance[x + y * data.soil.n];
-                let lighting = new THREE.Color().setRGB(v, v, v);
-                context.fillStyle = lighting.getStyle();
-                context.fillRect(x, data.soil.n - 1 - y, 1, 1);
-            }
-        }
+        const cellMesh = new THREE.InstancedMesh(cellInstanceGeom, cellInstanceMat, cellCount);
+        const instanceIdToPlantId = new Map();
+        let cellIndex = 0;
+        chunk.plants.forEach(plant => {
+            plant.cells.forEach(cell => {
+                const m = new THREE.Matrix4();
+                m.set(...cell.mat);
+                m.transpose();
+                m.scale(new THREE.Vector3(...cell.size));
+
+                cellMesh.setColorAt(cellIndex, new THREE.Color(cell.col.r, cell.col.g, cell.col.b));
+                cellMesh.setMatrixAt(cellIndex, m);
+                instanceIdToPlantId.set(cellIndex, plant.id);
+
+                cellIndex++;
+            });
+        });
+        cellMesh.instanceIdToPlantId = instanceIdToPlantId;
+        proxy.add(cellMesh);
 
         // Attach tiles to the base.
-        let tex = new THREE.Texture(canvas);
-        tex.needsUpdate = true;
-
+        const tex = this._deserializeSoilTexture(chunk.soil);
         const soil_plate = new THREE.Mesh(
-            new THREE.BoxGeometry(data.soil.size, data.soil.size, 1e-1),
+            new THREE.BoxGeometry(chunk.soil.size, chunk.soil.size, 1e-1),
             new THREE.MeshBasicMaterial({map: tex}));
         proxy.add(soil_plate);
+
         // hides flipped backside texture
         const soilBackPlate = new THREE.Mesh(
-            new THREE.BoxGeometry(data.soil.size, data.soil.size, 1),
+            new THREE.BoxGeometry(chunk.soil.size, chunk.soil.size, 2),
             new THREE.MeshBasicMaterial({color: '#333'}));
-        soilBackPlate.position.set(0, 0, -(1 + 1e-1)/2);
+        soilBackPlate.position.set(0, 0, -(2 + 1e-1)/2);
         proxy.add(soilBackPlate);
 
         return proxy;
     }
 
-    /* UI Handlers */
-    handle_step(n) {
-        for (let i = 0; i < n; i++) {
-            this.isolated_chunk.postMessage({
-                type: 'step'
-            });
-            this.isolated_chunk.postMessage({
-                type: 'stat'
-            });
-            this.requestPlantStatUpdate();
-        }
-        this.isolated_chunk.postMessage({
-            type: 'serialize'
-        });
-        this.age += n;
+    _deserializeSoilTexture(soil) {
+        const texSize = 64;
 
-        $('#ui_abs_time').text(this.age + 'T');
+        if (this.soilDeserializerCanvas === undefined) {
+            const canvas = document.createElement('canvas');
+            canvas.width = texSize;
+            canvas.height = texSize;
+            this.soilDeserializerCanvas = canvas;
+        }
+
+        const ctx = this.soilDeserializerCanvas.getContext('2d');
+        ctx.save();
+        ctx.scale(texSize / soil.n, texSize / soil.n);
+        ctx.fillStyle = 'black';
+        ctx.fillRect(0, 0, soil.n, soil.n);
+        
+        for (let y = 0; y < soil.n; y++) {
+            for (let x = 0; x < soil.n; x++) {
+                const v = soil.luminance[x + y * soil.n];
+                const chVal = Math.floor(v * 255);
+                ctx.fillStyle = `rgba(${chVal}, ${chVal}, ${chVal}, 1)`;
+                ctx.fillRect(x, soil.n - 1 - y, 1, 1);
+            }
+        }
+        ctx.restore();
+
+        const tex = new THREE.Texture(this.soilDeserializerCanvas);
+        tex.needsUpdate = true;
+        return tex;
     }
 
-    /* UI Utils */
     animate() {
-        this.stats.begin();
-
-        // note: three.js includes requestAnimationFrame shim
-        let _this = this;
-        requestAnimationFrame(() => { this.animate(); });
-
+        requestAnimationFrame(() => this.animate());
         this.renderer.render(this.scene, this.camera);
         this.controls.update();
-
-        this.stats.end();
     }
 }
 
-
 // run app
-$(document).ready(() => {
-    const bonsai = new Bonsai();
-    bonsai.animate();
-});
+const bonsai = new Bonsai();
+bonsai.animate();
