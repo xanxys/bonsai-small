@@ -151,7 +151,7 @@ class Bonsai {
                     if (this.playing) {
                         setTimeout(() => {
                             app.requestExecStep(1);
-                        }, 100);
+                        }, 50);
                     }
                 },
 

@@ -509,83 +509,13 @@
 
             // number of photos that hit ground.
             this.shadow_map = new Float32Array(this.n * this.n);
-            this.updateShadowMapHierarchical();
         }
 
         step() {
-            this.updateShadowMapHierarchical();
+            this.updateShadowMapAmmo(this.chunk.rigid_world, this.chunk.cellMapping);
         }
 
-        updateShadowMapHierarchical() {
-            let _this = this;
-
-            // Put Plants to all overlapping 2D uniform grid cells.
-            const ng = 15;
-            let grid = new Array(ng);
-            for (let ix = 0; ix < ng; ix++) {
-                const row = new Array(ng);
-                for (let iy = 0; iy < ng; iy++) {
-                    row[iy] = new Array();
-                }
-                grid[ix] = row;
-            }
-
-            this.chunk.plants.forEach(plant => {
-                let object = plant.materialize(false);
-                object.updateMatrixWorld();
-
-                let v_min = new THREE.Vector3();
-                let v_max = new THREE.Vector3();
-                let v_temp = new THREE.Vector3();
-                object.children.forEach(child => {
-                    // Calculate AABB.
-                    v_min.set(1e3, 1e3, 1e3);
-                    v_max.set(-1e3, -1e3, -1e3);
-                    child.geometry.vertices.forEach(vertex => {
-                        v_temp.set(vertex.x, vertex.y, vertex.z);
-                        child.localToWorld(v_temp);
-                        v_min.min(v_temp);
-                        v_max.max(v_temp);
-                    });
-
-                    // Store to uniform grid.
-                    let vi0 = toIxV_unsafe(v_min);
-                    let vi1 = toIxV_unsafe(v_max);
-
-                    let ix0 = Math.max(0, Math.floor(vi0.x));
-                    let iy0 = Math.max(0, Math.floor(vi0.y));
-                    let ix1 = Math.min(ng, Math.ceil(vi1.x));
-                    let iy1 = Math.min(ng, Math.ceil(vi1.y));
-
-                    for (let ix = ix0; ix < ix1; ix++) {
-                        for (let iy = iy0; iy < iy1; iy++) {
-                            grid[ix][iy].push(child);
-                        }
-                    }
-                });
-            });
-
-            function toIxV_unsafe(v3) {
-                v3.multiplyScalar(ng / _this.size);
-                v3.x += ng * 0.5;
-                v3.y += ng * 0.5;
-                return v3;
-            }
-
-            // Accelerated ray tracing w/ the uniform grid.
-            function intersectDown(origin, near, far) {
-                let i = toIxV_unsafe(origin.clone());
-                let ix = Math.floor(i.x);
-                let iy = Math.floor(i.y);
-
-                if (ix < 0 || iy < 0 || ix >= ng || iy >= ng) {
-                    return [];
-                }
-
-                return new THREE.Raycaster(origin, new THREE.Vector3(0, 0, -1), near, far)
-                    .intersectObjects(grid[ix][iy], true);
-            }
-
+        updateShadowMapAmmo(rigid_world, cellMapping) {
             for (let i = 0; i < this.n; i++) {
                 for (let j = 0; j < this.n; j++) {
                     this.shadow_map[i + j * this.n] = 0;
@@ -595,24 +525,28 @@
                         continue;
                     }
 
-                    let isect = intersectDown(
-                        new THREE.Vector3(
-                            ((i + Math.random()) / this.n - 0.5) * this.size,
-                            ((j + Math.random()) / this.n - 0.5) * this.size,
-                            10),
-                        0.1,
-                        1e2);
+                    const cb = new Ammo.ClosestRayResultCallback();
+                    const x = ((i + Math.random()) / this.n - 0.5) * this.size;
+                    const y = ((j + Math.random()) / this.n - 0.5) * this.size;
+                    const org = new Ammo.btVector3(x, y, 100);
+                    rigid_world.rayTest(org, new Ammo.btVector3(x, y, -1), cb);
 
-                    if (isect.length > 0) {
-                        isect[0].object.cell.give_photon();
+                    if (cb.hasHit()) {
+                        const uIndex = cb.m_collisionObject.getUserIndex();
+                        const cell = cellMapping.get(uIndex);
+                        if (cell !== undefined) {
+                            cell.give_photon();
+                        } else {
+                            // hit ground
+                            this.shadow_map[i + j * this.n] += 1.0;    
+                        }
                     } else {
-                        this.shadow_map[i + j * this.n] += 1.0;
+                        // hit nothing (shouldn't happen)
                     }
                 }
             }
         }
     }
-
 
     /**
      * A chunk is non-singleton, finite patch of space containing bunch of plants, soil,
@@ -638,9 +572,13 @@
             this.cell_to_rigid_body = new Map();
             this.cell_to_parent_joint = new Map();
 
+            this.userIndex = 1;
+            this.cellMapping = new Map();
+
             // Physical aspects.
             this.light = new Light(this, this.size);
             this.rigid_world = this._create_rigid_world();
+            this.light.step(); // update shadow map
         }
 
         _create_rigid_world() {
@@ -660,6 +598,7 @@
             let rb_info = new Ammo.btRigidBodyConstructionInfo(
                 0 /* mass */, motion, ground_shape, new Ammo.btVector3(0, 0, 0) /* inertia */);
             let ground = new Ammo.btRigidBody(rb_info);
+            ground.setUserIndex(0);
             rigid_world.addRigidBody(ground);
             this.ground_rb = ground;
 
@@ -788,11 +727,14 @@
             sim_stats['bio/ms'] = performance.now() - t0;
 
             t0 = performance.now();
-            this.light.step();
+            this._export_plants_to_rigid();
+            sim_stats['bio->rigid/ms'] = performance.now() - t0;
+
+            t0 = performance.now();
+            this.light.step(this.rigid_world, this.cellMapping);
             sim_stats['light/ms'] = performance.now() - t0;
 
             t0 = performance.now();
-            this._export_plants_to_rigid();
             this.rigid_world.stepSimulation(0.04, 2);
             this._update_plants_from_rigid();
             sim_stats['rigid/ms'] = performance.now() - t0;
@@ -833,6 +775,7 @@
                         let motion_st = new Ammo.btDefaultMotionState(cell.getBtTransform());
                         let rb_info = new Ammo.btRigidBodyConstructionInfo(cell.getMass(), motion_st, cell_shape, local_inertia);
                         let rb = new Ammo.btRigidBody(rb_info);
+                        this.associateCell(rb, cell);
                         rb.setFriction(0.8);
 
                         this.rigid_world.addRigidBody(rb);
@@ -879,6 +822,17 @@
                         this.cell_to_parent_joint.delete(cell);
                     }
                 }
+            }
+        }
+        
+        associateCell(rb, cell) {
+            rb.setUserIndex(this.userIndex);
+            this.cellMapping.set(this.userIndex, cell);
+
+            this.userIndex++;
+            if (this.userIndex >= 2**31) {
+                console.warn('userIndex overflown; simulation might break');
+                this.userIndex = 1; // restart from 1 (this will break if cell id 1 still retamins in the scene)
             }
         }
 
