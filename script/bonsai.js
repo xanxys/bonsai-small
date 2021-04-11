@@ -45,8 +45,8 @@ class Bonsai {
             caster.setFromCamera(posNdc, this.camera);
             const intersections = caster.intersectObject(this.scene, true);
 
-            if (intersections.length > 0 && intersections[0].object.plant_id !== undefined) {
-                this.selectedPlantId = intersections[0].object.plant_id;
+            if (intersections.length > 0 && intersections[0].object.plantId !== undefined) {
+                this.selectedPlantId = intersections[0].object.plantId;
             } else {
                 this.selectedPlantId = null;
             }
@@ -388,14 +388,13 @@ class Bonsai {
 
         // de-serialize plants
         const plantMat = new THREE.MeshLambertMaterial({vertexColors: true});
-        chunk.plants.forEach((data_plant) => {
+        chunk.plants.forEach(plant => {
             const geom = new THREE.Geometry();
-            geom.vertices = data_plant.vertices;
-            geom.faces = data_plant.faces;
+            geom.vertices = plant.vertices;
+            geom.faces = plant.faces;
 
             const mesh = new THREE.Mesh(geom, plantMat);
-            mesh.plant_id = data_plant.id;
-            mesh.plant_data = data_plant;
+            mesh.plantId = plant.id;
             proxy.add(mesh);
         });
 

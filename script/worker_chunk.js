@@ -138,17 +138,6 @@
             return 1e-3 * this.sx * this.sy * this.sz;  // kg
         }
 
-        // sub_cell :: Cell
-        // return :: ()
-        add(sub_cell) {
-            if (this === sub_cell) {
-                throw new Error("Tried to add itself as child.", sub_cell);
-            } else {
-                sub_cell.initPose(this.getOutNodeToWorld());
-                this.plant.cells.push(sub_cell);
-            }
-        }
-
         // Return net usable power for Plant.
         // return :: float<Energy>
         powerForPlant() {
@@ -301,21 +290,23 @@
                         trans, seedEnergy, this.plant.genome.naturalClone());
                 }
             }
-        };
-
-        initPose(innode_to_world) {
-            // Update this.
-            let parent_to_loc = this.locToParent.clone().inverse();
-
-            let innode_to_center = new THREE.Matrix4().compose(
-                new THREE.Vector3(0, 0, -this.sz / 2),
-                parent_to_loc,
-                new THREE.Vector3(1, 1, 1));
-            let center_to_innode = new THREE.Matrix4().getInverse(innode_to_center);
-            this.locToWorld =
-                innode_to_world.clone().multiply(center_to_innode);
         }
 
+        initPose(innodeToWorld) {
+            const parentToLoc = this.locToParent.clone().inverse();
+            const innodeToCenter = new THREE.Matrix4().compose(
+                new THREE.Vector3(0, 0, -this.sz / 2),
+                parentToLoc,
+                new THREE.Vector3(1, 1, 1));
+            const centerToInnode = new THREE.Matrix4().getInverse(innodeToCenter);
+            this.locToWorld =
+                innodeToWorld.clone().multiply(centerToInnode);
+        }
+
+        /**
+         * 
+         * @returns {THREE.Matrix4}
+         */
         getOutNodeToWorld() {
             const parentToLoc = this.locToParent.clone().inverse();
             const locToOutnode = new THREE.Matrix4().compose(
@@ -391,7 +382,7 @@
         // locator :: LocatorSignal
         // return :: ()
         addCont(initial, locator) {
-            function calc_rot(desc) {
+            function calcRot(desc) {
                 if (desc === Signal.CONICAL) {
                     return new THREE.Quaternion().setFromEuler(new THREE.Euler(
                         Math.random() - 0.5,
@@ -418,9 +409,10 @@
             }
 
 
-            let newCell = new Cell(this.plant, initial, this);
-            newCell.locToParent = calc_rot(locator);
-            this.add(newCell);
+            const newCell = new Cell(this.plant, initial, this);
+            newCell.locToParent = calcRot(locator);
+            newCell.initPose(this.getOutNodeToWorld());
+            this.plant.cells.push(newCell);            
         }
     }
 
@@ -696,7 +688,7 @@
 
         _exportPlantsToRigid() {
             // There are three types of changes: add / modify / delete
-            let live_cells = new Set();
+            const liveCells = new Set();
             for (let plant of this.plants) {
                 for (let cell of plant.cells) {
                     let rb = this.cellToRigidBody.get(cell);
@@ -762,13 +754,13 @@
                         
                         joint.setFrames(tfCell, tfParent);
                     }
-                    live_cells.add(cell);
+                    liveCells.add(cell);
                 }
             }
             // Apply removal.
-            if (this.cellToRigidBody.size > live_cells.size) {
+            if (this.cellToRigidBody.size > liveCells.size) {
                 for (let [cell, rb] of this.cellToRigidBody) {
-                    if (!live_cells.has(cell)) {
+                    if (!liveCells.has(cell)) {
                         this.rigidWorld.removeRigidBody(rb);
                         this.cellToRigidBody.delete(cell);
                         this.cellToParentJoint.delete(cell);
