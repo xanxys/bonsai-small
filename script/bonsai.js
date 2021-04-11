@@ -401,30 +401,13 @@ class Bonsai {
             proxy.add(mesh);
         });
 
-        // de-serialize soil
-        const tex_size = 64;
-        let canvas = document.createElement('canvas');
-        canvas.width = tex_size;
-        canvas.height = tex_size;
-        let context = canvas.getContext('2d');
-        context.scale(tex_size / data.soil.n, tex_size / data.soil.n);
-        for (let y = 0; y < data.soil.n; y++) {
-            for (let x = 0; x < data.soil.n; x++) {
-                const v = data.soil.luminance[x + y * data.soil.n];
-                let lighting = new THREE.Color().setRGB(v, v, v);
-                context.fillStyle = lighting.getStyle();
-                context.fillRect(x, data.soil.n - 1 - y, 1, 1);
-            }
-        }
-
         // Attach tiles to the base.
-        let tex = new THREE.Texture(canvas);
-        tex.needsUpdate = true;
-
+        const tex = this._deserializeSoilTexture(data.soil);
         const soil_plate = new THREE.Mesh(
             new THREE.BoxGeometry(data.soil.size, data.soil.size, 1e-1),
             new THREE.MeshBasicMaterial({map: tex}));
         proxy.add(soil_plate);
+
         // hides flipped backside texture
         const soilBackPlate = new THREE.Mesh(
             new THREE.BoxGeometry(data.soil.size, data.soil.size, 1),
@@ -433,6 +416,34 @@ class Bonsai {
         proxy.add(soilBackPlate);
 
         return proxy;
+    }
+
+    _deserializeSoilTexture(soil) {
+        const texSize = 64;
+
+        if (this.soilDeserializerCanvas === undefined) {
+            const canvas = document.createElement('canvas');
+            canvas.width = texSize;
+            canvas.height = texSize;
+            this.soilDeserializerCanvas = canvas;
+        }
+
+        const ctx = this.soilDeserializerCanvas.getContext('2d');
+        ctx.save();
+        ctx.scale(texSize / soil.n, texSize / soil.n);
+        for (let y = 0; y < soil.n; y++) {
+            for (let x = 0; x < soil.n; x++) {
+                const v = soil.luminance[x + y * soil.n];
+                let lighting = new THREE.Color().setRGB(v, v, v);
+                ctx.fillStyle = lighting.getStyle();
+                ctx.fillRect(x, soil.n - 1 - y, 1, 1);
+            }
+        }
+        ctx.restore();
+
+        const tex = new THREE.Texture(this.soilDeserializerCanvas);
+        tex.needsUpdate = true;
+        return tex;
     }
 
     animate() {
