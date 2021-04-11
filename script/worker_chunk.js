@@ -319,7 +319,7 @@
                 flrRatio * chlRatio);
 
             if (this.photons === 0) {
-                colorDiffuse.offsetHSL(0, 0, -0.2);
+                colorDiffuse.offsetHSL(0, 0, -0.4);
             }
             if (this.plant.energy < 1e-4) {
                 let t = 1 - this.plant.energy * 1e4;

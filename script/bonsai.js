@@ -395,7 +395,7 @@ class Bonsai {
 
         // de-serialize plants
         const cellInstanceGeom = new THREE.BoxGeometry(1, 1, 1);
-        const cellInstanceMat = new THREE.MeshLambertMaterial();
+        const cellInstanceMat = new THREE.MeshToonMaterial();
 
         let cellCount = 0;
         chunk.plants.forEach(plant => {
