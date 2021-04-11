@@ -376,7 +376,7 @@
         constructor(parent, size) {
             this.parent = parent;
 
-            this.n = 35;
+            this.n = 64;
             this.size = size;
         }
 
@@ -401,7 +401,7 @@
         constructor(chunk, size) {
             this.chunk = chunk;
 
-            this.n = 35;
+            this.n = 64;
             this.size = size;
 
             // number of photos that hit ground.
@@ -454,7 +454,7 @@
     class Chunk {
         constructor() {
             // Chunk spatial constants.
-            this.size = 50;
+            this.size = 100;
 
             // tracer
             this.age = 0;

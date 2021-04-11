@@ -431,9 +431,9 @@ class Bonsai {
 
         // hides flipped backside texture
         const soilBackPlate = new THREE.Mesh(
-            new THREE.BoxGeometry(chunk.soil.size, chunk.soil.size, 1),
+            new THREE.BoxGeometry(chunk.soil.size, chunk.soil.size, 2),
             new THREE.MeshBasicMaterial({color: '#333'}));
-        soilBackPlate.position.set(0, 0, -(1 + 1e-1)/2);
+        soilBackPlate.position.set(0, 0, -(2 + 1e-1)/2);
         proxy.add(soilBackPlate);
 
         return proxy;
@@ -452,11 +452,14 @@ class Bonsai {
         const ctx = this.soilDeserializerCanvas.getContext('2d');
         ctx.save();
         ctx.scale(texSize / soil.n, texSize / soil.n);
+        ctx.fillStyle = 'black';
+        ctx.fillRect(0, 0, soil.n, soil.n);
+        
         for (let y = 0; y < soil.n; y++) {
             for (let x = 0; x < soil.n; x++) {
                 const v = soil.luminance[x + y * soil.n];
-                let lighting = new THREE.Color().setRGB(v, v, v);
-                ctx.fillStyle = lighting.getStyle();
+                const chVal = Math.floor(v * 255);
+                ctx.fillStyle = `rgba(${chVal}, ${chVal}, ${chVal}, 1)`;
                 ctx.fillRect(x, soil.n - 1 - y, 1, 1);
             }
         }
