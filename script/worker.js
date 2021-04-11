@@ -1,9 +1,9 @@
 importScripts('./three.js');
 importScripts('./ammo.wasm.js');
-importScripts('./chunk.js');
+importScripts('./worker_chunk.js');
 importScripts('./genome.js');
 
-function startChunkServer(Ammo) {
+function startChunkWorker(Ammo) {
     let _this = this;
 
     setChunkAmmo(Ammo);
@@ -32,7 +32,7 @@ function startChunkServer(Ammo) {
             if (ev.data.type === 'step') {
                 let sim_stat = _this.chunk.step();
                 self.postMessage({
-                    type: 'stat-sim',
+                    type: 'step-complete',
                     data: sim_stat
                 });
             } else if (ev.data.type === 'kill') {
@@ -72,6 +72,6 @@ function startChunkServer(Ammo) {
     self.postMessage({type: 'init-complete'});
 };
 
-Ammo().then(function (Ammo) {
-    startChunkServer(Ammo);
+Ammo().then(Ammo => {
+    startChunkWorker(Ammo);
 });

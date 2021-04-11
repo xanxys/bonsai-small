@@ -11,12 +11,6 @@ Vue.component('line-plot', Vue.extend({
 
 class Bonsai {
     constructor() {
-        this.init();
-    }
-
-    init() {
-        this.age = 0;
-
         this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.5, 1500);
         this.camera.up = new THREE.Vector3(0, 0, 1);
         this.camera.position.set(30, 30, 40);
@@ -44,7 +38,7 @@ class Bonsai {
 
         // new, web worker API
         let curr_proxy = null;
-        this.isolated_chunk = new Worker('script/isolated_chunk.js');
+        this.isolated_chunk = new Worker('script/worker.js');
 
         // Selection
         this.inspect_plant_id = null;
@@ -62,17 +56,14 @@ class Bonsai {
         // add mouse control (do this after canvas insertion)
         this.controls = new TrackballControls(this.camera, this.renderer.domElement);
         this.controls.maxDistance = 500;
-
  
         // Connect signals
-        this.controls.on_click = (pos_ndc) => {
-            let caster = new THREE.Raycaster();
-            caster.setFromCamera(pos_ndc, this.camera);
-            //let caster = new THREE.Projector().pickingRay(pos_ndc, this.camera);
+        this.controls.on_click = posNdc => {
+            const caster = new THREE.Raycaster();
+            caster.setFromCamera(posNdc, this.camera);
             let intersections = caster.intersectObject(this.scene, true);
 
-            if (intersections.length > 0 &&
-                intersections[0].object.plant_id !== undefined) {
+            if (intersections.length > 0 && intersections[0].object.plant_id !== undefined) {
                 let plant = intersections[0].object;
                 this.inspect_plant_id = plant.plant_id;
 
@@ -172,45 +163,26 @@ class Bonsai {
                         this.playing = false;
                     } else {
                         this.playing = true;
-                        this.execStep(1);
+                        app.requestExecStep(1);
                     }
                 },
                 onClickStep: function(n) {
                     this.playing = false;
-                    this.execStep(n);
+                    app.requestExecStep(n);
+                },
+                notifyStepComplete: function() {
+                    if (this.playing) {
+                        setTimeout(() => {
+                            app.requestExecStep(1);
+                        }, 100);
+                    }
                 },
 
                 onClickKillPlant: function() {
                     if (app.curr_selection !== null) {
-                        app.isolated_chunk.postMessage({
-                            type: 'kill',
-                            data: {
-                                id: app.inspect_plant_id
-                            }
-                        });
-        
-                        app.isolated_chunk.postMessage({
-                            type: 'serialize'
-                        });
-        
+                        app.requestKillPlant(app.inspect_plant_id);
                         app.requestPlantStatUpdate();
                     }
-                },
-
-                execStep: function(n) {
-                    for (let i = 0; i < n; i++) {
-                        app.isolated_chunk.postMessage({
-                            type: 'step'
-                        });
-                        app.isolated_chunk.postMessage({
-                            type: 'stat'
-                        });
-                        app.requestPlantStatUpdate();
-                    }
-                    app.isolated_chunk.postMessage({
-                        type: 'serialize'
-                    });
-                    this.age += n;
                 },
 
                 updateGraph: function() {
@@ -311,23 +283,45 @@ class Bonsai {
                     this.scene.add(curr_selection);
                 }
             } else if (ev.data.type === 'stat-chunk') {
+                this.vm.age = ev.data.data['age/T'];
                 this.num_plant_history.push(ev.data.data["plant"]);
                 this.energy_history.push(ev.data.data["stored/E"]);
                 this.vm.updateGraph();
                 this.vm.chunkInfoText = JSON.stringify(ev.data.data, null, 2);
-            } else if (ev.data.type === 'stat-sim') {
+            } else if (ev.data.type === 'step-complete') {
                 this.vm.simInfoText = JSON.stringify(ev.data.data, null, 2);
-                if (this.vm.playing) {
-                    setTimeout(() => {
-                        this.vm.execStep(1);
-                    }, 100);
-                }
+                this.vm.notifyStepComplete();
             } else if (ev.data.type === 'stat-plant') {
                 this.vm.updatePlantView(ev.data.data.stat);
             } else if (ev.data.type === 'genome-plant') {
                 this.vm.updateGenomeView(ev.data.data.genome);
             }
         }, false);
+    }
+
+    requestKillPlant(plantId) {
+        this.isolated_chunk.postMessage({
+            type: 'kill',
+            data: {id: plantId}
+        });
+        this.isolated_chunk.postMessage({
+            type: 'serialize'
+        });
+    }
+
+    requestExecStep(n) {
+        for (let i = 0; i < n; i++) {
+            this.isolated_chunk.postMessage({
+                type: 'step'
+            });
+            this.isolated_chunk.postMessage({
+                type: 'stat'
+            });
+            this.requestPlantStatUpdate();
+        }
+        this.isolated_chunk.postMessage({
+            type: 'serialize'
+        });   
     }
 
     requestPlantStatUpdate() {
@@ -337,7 +331,6 @@ class Bonsai {
                 id: this.inspect_plant_id
             }
         });
-
         this.isolated_chunk.postMessage({
             type: 'genome-plant',
             data: {
@@ -346,8 +339,10 @@ class Bonsai {
         });
     }
 
-    // data :: PlantData
-    // return :: THREE.Object3D
+    /**
+     * @param {PlantData} data_plant 
+     * @returns {THREE.Object3D}
+     */
     serializeSelection(data_plant) {
         let padding = new THREE.Vector3(5e-1, 5e-1, 5e-1);
 
@@ -383,8 +378,10 @@ class Bonsai {
         return proxy;
     }
 
-    // data :: ChunkData
-    // return :: THREE.Object3D
+    /**
+     * @param {ChunkData} data 
+     * @returns {THREE.Object3D}
+     */
     deserialize(data) {
         const proxy = new THREE.Object3D();
 
