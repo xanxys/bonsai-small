@@ -351,21 +351,22 @@ class Bonsai {
      */
     createSelectionCursor(plant) {
         // Calculate AABB of the plant.
-        const v_min = new THREE.Vector3(1e5, 1e5, 1e5);
-        const v_max = new THREE.Vector3(-1e5, -1e5, -1e5);
+        const vMin = new THREE.Vector3(1e5, 1e5, 1e5);
+        const vMax = new THREE.Vector3(-1e5, -1e5, -1e5);
+        const vTemp = new THREE.Vector3();
         plant.vertices.forEach(data_vertex => {
-            let vertex = new THREE.Vector3().copy(data_vertex);
-            v_min.min(vertex);
-            v_max.max(vertex);
+            vTemp.copy(data_vertex);
+            vMin.min(vTemp);
+            vMax.max(vTemp);
         });
 
         // Create cursor.
         const padding = new THREE.Vector3(5e-1, 5e-1, 5e-1);
-        v_min.sub(padding);
-        v_max.add(padding);
+        vMin.sub(padding);
+        vMax.add(padding);
 
-        const cursorSize = v_max.clone().sub(v_min);
-        const cursorCenter = v_max.clone().add(v_min).multiplyScalar(0.5);
+        const cursorSize = vMax.clone().sub(vMin);
+        const cursorCenter = vMax.clone().add(vMin).multiplyScalar(0.5);
 
         const cursor = new THREE.Mesh(
             new THREE.CubeGeometry(cursorSize.x, cursorSize.y, cursorSize.z),
@@ -373,13 +374,8 @@ class Bonsai {
                 wireframe: true,
                 color: new THREE.Color("rgb(173,127,168)"),
                 wireframeLinewidth: 2,
-
             }));
-
-        cursor.position.copy(cursorCenter
-            .clone()
-            .add(new THREE.Vector3(0, 0, 5e-1 + 1e-1)));
-
+        cursor.position.copy(cursorCenter.clone().add(new THREE.Vector3(0, 0, 5e-1 + 1e-1)));
         return cursor;
     }
 
