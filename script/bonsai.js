@@ -431,9 +431,9 @@ class Bonsai {
 
         // hides flipped backside texture
         const soilBackPlate = new THREE.Mesh(
-            new THREE.BoxGeometry(chunk.soil.size, chunk.soil.size, 2),
+            new THREE.BoxGeometry(chunk.soil.size, chunk.soil.size, 10),
             new THREE.MeshBasicMaterial({color: '#333'}));
-        soilBackPlate.position.set(0, 0, -(2 + 1e-1)/2);
+        soilBackPlate.position.set(0, 0, -(10+ 1e-1)/2);
         proxy.add(soilBackPlate);
 
         return proxy;

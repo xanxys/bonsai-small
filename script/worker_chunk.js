@@ -455,6 +455,7 @@
         constructor() {
             // Chunk spatial constants.
             this.size = 100;
+            this.thickness = 5;
 
             // tracer
             this.age = 0;
@@ -480,26 +481,23 @@
         }
 
         _createRigidWorld() {
-            let collision_configuration = new Ammo.btDefaultCollisionConfiguration();
-            let dispatcher = new Ammo.btCollisionDispatcher(collision_configuration);
-            let overlappingPairCache = new Ammo.btDbvtBroadphase();
-            let solver = new Ammo.btSequentialImpulseConstraintSolver();
-            let rigidWorld = new Ammo.btDiscreteDynamicsWorld(dispatcher, overlappingPairCache, solver, collision_configuration);
+            const collisionConfig = new Ammo.btDefaultCollisionConfiguration();
+            const dispatcher = new Ammo.btCollisionDispatcher(collisionConfig);
+            const overlappingPairCache = new Ammo.btDbvtBroadphase();
+            const solver = new Ammo.btSequentialImpulseConstraintSolver();
+            const rigidWorld = new Ammo.btDiscreteDynamicsWorld(dispatcher, overlappingPairCache, solver, collisionConfig);
             rigidWorld.setGravity(new Ammo.btVector3(0, 0, -100));
-            // rigidWorld.setGravity(new Ammo.btVector3(0, 0, 0));
 
             // Add ground.
-            const halfThickness = 50;
-            //const groundShape = new Ammo.btBoxShape(new Ammo.btVector3(this.size / 2, this.size / 2, halfThickness));
-            const groundShape = new Ammo.btStaticPlaneShape(new Ammo.btVector3(0, 0, 1), 0);
-            let trans = new Ammo.btTransform();
+            const groundShape = new Ammo.btBoxShape(new Ammo.btVector3(this.size / 2, this.size / 2, this.thickness / 2));
+            const trans = new Ammo.btTransform();
             trans.setIdentity();
-            //trans.setOrigin(new Ammo.btVector3(0, 0, -halfThickness));
+            trans.setOrigin(new Ammo.btVector3(0, 0, -this.thickness / 2));
 
-            let motion = new Ammo.btDefaultMotionState(trans);
-            let rb_info = new Ammo.btRigidBodyConstructionInfo(
-                0 /* mass */, motion, groundShape, new Ammo.btVector3(0, 0, 0) /* inertia */);
-            let ground = new Ammo.btRigidBody(rb_info);
+            const motion = new Ammo.btDefaultMotionState(trans);
+            const rbInfo = new Ammo.btRigidBodyConstructionInfo(0, motion, groundShape, new Ammo.btVector3(0, 0, 0)); // static (mass,intertia=0)
+            const ground = new Ammo.btRigidBody(rbInfo);
+
             ground.setUserIndex(0);
             rigidWorld.addRigidBody(ground);
             this.groundRb = ground;
@@ -703,7 +701,7 @@
                 tfParent.setIdentity();
                 if (cell.parentCell === null) {
                     // point on ground
-                    tfParent.setOrigin(new Ammo.btVector3(cell.plant.position.x, cell.plant.position.y, 0));
+                    tfParent.setOrigin(new Ammo.btVector3(cell.plant.position.x, cell.plant.position.y, this.thickness / 2));
                 } else {
                     // outnode of parent
                     tfParent.setOrigin(new Ammo.btVector3(0, 0, cell.parentCell.sz / 2));
