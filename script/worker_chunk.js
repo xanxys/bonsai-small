@@ -471,8 +471,7 @@
             this.indexToCell = new Map(); // btRigidBody userindex -> Cell
             this.indexToRigidBody = new Map(); // btRigidBody userindex -> btRigidBody
 
-            // hack
-            this.cellToParentJoint = new Map();
+            this.indexToConstraint = new Map(); // btRigidBody userindex (child) -> btConstraint
 
             // Physical aspects.
             this.light = new Light(this, this.size);
@@ -656,75 +655,85 @@
          * @returns {number} num of live cells
          */
         _syncCellsToRigid() {
-            // There are three types of changes: add / modify / delete
+            // Add/Update cells.
             const liveCells = new Set();
-            for (let plant of this.plants) {
-                for (let cell of plant.cells) {
-                    const rb = this.indexToRigidBody.get(this.cellToIndex.get(cell));
-
-                    // Also add contraint.
-                    const tfCell = new Ammo.btTransform();
-                    tfCell.setIdentity();
-                    tfCell.setOrigin(new Ammo.btVector3(0, 0, -cell.sz / 2)); // innode
-                    let tfParent = new Ammo.btTransform();
-                    tfParent.setIdentity();
-                    if (cell.parentCell === null) {
-                        // point on ground
-                        tfParent.setOrigin(new Ammo.btVector3(cell.plant.position.x, cell.plant.position.y, 0));
-                    } else {
-                        // outnode of parent
-                        tfParent.setOrigin(new Ammo.btVector3(0, 0, cell.parentCell.sz / 2));
-                    }
+            for (const plant of this.plants) {
+                for (const cell of plant.cells) {
+                    const cellIndex = this.cellToIndex.get(cell);
+                    const rb = cellIndex !== undefined ? this.indexToRigidBody.get(cellIndex) : undefined;
 
                     if (rb === undefined) {
-                        // New cell added.
-                        let cellShape = new Ammo.btBoxShape(new Ammo.btVector3(0.5, 0.5, 0.5));  // (1m)^3 cube
+                        // Add cell.
+                        const cellShape = new Ammo.btBoxShape(new Ammo.btVector3(0.5, 0.5, 0.5));  // (1cm)^3 cube
                         cellShape.setLocalScaling(new Ammo.btVector3(cell.sx, cell.sy, cell.sz));
 
-                        let localInertia = new Ammo.btVector3(0, 0, 0);
+                        const localInertia = new Ammo.btVector3(0, 0, 0);
                         cellShape.calculateLocalInertia(cell.getMass(), localInertia);
                         // TODO: Is it correct to use total mass, after LocalScaling??
 
-                        let motionState = new Ammo.btDefaultMotionState(cell.getBtTransform());
-                        let rbInfo = new Ammo.btRigidBodyConstructionInfo(cell.getMass(), motionState, cellShape, localInertia);
-                        let rb = new Ammo.btRigidBody(rbInfo);
+                        const motionState = new Ammo.btDefaultMotionState(cell.getBtTransform());
+                        const rbInfo = new Ammo.btRigidBodyConstructionInfo(cell.getMass(), motionState, cellShape, localInertia);
+                        const rb = new Ammo.btRigidBody(rbInfo);
                         rb.setFriction(0.8);
-
                         this.addCellAsRigidBody(rb, cell);
-
-                        // Add a joint to the parent (another Cell or Soil).
-                        let parentRb = cell.parentCell === null ? this.groundRb : this.indexToRigidBody.get(this.cellToIndex.get(cell.parentCell));
-                        let joint = new Ammo.btGeneric6DofSpringConstraint(rb, parentRb, tfCell, tfParent, true);
-                        joint.setAngularLowerLimit(new Ammo.btVector3(0.01, 0.01, 0.01));
-                        joint.setAngularUpperLimit(new Ammo.btVector3(-0.01, -0.01, -0.01));
-                        joint.setLinearLowerLimit(new Ammo.btVector3(0.01, 0.01, 0.01));
-                        joint.setLinearUpperLimit(new Ammo.btVector3(-0.01, -0.01, -0.01));
-                        [0, 1, 2, 3, 4, 5].forEach(ix => {
-                            joint.enableSpring(ix, true);
-                            joint.setStiffness(ix, 100);
-                            joint.setDamping(ix, 0.1);
-                        });
-                        joint.setBreakingImpulseThreshold(100);
-                        this.rigidWorld.addConstraint(joint, true /* no collision between neighbors */);
-                        this.cellToParentJoint.set(cell, joint);
                     } else {
-                        // Apply modification.
+                        // Update cell size.
                         rb.getCollisionShape().setLocalScaling(new Ammo.btVector3(cell.sx, cell.sy, cell.sz));
                         const localInertia = new Ammo.btVector3(0, 0, 0);
                         rb.getCollisionShape().calculateLocalInertia(cell.getMass(), localInertia);
                         rb.setMassProps(cell.getMass(), localInertia);
                         rb.updateInertiaTensor();
                         // TODO: maybe need to call some other updates?
-
-                        // Update joint between current cell and its parent.
-                        let joint = this.cellToParentJoint.get(cell);
-                        
-                        joint.setFrames(tfCell, tfParent);
                     }
                     liveCells.add(cell);
                 }
             }
-            // Apply removal.
+
+            // Add/Update constraints. (assumes each cell has exactly 1 constraint)
+            for (const cell of liveCells) {
+                const cellIndex = this.cellToIndex.get(cell);
+                const constraint = this.indexToConstraint.get(cellIndex);
+
+                const tfCell = new Ammo.btTransform();
+                tfCell.setIdentity();
+                tfCell.setOrigin(new Ammo.btVector3(0, 0, -cell.sz / 2)); // innode
+
+                const tfParent = new Ammo.btTransform();
+                tfParent.setIdentity();
+                if (cell.parentCell === null) {
+                    // point on ground
+                    tfParent.setOrigin(new Ammo.btVector3(cell.plant.position.x, cell.plant.position.y, 0));
+                } else {
+                    // outnode of parent
+                    tfParent.setOrigin(new Ammo.btVector3(0, 0, cell.parentCell.sz / 2));
+                }
+
+                if (constraint === undefined) {
+                    const rb = this.indexToRigidBody.get(cellIndex);
+
+                    // Add constraint.
+                    let parentRb = cell.parentCell === null ? this.groundRb : this.indexToRigidBody.get(this.cellToIndex.get(cell.parentCell));
+                    let constraint = new Ammo.btGeneric6DofSpringConstraint(rb, parentRb, tfCell, tfParent, true);
+                    constraint.setAngularLowerLimit(new Ammo.btVector3(0.01, 0.01, 0.01));
+                    constraint.setAngularUpperLimit(new Ammo.btVector3(-0.01, -0.01, -0.01));
+                    constraint.setLinearLowerLimit(new Ammo.btVector3(0.01, 0.01, 0.01));
+                    constraint.setLinearUpperLimit(new Ammo.btVector3(-0.01, -0.01, -0.01));
+                    [0, 1, 2, 3, 4, 5].forEach(ix => {
+                        constraint.enableSpring(ix, true);
+                        constraint.setStiffness(ix, 100);
+                        constraint.setDamping(ix, 0.1);
+                    });
+                    constraint.setBreakingImpulseThreshold(100);
+                    this.rigidWorld.addConstraint(constraint, true /* no collision between neighbors */);
+                    this.indexToConstraint.set(cellIndex, constraint);
+                } else {
+                    // Update constraint.
+                    const constraint = this.indexToConstraint.get(cellIndex);
+                    constraint.setFrames(tfCell, tfParent);
+                }
+            }
+
+            // Remove cells.
             for (const cell of this.cellToIndex.keys()) {
                 if (!liveCells.has(cell)) {
                     this.removeCellAsRigidBody(cell);
@@ -734,18 +743,21 @@
         }
         
         addCellAsRigidBody(rb, cell) {
-            rb.setUserIndex(this.userIndex);
-
-            this.rigidWorld.addRigidBody(rb);
-            this.cellToIndex.set(cell, this.userIndex);
-            this.indexToCell.set(this.userIndex, cell);
-            this.indexToRigidBody.set(this.userIndex, rb);
-
+            const index = this.userIndex;
             this.userIndex++;
             if (this.userIndex >= 2**31) {
                 console.warn('userIndex overflown; simulation might break');
                 this.userIndex = 1; // restart from 1 (this will break if cell id 1 still retamins in the scene)
             }
+
+            rb.setUserIndex(index);
+
+            this.rigidWorld.addRigidBody(rb);
+            this.cellToIndex.set(cell, index);
+            this.indexToCell.set(index, cell);
+            this.indexToRigidBody.set(index, rb);
+
+            return index;
         }
 
         removeCellAsRigidBody(cell) {
