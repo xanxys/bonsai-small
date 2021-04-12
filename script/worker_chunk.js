@@ -363,7 +363,7 @@
             }
 
             const newcellToOutnode = new THREE.Matrix4().makeRotationFromQuaternion(calcRot(locator));
-            const newcellToWorld = newcellToOutnode.multiply(this.getOutNodeToWorld());
+            const newcellToWorld = this.getOutNodeToWorld().multiply(newcellToOutnode);
             const newCell = new Cell(this.plant, initial, this, newcellToWorld);
             this.plant.cells.push(newCell);            
         }
@@ -690,6 +690,7 @@
             }
 
             // Add/Update constraints. (assumes each cell has exactly 1 constraint)
+            
             for (const cell of liveCells) {
                 const cellIndex = this.cellToIndex.get(cell);
                 const constraint = this.indexToConstraint.get(cellIndex);
@@ -724,7 +725,7 @@
                         constraint.setDamping(ix, 0.1);
                     });
                     constraint.setBreakingImpulseThreshold(100);
-                    this.rigidWorld.addConstraint(constraint, true /* no collision between neighbors */);
+                    this.rigidWorld.addConstraint(constraint, true); // true: collision between neighbors
                     this.indexToConstraint.set(cellIndex, constraint);
                 } else {
                     // Update constraint.
