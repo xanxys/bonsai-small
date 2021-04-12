@@ -409,10 +409,10 @@
         }
 
         step() {
-            this._updateShadowMap(this.chunk.rigidWorld, this.chunk.cellMapping);
+            this._updateShadowMap(this.chunk.rigidWorld, this.chunk.indexToCell);
         }
 
-        _updateShadowMap(rigidWorld, cellMapping) {
+        _updateShadowMap(rigidWorld, indexToCell) {
             for (let i = 0; i < this.n; i++) {
                 for (let j = 0; j < this.n; j++) {
                     this.shadowMap[i + j * this.n] = 0;
@@ -430,7 +430,7 @@
 
                     if (cb.hasHit()) {
                         const uIndex = cb.m_collisionObject.getUserIndex();
-                        const cell = cellMapping.get(uIndex);
+                        const cell = indexToCell.get(uIndex);
                         if (cell !== undefined) {
                             cell.givePhoton();
                         } else {
@@ -465,12 +465,14 @@
             this.soil = new Soil(this, this.size);
             this.seeds = [];
 
-            // Temporary hacks.
-            this.cellToRigidBody = new Map();
-            this.cellToParentJoint = new Map();
-
+            // chunk <-> ammo object mappings
             this.userIndex = 1;
-            this.cellMapping = new Map();
+            this.cellToIndex = new Map(); // Cell -> btRigidBody userindex
+            this.indexToCell = new Map(); // btRigidBody userindex -> Cell
+            this.indexToRigidBody = new Map(); // btRigidBody userindex -> btRigidBody
+
+            // hack
+            this.cellToParentJoint = new Map();
 
             // Physical aspects.
             this.light = new Light(this, this.size);
@@ -483,23 +485,27 @@
             let dispatcher = new Ammo.btCollisionDispatcher(collision_configuration);
             let overlappingPairCache = new Ammo.btDbvtBroadphase();
             let solver = new Ammo.btSequentialImpulseConstraintSolver();
-            let rigid_world = new Ammo.btDiscreteDynamicsWorld(dispatcher, overlappingPairCache, solver, collision_configuration);
-            rigid_world.setGravity(new Ammo.btVector3(0, 0, -100));
+            let rigidWorld = new Ammo.btDiscreteDynamicsWorld(dispatcher, overlappingPairCache, solver, collision_configuration);
+            rigidWorld.setGravity(new Ammo.btVector3(0, 0, -100));
+            // rigidWorld.setGravity(new Ammo.btVector3(0, 0, 0));
 
             // Add ground.
-            let ground_shape = new Ammo.btStaticPlaneShape(new Ammo.btVector3(0, 0, 1), 0);
+            const halfThickness = 50;
+            //const groundShape = new Ammo.btBoxShape(new Ammo.btVector3(this.size / 2, this.size / 2, halfThickness));
+            const groundShape = new Ammo.btStaticPlaneShape(new Ammo.btVector3(0, 0, 1), 0);
             let trans = new Ammo.btTransform();
             trans.setIdentity();
+            //trans.setOrigin(new Ammo.btVector3(0, 0, -halfThickness));
 
             let motion = new Ammo.btDefaultMotionState(trans);
             let rb_info = new Ammo.btRigidBodyConstructionInfo(
-                0 /* mass */, motion, ground_shape, new Ammo.btVector3(0, 0, 0) /* inertia */);
+                0 /* mass */, motion, groundShape, new Ammo.btVector3(0, 0, 0) /* inertia */);
             let ground = new Ammo.btRigidBody(rb_info);
             ground.setUserIndex(0);
-            rigid_world.addRigidBody(ground);
+            rigidWorld.addRigidBody(ground);
             this.groundRb = ground;
 
-            return rigid_world;
+            return rigidWorld;
         }
 
         // Add standard plant seed.
@@ -624,30 +630,40 @@
             sim_stats['bio/ms'] = performance.now() - t0;
 
             t0 = performance.now();
-            this._exportPlantsToRigid();
-            sim_stats['bio->rigid/ms'] = performance.now() - t0;
+            const numLiveCells = this._syncCellsToRigid();
+            sim_stats['#live_cell'] = numLiveCells;
+            sim_stats['cell->rigid/ms'] = performance.now() - t0;
 
             t0 = performance.now();
-            this.light.step(this.rigidWorld, this.cellMapping);
+            this.light.step(this.rigidWorld, this.indexToCell);
             sim_stats['light/ms'] = performance.now() - t0;
 
             t0 = performance.now();
             this.rigidWorld.stepSimulation(0.04, 2);
-            this._updatePlantsFromRigid();
+            this._syncRigidToCells();
             sim_stats['rigid/ms'] = performance.now() - t0;
 
             return sim_stats;
         }
 
-        _exportPlantsToRigid() {
+        /**
+         * Sync cell creation, growth, removal.
+         * - creation: sets initial transform & constraint
+         * - growth: sets size
+         * - removal: removes dead cells.
+         * Other cells remain untouched.
+         * 
+         * @returns {number} num of live cells
+         */
+        _syncCellsToRigid() {
             // There are three types of changes: add / modify / delete
             const liveCells = new Set();
             for (let plant of this.plants) {
                 for (let cell of plant.cells) {
-                    let rb = this.cellToRigidBody.get(cell);
+                    const rb = this.indexToRigidBody.get(this.cellToIndex.get(cell));
 
                     // Also add contraint.
-                    let tfCell = new Ammo.btTransform();
+                    const tfCell = new Ammo.btTransform();
                     tfCell.setIdentity();
                     tfCell.setOrigin(new Ammo.btVector3(0, 0, -cell.sz / 2)); // innode
                     let tfParent = new Ammo.btTransform();
@@ -670,16 +686,14 @@
                         // TODO: Is it correct to use total mass, after LocalScaling??
 
                         let motionState = new Ammo.btDefaultMotionState(cell.getBtTransform());
-                        let rb_info = new Ammo.btRigidBodyConstructionInfo(cell.getMass(), motionState, cellShape, localInertia);
-                        let rb = new Ammo.btRigidBody(rb_info);
-                        this.associateCell(rb, cell);
+                        let rbInfo = new Ammo.btRigidBodyConstructionInfo(cell.getMass(), motionState, cellShape, localInertia);
+                        let rb = new Ammo.btRigidBody(rbInfo);
                         rb.setFriction(0.8);
 
-                        this.rigidWorld.addRigidBody(rb);
-                        this.cellToRigidBody.set(cell, rb);
+                        this.addCellAsRigidBody(rb, cell);
 
                         // Add a joint to the parent (another Cell or Soil).
-                        let parentRb = cell.parentCell === null ? this.groundRb : this.cellToRigidBody.get(cell.parentCell);
+                        let parentRb = cell.parentCell === null ? this.groundRb : this.indexToRigidBody.get(this.cellToIndex.get(cell.parentCell));
                         let joint = new Ammo.btGeneric6DofSpringConstraint(rb, parentRb, tfCell, tfParent, true);
                         joint.setAngularLowerLimit(new Ammo.btVector3(0.01, 0.01, 0.01));
                         joint.setAngularUpperLimit(new Ammo.btVector3(-0.01, -0.01, -0.01));
@@ -711,20 +725,21 @@
                 }
             }
             // Apply removal.
-            if (this.cellToRigidBody.size > liveCells.size) {
-                for (let [cell, rb] of this.cellToRigidBody) {
-                    if (!liveCells.has(cell)) {
-                        this.rigidWorld.removeRigidBody(rb);
-                        this.cellToRigidBody.delete(cell);
-                        this.cellToParentJoint.delete(cell);
-                    }
+            for (const cell of this.cellToIndex.keys()) {
+                if (!liveCells.has(cell)) {
+                    this.removeCellAsRigidBody(cell);
                 }
             }
+            return liveCells.size;
         }
         
-        associateCell(rb, cell) {
+        addCellAsRigidBody(rb, cell) {
             rb.setUserIndex(this.userIndex);
-            this.cellMapping.set(this.userIndex, cell);
+
+            this.rigidWorld.addRigidBody(rb);
+            this.cellToIndex.set(cell, this.userIndex);
+            this.indexToCell.set(this.userIndex, cell);
+            this.indexToRigidBody.set(this.userIndex, rb);
 
             this.userIndex++;
             if (this.userIndex >= 2**31) {
@@ -733,8 +748,22 @@
             }
         }
 
-        _updatePlantsFromRigid() {
-            for (let [cell, rb] of this.cellToRigidBody) {
+        removeCellAsRigidBody(cell) {
+            const index = this.cellToIndex.get(cell);
+            console.assert(index !== undefined);
+            const rb = this.indexToRigidBody.get(index);
+            console.assert(rb !== undefined);
+
+            this.rigidWorld.removeRigidBody(rb);
+            this.cellToIndex.delete(cell);
+            this.indexToCell.delete(index);
+            this.indexToRigidBody.delete(index);
+        }
+
+        /** Syncs transform of rigid bodies back to cells, without touching creating / destroying objects. */
+        _syncRigidToCells() {
+            for (let [cell, index] of this.cellToIndex) {
+                const rb = this.indexToRigidBody.get(index);
                 cell.setBtTransform(rb.getCenterOfMassTransform());
             }
         }
