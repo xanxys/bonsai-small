@@ -59,7 +59,7 @@
         serializeCells() {
             return this.cells.map(cell => {
                 return {
-                    'mat': cell.cellToWorld.elements,
+                    'mat': Array.from(cell.cellToWorld.elements),
                     'size': [cell.sx, cell.sy, cell.sz],
                     'col': cell.getCellColor(),
                 };
@@ -325,7 +325,7 @@
                 let t = 1 - this.plant.energy * 1e4;
                 colorDiffuse.offsetHSL(0, -t, 0);
             }
-            return colorDiffuse;
+            return {r:colorDiffuse.r, g:colorDiffuse.g, b:colorDiffuse.b};
         }
 
         givePhoton() {
@@ -413,6 +413,8 @@
         }
 
         _updateShadowMap(rigidWorld, indexToCell) {
+            const posFrom = new Ammo.btVector3();
+            const posTo = new Ammo.btVector3();
             for (let i = 0; i < this.n; i++) {
                 for (let j = 0; j < this.n; j++) {
                     this.shadowMap[i + j * this.n] = 0;
@@ -425,8 +427,9 @@
                     const cb = new Ammo.ClosestRayResultCallback();
                     const x = ((i + Math.random()) / this.n - 0.5) * this.size;
                     const y = ((j + Math.random()) / this.n - 0.5) * this.size;
-                    const org = new Ammo.btVector3(x, y, 100);
-                    rigidWorld.rayTest(org, new Ammo.btVector3(x, y, -1), cb);
+                    posFrom.setValue(x, y, 100);
+                    posTo.setValue(x, y, -1);
+                    rigidWorld.rayTest(posFrom, posTo, cb);
 
                     if (cb.hasHit()) {
                         const uIndex = cb.m_collisionObject.getUserIndex();
@@ -440,8 +443,11 @@
                     } else {
                         // hit nothing (shouldn't happen)
                     }
+                    Ammo.destroy(cb);
                 }
             }
+            Ammo.destroy(posFrom);
+            Ammo.destroy(posTo);
         }
     }
 
@@ -653,6 +659,8 @@
          * @returns {number} num of live cells
          */
         _syncCellsToRigid() {
+            // NOTE: all new Ammo.XXXX() calls must be acoompanied by Ammo.destroy(), otherwise memory will leak.
+
             // Add/Update cells.
             const liveCells = new Set();
             for (const plant of this.plants) {
@@ -662,8 +670,12 @@
 
                     if (rb === undefined) {
                         // Add cell.
-                        const cellShape = new Ammo.btBoxShape(new Ammo.btVector3(0.5, 0.5, 0.5));  // (1cm)^3 cube
-                        cellShape.setLocalScaling(new Ammo.btVector3(cell.sx, cell.sy, cell.sz));
+                        const boxSize = new Ammo.btVector3(0.5, 0.5, 0.5);
+                        const localScaling = new Ammo.btVector3(cell.sx, cell.sy, cell.sz);
+                        const cellShape = new Ammo.btBoxShape(boxSize); // (1cm)^3 cube
+                        cellShape.setLocalScaling(localScaling);
+                        Ammo.destroy(boxSize);
+                        Ammo.destroy(localScaling);
 
                         const localInertia = new Ammo.btVector3(0, 0, 0);
                         cellShape.calculateLocalInertia(cell.getMass(), localInertia);
@@ -674,30 +686,38 @@
                         const rb = new Ammo.btRigidBody(rbInfo);
                         rb.setFriction(0.8);
                         this.addCellAsRigidBody(rb, cell);
+
+                        Ammo.destroy(localInertia);
+                        //Ammo.destroy(motionState); // this will lead to crash
+                        Ammo.destroy(rbInfo);
                     } else {
-                        // Update cell size.
-                        rb.getCollisionShape().setLocalScaling(new Ammo.btVector3(cell.sx, cell.sy, cell.sz));
+                        const localScaling = new Ammo.btVector3(cell.sx, cell.sy, cell.sz);
                         const localInertia = new Ammo.btVector3(0, 0, 0);
+
+                        // Update cell size.
+                        rb.getCollisionShape().setLocalScaling(localScaling);
                         rb.getCollisionShape().calculateLocalInertia(cell.getMass(), localInertia);
                         rb.setMassProps(cell.getMass(), localInertia);
                         rb.updateInertiaTensor();
                         // TODO: maybe need to call some other updates?
+
+                        Ammo.destroy(localScaling);
+                        Ammo.destroy(localInertia);
                     }
                     liveCells.add(cell);
                 }
             }
 
             // Add/Update constraints. (assumes each cell has exactly 1 constraint)
-            
+            const tfCell = new Ammo.btTransform();
+            const tfParent = new Ammo.btTransform();
             for (const cell of liveCells) {
                 const cellIndex = this.cellToIndex.get(cell);
                 const constraint = this.indexToConstraint.get(cellIndex);
 
-                const tfCell = new Ammo.btTransform();
                 tfCell.setIdentity();
                 tfCell.setOrigin(new Ammo.btVector3(0, 0, -cell.sz / 2)); // innode
 
-                const tfParent = new Ammo.btTransform();
                 tfParent.setIdentity();
                 if (cell.parentCell === null) {
                     // point on ground
@@ -723,6 +743,7 @@
                         constraint.setDamping(ix, 0.1);
                     });
                     constraint.setBreakingImpulseThreshold(100);
+
                     this.rigidWorld.addConstraint(constraint, true); // true: collision between neighbors
                     this.indexToConstraint.set(cellIndex, constraint);
                 } else {
@@ -731,10 +752,14 @@
                     constraint.setFrames(tfCell, tfParent);
                 }
             }
+            Ammo.destroy(tfCell);
+            Ammo.destroy(tfParent);
 
-            // Remove cells.
+            // Remove cells & constraints.
             for (const cell of this.cellToIndex.keys()) {
                 if (!liveCells.has(cell)) {
+                    const cellIndex = this.cellToIndex.get(cell);
+                    this.removeConstraint(cellIndex);
                     this.removeCellAsRigidBody(cell);
                 }
             }
@@ -769,7 +794,16 @@
             this.cellToIndex.delete(cell);
             this.indexToCell.delete(index);
             this.indexToRigidBody.delete(index);
+            Ammo.destroy(rb);
         }
+
+        removeConstraint(cellIndex) {
+            const constraint = this.indexToConstraint.get(cellIndex);
+            this.indexToConstraint.delete(cellIndex);
+            this.rigidWorld.removeConstraint(constraint);
+            Ammo.destroy(constraint);
+        }
+
 
         /** Syncs transform of rigid bodies back to cells, without touching creating / destroying objects. */
         _syncRigidToCells() {
