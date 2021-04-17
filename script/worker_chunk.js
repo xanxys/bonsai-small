@@ -682,28 +682,31 @@
                 tfCell.setIdentity();
                 tfCell.getOrigin().setValue(0, 0, -cell.sz / 2); // innode
 
-                tfParent.setIdentity();
-                if (cell.parentCell === null) {
-                    if (this.indexToRigidBody.get(this.cellIndexToSoilIndex.get(cellIndex)) !== undefined) {
-                        // point on soil
-                        const cellPos = new THREE.Vector3().applyMatrix4(cell.cellToWorld);
-                        const cellPosLoc = this.indexToRigidBody.get(this.cellIndexToSoilIndex.get(cellIndex)).getCenterOfMassTransform().invXform(new Ammo.btVector3(cellPos.x, cellPos.y, cellPos.z));
-                        tfParent.setOrigin(cellPosLoc);
-                        Ammo.destroy(cellPosLoc);
-                    }
-                    
-                } else {
-                    // outnode of parent
-                    tfParent.getOrigin().setValue(0, 0, cell.parentCell.sz / 2);
-                }
-
                 if (constraint === undefined) {
                     if (cell.plant.rooted) {
                         const rb = this.indexToRigidBody.get(cellIndex);
 
+                        let parentRb = null;
+                        if (cell.parentCell === null) {
+                            // soil
+                            parentRb = this.indexToRigidBody.get(this.cellIndexToSoilIndex.get(cellIndex));
+                            
+                            const cellPos = new THREE.Vector3().applyMatrix4(cell.cellToWorld);
+                            const cellPosWorld = new Ammo.btVector3(cellPos.x, cellPos.y, cellPos.z);
+                            const cellPosLoc = parentRb.getCenterOfMassTransform().invXform(cellPosWorld);
+                            tfParent.setIdentity();
+                            tfParent.setOrigin(cellPosLoc);
+                            Ammo.destroy(cellPosWorld);
+                            Ammo.destroy(cellPosLoc);
+                        } else {
+                            // outnode of parent
+                            parentRb = this.indexToRigidBody.get(this.cellToIndex.get(cell.parentCell));
+                            tfParent.setIdentity();
+                            tfParent.getOrigin().setValue(0, 0, cell.parentCell.sz / 2);
+                        }
+
                         // Add constraint.
-                        let parentRb = cell.parentCell === null ? this.indexToRigidBody.get(this.cellIndexToSoilIndex.get(cellIndex)) : this.indexToRigidBody.get(this.cellToIndex.get(cell.parentCell));
-                        let constraint = new Ammo.btGeneric6DofSpringConstraint(rb, parentRb, tfCell, tfParent, true);
+                        const constraint = new Ammo.btGeneric6DofSpringConstraint(rb, parentRb, tfCell, tfParent, true);
                         constraint.setAngularLowerLimit(new Ammo.btVector3(0.01, 0.01, 0.01));
                         constraint.setAngularUpperLimit(new Ammo.btVector3(-0.01, -0.01, -0.01));
                         constraint.setLinearLowerLimit(new Ammo.btVector3(0.01, 0.01, 0.01));
@@ -727,6 +730,8 @@
                         constraint.setFrames(tfCell, constraint.getFrameOffsetB());
                     } else {
                         // cell-parent cell link
+                        tfParent.setIdentity();
+                        tfParent.getOrigin().setValue(0, 0, cell.parentCell.sz / 2);
                         constraint.setFrames(tfCell, tfParent);
                     }
                 }
@@ -816,9 +821,9 @@
                     // contact may be 0 (i.e. colliding in broadphase, but not in narrowphase)
                     continue;
                 }
+
                 const i0 = collision.getBody0().getUserIndex();
                 const i1 = collision.getBody1().getUserIndex();
-                
                 if (this.soilIndices.has(i0)) {
                     this.indexToCell.get(i1).plant.rooted = true;
                     this.cellIndexToSoilIndex.set(i1, i0);
