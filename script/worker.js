@@ -56,14 +56,6 @@ function startChunkWorker(Ammo) {
                         stat: chunk.getPlantStat(payload.id)
                     }
                 });
-            } else if (msgType === 'genome-plant') {
-                self.postMessage({
-                    type: 'genome-plant',
-                    data: {
-                        id: payload.id,
-                        genome: chunk.getPlantGenome(payload.id)
-                    }
-                });
             }
         } catch (e) {
             console.trace(e);

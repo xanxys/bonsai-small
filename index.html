@@ -32,9 +32,6 @@
 			<button v-on:click="onClickTogglePlant" v-bind:class="{active: plantPanelVisible}" title="Open/close plant statistics.">
 				<img src="ui_asset/icon_plant.png" />
 			</button>
-			<button v-on:click="onClickToggleGenome" v-bind:class="{active: genomePanelVisible}" title="Open/close genome view.">
-				<img src="ui_asset/icon_genome.png" />
-			</button>
 
 			<hr />
 
@@ -75,29 +72,25 @@
 				<pre>{{plantInfoText}}</pre>
 				<button v-on:click="onClickKillPlant">Kill</button>
 				<br/>
-				Cells
-				<table>
-					<tr v-for="cellStat in cells">
-						<td>{{cellStat}}</td>
-					</tr>
-				</table>
-			</div>
-
-			<div class="pane-panel bg-genome" v-show="genomePanelVisible">
-				<h1>Genome</h1>
-				Click a plant to see its genome.
+				Genome
 				<div class="figure">
-					<div class="gene" v-for="gene in genome">{{gene.name}}<br/>
-						<table>
+					<div v-for="gene in plantGenome">
+						<table class="gene">
 							<tr><td v-for="elem in gene.when" v-bind:class="elem.classObj">{{elem.seq}}</td></tr>
 							<tr><td v-for="elem in gene.when">{{elem.role}}</td></tr>
 						</table>
-						<table>
+						<table  class="gene">
 							<tr><td v-for="elem in gene.emit" v-bind:class="elem.classObj">{{elem.seq}}</td></tr>
 							<tr><td v-for="elem in gene.emit">{{elem.role}}</td></tr>
 						</table>
 					</div>
 				</div>
+				Cells
+				<table class="signals">
+					<tr v-for="cellStat in cells">
+						<td>{{cellStat}}</td>
+					</tr>
+				</table>
 			</div>
 
 			<div class="pane-panel bg-about" v-show="aboutPanelVisible">

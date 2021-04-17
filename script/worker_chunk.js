@@ -80,11 +80,8 @@
             stat['age/T'] = this.age;
             stat['stored/E'] = this.energy;
             stat['delta/(E/T)'] = this._powerForPlant();
+            stat['genome'] = this.genome.encode();
             return stat;
-        }
-
-        getGenome() {
-            return this.genome;
         }
 
         _powerForPlant() {
@@ -197,13 +194,13 @@
             this._withdrawStaticEnergy();
 
             // Unified genome.
-            function unity_calc_prob_term(signal) {
+            function genes_calc_prob_term(signal) {
                 if (signal === Signal.HALF) {
                     return 0.5;
                 } else if (signal === Signal.GROWTH) {
                     return _this.plant.growthFactor();
                 } else if (signal.length >= 2 && signal[0] === Signal.INVERT) {
-                    return 1 - unity_calc_prob_term(signal.substr(1));
+                    return 1 - genes_calc_prob_term(signal.substr(1));
                 } else if (_this.signals.includes(signal)) {
                     return 1;
                 } else {
@@ -211,13 +208,13 @@
                 }
             }
 
-            function unity_calc_prob(when) {
-                return product(when.map(unity_calc_prob_term));
+            function genes_calc_prob(when) {
+                return product(when.map(genes_calc_prob_term));
             }
 
             // Gene expression and transcription.
-            this.plant.genome.unity.forEach(gene => {
-                if (unity_calc_prob(gene['when']) > Math.random()) {
+            this.plant.genome.genes.forEach(gene => {
+                if (genes_calc_prob(gene['when']) > Math.random()) {
                     let num_codon = sum(gene['emit'].map(sig => {
                         return sig.length
                     }));
@@ -591,21 +588,6 @@
                 }
             });
             return stat;
-        }
-
-        /**
-         * 
-         * @param {*} plantId 
-         * @returns {Array | null}
-         */
-        getPlantGenome(plantId) {
-            let genome = null;
-            this.plants.forEach(plant =>{
-                if (plant.id === plantId) {
-                    genome = plant.getGenome();
-                }
-            });
-            return genome;
         }
 
         /**

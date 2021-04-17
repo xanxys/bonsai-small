@@ -28,10 +28,6 @@ canvas {
 
 */
 
-.bg-genome {
-	background-color: #ad7fa8;
-}
-
 .bg-time {
 	background-color: #72cf89;
 }
@@ -187,7 +183,12 @@ canvas {
 }
 
 /* Plant Panel */
-.bg-plant td {
+.bg-plant {
+	max-height: 500px;
+	overflow: auto;
+}
+
+table.signals {
 	background-color: #ccc;
 	margin-right: 2px;
 
@@ -196,29 +197,24 @@ canvas {
 	font-size: 10px;
 }
 
-.bg-plant {
-	max-height: 500px;
-	overflow: auto;
-}
-
-/* Genome Panel */
-.bg-genome table {
+table.gene {
 	border-right: 2px solid #ccc;
 	display: inline-block;
 }
 
-.bg-genome td {
+table.gene td {
+	background-color: none;
 	padding-top: 0;
 	padding-bottom: 0;
 }
 
-.bg-genome table tr:first-child {
+table.gene tr:first-child {
 	font-family: "Inconsolata", sans-serif;
 	font-weight: 700;
 	font-size: 10px;
 }
 
-.bg-genome table tr:not(first-child) {
+table.gene tr:not(first-child) {
 	font-family: 'Alegreya Sans', sans-serif;
 	font-weight: 300;
 	font-size: 8px;

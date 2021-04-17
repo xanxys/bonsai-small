@@ -115,11 +115,11 @@
     }
 
     class Genome {
-        constructor() {
-            this.unity = [
+        constructor(genes) {
+            this.genes = genes ?? [
                 // Topological
                 {
-                    "tracer_desc": "Diff: Produce leaf.",
+                    // Diff: Produce leaf
                     "when": [
                         Signal.SHOOT_END, Signal.GROWTH, Signal.HALF, Signal.HALF, Signal.HALF
                     ],
@@ -129,7 +129,7 @@
                     ]
                 },
                 {
-                    "tracer_desc": "Diff: Produce branch.",
+                    // Diff: Produce branch
                     "when": [
                         Signal.SHOOT_END, Signal.GROWTH, Signal.HALF, Signal.HALF],
                     "emit": [
@@ -138,7 +138,7 @@
                     ]
                 },
                 {
-                    "tracer_desc": "Diff: Produce flower.",
+                    // Diff: Produce flower
                     "when": [
                         Signal.SHOOT_END, Signal.INVERT + Signal.GROWTH, Signal.HALF, Signal.HALF],
                     "emit": [
@@ -147,46 +147,60 @@
                 },
                 // Growth
                 {
-                    "tracer_desc": "Flower growth.",
+                    // Flower growth
                     "when": [
                         Signal.FLOWER, Signal.HALF, Signal.HALF],
                     "emit": [
                         Signal.G_DX, Signal.G_DY, Signal.G_DZ]
                 },
                 {
-                    "tracer_desc": "Leaf elongation.",
+                    // Leaf elongation
                     "when": [
                         Signal.LEAF],
                     "emit": [
                         Signal.G_DZ],
                 },
                 {
-                    "tracer_desc": "Leaf shape adjustment.",
+                    // Leaf shape adjustment
                     "when": [
                         Signal.LEAF, Signal.HALF, Signal.HALF, Signal.HALF, Signal.HALF],
                     "emit": [
                         Signal.G_DX, Signal.G_DX, Signal.G_DX, Signal.G_DX, Signal.G_DX, Signal.G_DX, Signal.G_DY]
                 },
                 {
-                    "tracer_desc": "Shoot (end) elongation.",
+                    // Shoot (end) elongation
                     "when": [
                         Signal.SHOOT],
                     "emit": [Signal.G_DZ]
                 },
                 {
-                    "tracer_desc": "Shoot thickening.",
+                    // Shoot thickening
                     "when": [
                         Signal.SHOOT_END, Signal.HALF, Signal.HALF, Signal.HALF],
                     "emit": [Signal.G_DX, Signal.G_DY]
                 },
                 {
-                    "tracer_desc": "Chloroplast generation.",
+                    // Chloroplast generation
                     "when": [
                         Signal.LEAF, Signal.HALF, Signal.HALF, Signal.HALF],
                     "emit": [
                         Signal.CHLOROPLAST]
                 }
             ];
+        }
+
+        encode() {
+            return this.genes.map(gene => gene.when.join(',') + '>' + gene.emit.join(',')).join('|');
+        }
+
+        static decode(e) {
+            return new Genome(e.split('|').map(geneEnc => {
+                const [whenEnc, emitEnc] = geneEnc.split('>');
+                return {
+                    'when': whenEnc.split(','),
+                    'emit': emitEnc.split(','),
+                };
+            }));
         }
 
         // Clone "naturally" with mutations.
@@ -197,7 +211,7 @@
             let _this = this;
 
             let genome = new Genome();
-            genome.unity = this._shuffle(this.unity,
+            genome.genes = this._shuffle(this.genes,
                 function (gene) {
                     return _this._naturalCloneGene(gene, '');
                 },

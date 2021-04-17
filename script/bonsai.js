@@ -63,7 +63,6 @@ class Bonsai {
                 chunkPanelVisible: false,
                 chartPanelVisible: false,
                 plantPanelVisible: false,
-                genomePanelVisible: false,
                 aboutPanelVisible: false,
 
                 playing: false,
@@ -71,6 +70,7 @@ class Bonsai {
 
                 chunkInfoText: '',
                 simInfoText: '',
+                plantGenome: null,
 
                 historydata: {},
                 historyoption: {
@@ -129,9 +129,6 @@ class Bonsai {
                 },
                 onClickTogglePlant: function() {
                     this.plantPanelVisible = !this.plantPanelVisible;
-                },
-                onClickToggleGenome: function() {
-                    this.genomePanelVisible = !this.genomePanelVisible;
                 },
                 onClickToggleAbout: function() {
                     this.aboutPanelVisible = !this.aboutPanelVisible;
@@ -219,13 +216,12 @@ class Bonsai {
                     }
             
                     if (genome === null) {
-                        this.genome = [];
+                        this.plantGenome = null;
                         return;
                     }
             
-                    this.genome = genome.unity.map(gene => {
+                    this.plantGenome = genome.genes.map(gene => {
                         return {
-                            name: gene["tracer_desc"],
                             when: convertSignals(gene.when),
                             emit: convertSignals(gene.emit),
                         };
@@ -258,8 +254,7 @@ class Bonsai {
                 this.vm.notifyStepComplete();
             } else if (msgType === 'stat-plant') {
                 this.vm.updatePlantView(payload.stat);
-            } else if (msgType === 'genome-plant') {
-                this.vm.updateGenomeView(payload.genome);
+                this.vm.updateGenomeView(Genome.decode(payload.stat.genome));
             }
         }, false);
     }
