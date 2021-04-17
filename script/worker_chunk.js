@@ -409,6 +409,48 @@
     }
 
     /**
+     * 
+     * @param {number} horizontalSize
+     * @returns {Array<{t:THREE.Vector3, r:THREE.Quaternion, s:THREE.Vector3}>} (s is full size (not half size))
+     */
+    function generateSoil(horizontalSize) {
+        const thickness = 5;
+        const res = [
+            {
+                t: new THREE.Vector3(0, 0, -thickness/2),
+                r: new THREE.Quaternion(),
+                s: new THREE.Vector3(horizontalSize, horizontalSize, thickness),
+            }
+        ];
+
+        let pos = new THREE.Vector3();
+        let scaleFactor = 1;
+
+        for (let i = 0; i < 10; i++) {
+            if (i === 0 || Math.random() < 0.5) {
+                pos = new THREE.Vector3(Math.random() * 80 - 40, Math.random() * 80 - 40, 0);
+                scaleFactor = 1;
+            }
+            
+            res.push({
+                t: pos.clone(),
+                r: new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI)),
+                s: new THREE.Vector3(Math.random() * 40 * scaleFactor, Math.random() * 40 * scaleFactor, Math.random() * 40 * scaleFactor),
+            });
+
+            pos.add(new THREE.Vector3(Math.random() * 30 - 15, Math.random() * 30 - 15, Math.random() * 10));
+            scaleFactor *= 0.8;
+        }
+        return res.map(d => {
+            return {
+                t: {x:d.t.x, y:d.t.y, z:d.t.z},
+                r: {x:d.r.x, y:d.r.y, z:d.r.z, w:d.r.w},
+                s: {x:d.s.x, y:d.s.y, z:d.s.z},
+            };
+        });
+    }
+
+    /**
      * A chunk is non-singleton, finite patch of space containing bunch of plants, soil,
      * and light field.
      * Chunk have no coupling with DOM or external state. Main methods are
@@ -436,13 +478,16 @@
             this.cellToIndex = new Map(); // Cell -> btRigidBody userindex
             this.indexToCell = new Map(); // btRigidBody userindex -> Cell
             this.indexToRigidBody = new Map(); // btRigidBody userindex -> btRigidBody
-
+            
+            this.cellIndexToGroundIndex = new Map(); // Cell ix-> ground ix
             this.indexToConstraint = new Map(); // btRigidBody userindex (child) -> btConstraint
 
             // Physical aspects.
             this.light = new Light(this, this.size);
             this.rigidWorld = this._createRigidWorld();
-            this._addGround();
+
+            this.soilData = generateSoil(this.size);
+            this._addGround(this.soilData);
         }
 
         _createRigidWorld() {
@@ -457,18 +502,20 @@
             return rigidWorld;
         }
 
-        _addGround() {
-            const groundShape = new Ammo.btBoxShape(new Ammo.btVector3(this.size / 2, this.size / 2, this.thickness / 2));
-            const trans = new Ammo.btTransform();
-            trans.setIdentity();
-            trans.setOrigin(new Ammo.btVector3(0, 0, -this.thickness / 2));
-
-            const motion = new Ammo.btDefaultMotionState(trans);
-            const rbInfo = new Ammo.btRigidBodyConstructionInfo(0, motion, groundShape, new Ammo.btVector3(0, 0, 0)); // static (mass,intertia=0)
-            const ground = new Ammo.btRigidBody(rbInfo);
-
-            this.addGroundRigidBody(ground);
-            this.groundRb = ground; // TODO: Generalize to multi-body
+        _addGround(soil) {
+            soil.forEach(soilBlock => {
+                const shape = new Ammo.btBoxShape(new Ammo.btVector3(soilBlock.s.x / 2, soilBlock.s.y / 2, soilBlock.s.z / 2));
+                const trans = new Ammo.btTransform();
+                trans.setIdentity();
+                trans.getOrigin().setValue(soilBlock.t.x, soilBlock.t.y, soilBlock.t.z);
+                trans.setRotation(new Ammo.btQuaternion(soilBlock.r.x, soilBlock.r.y, soilBlock.r.z, soilBlock.r.w));
+    
+                const motion = new Ammo.btDefaultMotionState(trans);
+                const rbInfo = new Ammo.btRigidBodyConstructionInfo(0, motion, shape, new Ammo.btVector3(0, 0, 0)); // static (mass,intertia=0)
+                const ground = new Ammo.btRigidBody(rbInfo);
+    
+                this.addGroundRigidBody(ground);
+            });
         }
 
         // Add standard plant seed.
@@ -637,10 +684,18 @@
 
                 tfParent.setIdentity();
                 if (cell.parentCell === null) {
-                    // point on ground
-                    const cellPos = new THREE.Vector3().applyMatrix4(cell.cellToWorld);
-                    cellPos.setZ(cellPos.z + this.thickness / 2); // world -> ground local
-                    tfParent.getOrigin().setValue(cellPos.x, cellPos.y, cellPos.z);
+                    if (this.indexToRigidBody.get(this.cellIndexToGroundIndex.get(cellIndex)) !== undefined) {
+                        // point on ground
+                        const cellPos = new THREE.Vector3().applyMatrix4(cell.cellToWorld);
+
+
+                        const cellPosLoc = this.indexToRigidBody.get(this.cellIndexToGroundIndex.get(cellIndex)).getCenterOfMassTransform().invXform(new Ammo.btVector3(cellPos.x, cellPos.y, cellPos.z));
+
+                        //cellPos.setZ(cellPos.z + this.thickness / 2); // world -> ground local
+                        tfParent.setOrigin(cellPosLoc);
+                        Ammo.destroy(cellPosLoc);
+                    }
+                    
                 } else {
                     // outnode of parent
                     tfParent.getOrigin().setValue(0, 0, cell.parentCell.sz / 2);
@@ -651,7 +706,7 @@
                         const rb = this.indexToRigidBody.get(cellIndex);
 
                         // Add constraint.
-                        let parentRb = cell.parentCell === null ? this.groundRb : this.indexToRigidBody.get(this.cellToIndex.get(cell.parentCell));
+                        let parentRb = cell.parentCell === null ? this.indexToRigidBody.get(this.cellIndexToGroundIndex.get(cellIndex)) : this.indexToRigidBody.get(this.cellToIndex.get(cell.parentCell));
                         let constraint = new Ammo.btGeneric6DofSpringConstraint(rb, parentRb, tfCell, tfParent, true);
                         constraint.setAngularLowerLimit(new Ammo.btVector3(0.01, 0.01, 0.01));
                         constraint.setAngularUpperLimit(new Ammo.btVector3(-0.01, -0.01, -0.01));
@@ -738,6 +793,7 @@
             this.cellToIndex.delete(cell);
             this.indexToCell.delete(index);
             this.indexToRigidBody.delete(index);
+            this.cellIndexToGroundIndex.delete(index);
             Ammo.destroy(rb);
         }
 
@@ -760,12 +816,19 @@
             const dispatcher = this.rigidWorld.getDispatcher();
             for (let i = 0; i < dispatcher.getNumManifolds(); i++) {
                 const collision = dispatcher.getManifoldByIndexInternal(i);
+                if (collision.getNumContacts() === 0) {
+                    // contact may be 0 (i.e. colliding in broadphase, but not in narrowphase)
+                    continue;
+                }
                 const i0 = collision.getBody0().getUserIndex();
                 const i1 = collision.getBody1().getUserIndex();
+                
                 if (this.groundIndices.has(i0)) {
                     this.indexToCell.get(i1).plant.rooted = true;
+                    this.cellIndexToGroundIndex.set(i1, i0);
                 } else if (this.groundIndices.has(i1)) {
                     this.indexToCell.get(i0).plant.rooted = true;
+                    this.cellIndexToGroundIndex.set(i0, i1);
                 }
             }
         }
@@ -795,6 +858,7 @@
             });
             ser['soil'] = {
                 'size': this.size,
+                'blocks': this.soilData,
             };
 
             return ser;

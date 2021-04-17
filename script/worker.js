@@ -13,14 +13,14 @@ function startChunkWorker(Ammo) {
         for (let iy = -4; iy <= 4; iy ++) {
             for (let ix = -4; ix <= 4; ix ++) {
                 this.current_plant = chunk.addDefaultPlant(
-                    new THREE.Vector3(ix * 7, iy * 7, 3));
+                    new THREE.Vector3(ix * 7, iy * 7, 20));
             }
         }
     } else {
         for (let iy = -10; iy <= 10; iy ++) {
             for (let ix = -10; ix <= 10; ix ++) {
                 this.current_plant = chunk.addDefaultPlant(
-                    new THREE.Vector3(ix * 3, iy * 3, 3));
+                    new THREE.Vector3(ix * 3, iy * 3, 20));
             }
         }
     }

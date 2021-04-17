@@ -439,12 +439,24 @@ class Bonsai {
         cellMesh.castShadow = true;
         proxy.add(cellMesh);
 
-        const soilPlate = new THREE.Mesh(
-            new THREE.BoxGeometry(chunk.soil.size, chunk.soil.size, 10),
-            new THREE.MeshStandardMaterial({color:'gray'}));
-        soilPlate.receiveShadow = true;
-        soilPlate.position.set(0, 0, -5);
-        proxy.add(soilPlate);
+
+        // de-serialize soil
+        const soilInstanceGeom = new THREE.BoxGeometry(1, 1, 1);
+        const soilInstanceMat = new THREE.MeshStandardMaterial({color:'#877'});
+        const soilMesh = new THREE.InstancedMesh(soilInstanceGeom, soilInstanceMat, chunk.soil.blocks.length);
+        chunk.soil.blocks.forEach((block, blockIx) => {
+            const m = new THREE.Matrix4();
+            m.compose(
+                new THREE.Vector3(block.t.x, block.t.y, block.t.z),
+                new THREE.Quaternion(block.r.x, block.r.y, block.r.z, block.r.w),
+                new THREE.Vector3(1,1,1));
+            m.scale(new THREE.Vector3(block.s.x, block.s.y, block.s.z));
+            soilMesh.setMatrixAt(blockIx, m);
+        });
+        soilMesh.receiveShadow = true;
+        soilMesh.castShadow = true;
+        console.log(chunk.soil.blocks.length);
+        proxy.add(soilMesh);
 
         return proxy;
     }
