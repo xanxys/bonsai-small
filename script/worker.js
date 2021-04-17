@@ -10,10 +10,10 @@ function startChunkWorker(Ammo) {
     // Should be moved to bonsai.js
     let stressTest = false;
     if (!stressTest) {
-        for (let iy = -4; iy <= 4; iy ++) {
-            for (let ix = -4; ix <= 4; ix ++) {
+        for (let iy = -2; iy <= 2; iy ++) {
+            for (let ix = -2; ix <= 2; ix ++) {
                 this.current_plant = chunk.addDefaultPlant(
-                    new THREE.Vector3(ix * 7, iy * 7, 20));
+                    new THREE.Vector3(ix * 5, iy * 5, 20));
             }
         }
     } else {

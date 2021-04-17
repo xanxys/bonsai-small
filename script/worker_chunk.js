@@ -423,24 +423,38 @@
             }
         ];
 
+        // "rocks"
         let pos = new THREE.Vector3();
         let scaleFactor = 1;
-
         for (let i = 0; i < 10; i++) {
             if (i === 0 || Math.random() < 0.5) {
-                pos = new THREE.Vector3(Math.random() * 80 - 40, Math.random() * 80 - 40, 0);
+                pos = new THREE.Vector3((Math.random() - 0.5) * horizontalSize * 0.7, (Math.random() - 0.5) * horizontalSize * 0.7, 0);
                 scaleFactor = 1;
             }
             
             res.push({
                 t: pos.clone(),
-                r: new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI)),
-                s: new THREE.Vector3(Math.random() * 40 * scaleFactor, Math.random() * 40 * scaleFactor, Math.random() * 40 * scaleFactor),
+                r: new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.random() * Math.PI, Math.random() * Math.PI, 0)),
+                s: new THREE.Vector3(Math.random() * 60 * scaleFactor + 5, Math.random() * 40 * scaleFactor + 5, Math.random() * 20 * scaleFactor + 5),
             });
 
-            pos.add(new THREE.Vector3(Math.random() * 30 - 15, Math.random() * 30 - 15, Math.random() * 10));
+            pos.add(new THREE.Vector3((Math.random() - 0.5) * 30, (Math.random() - 0.5) * 30, Math.random() * 15));
             scaleFactor *= 0.8;
         }
+
+        // "ceilings"
+        for (let i = 0; i < 2; i++) {
+            pos = new THREE.Vector3((Math.random() - 0.5) * horizontalSize * 0.7, (Math.random() - 0.5) * horizontalSize * 0.7, 20 + Math.random() * 60);
+            
+            res.push({
+                t: pos.clone(),
+                r: new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.random() * Math.PI * 0.1, Math.random() * Math.PI * 0.1, Math.random() * Math.PI)),
+                s: new THREE.Vector3(Math.random() * 100, Math.random() * 50, Math.random() * 5 + 5),
+            });
+        }
+
+
+
         return res.map(d => {
             return {
                 t: {x:d.t.x, y:d.t.y, z:d.t.z},
@@ -461,9 +475,7 @@
         static COLLISION_MASK_CELL = 0b10
 
         constructor() {
-            // Chunk spatial constants.
-            this.size = 100;
-            this.thickness = 5;
+            const approxChunkSize = 100;
 
             // tracer
             this.age = 0;
@@ -483,10 +495,10 @@
             this.indexToConstraint = new Map(); // btRigidBody userindex (child) -> btConstraint
 
             // Physical aspects.
-            this.light = new Light(this, this.size);
+            this.light = new Light(this, approxChunkSize);
             this.rigidWorld = this._createRigidWorld();
 
-            this.soilData = generateSoil(this.size);
+            this.soilData = generateSoil(approxChunkSize);
             this._addSoil(this.soilData);
         }
 
@@ -858,7 +870,6 @@
                 };
             });
             ser['soil'] = {
-                'size': this.size,
                 'blocks': this.soilData,
             };
 
