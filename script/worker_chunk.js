@@ -395,7 +395,7 @@
                         if (cell !== undefined) {
                             cell.givePhoton();
                         } else {
-                            // hit ground
+                            // hit soil
                         }
                     } else {
                         // hit nothing (shouldn't happen)
@@ -457,7 +457,7 @@
      * step & serialize. Other methods are mostly for statistics.
      */  
     class Chunk {
-        static COLLISION_MASK_GROUND = 0b01
+        static COLLISION_MASK_SOIL = 0b01
         static COLLISION_MASK_CELL = 0b10
 
         constructor() {
@@ -474,12 +474,12 @@
 
             // chunk <-> ammo object mappings
             this.userIndex = 1;
-            this.groundIndices = new Set();
+            this.soilIndices = new Set();
             this.cellToIndex = new Map(); // Cell -> btRigidBody userindex
             this.indexToCell = new Map(); // btRigidBody userindex -> Cell
             this.indexToRigidBody = new Map(); // btRigidBody userindex -> btRigidBody
             
-            this.cellIndexToGroundIndex = new Map(); // Cell ix-> ground ix
+            this.cellIndexToSoilIndex = new Map(); // Cell ix-> soil ix
             this.indexToConstraint = new Map(); // btRigidBody userindex (child) -> btConstraint
 
             // Physical aspects.
@@ -487,7 +487,7 @@
             this.rigidWorld = this._createRigidWorld();
 
             this.soilData = generateSoil(this.size);
-            this._addGround(this.soilData);
+            this._addSoil(this.soilData);
         }
 
         _createRigidWorld() {
@@ -502,19 +502,19 @@
             return rigidWorld;
         }
 
-        _addGround(soil) {
-            soil.forEach(soilBlock => {
-                const shape = new Ammo.btBoxShape(new Ammo.btVector3(soilBlock.s.x / 2, soilBlock.s.y / 2, soilBlock.s.z / 2));
+        _addSoil(soil) {
+            soil.forEach(block => {
+                const shape = new Ammo.btBoxShape(new Ammo.btVector3(block.s.x / 2, block.s.y / 2, block.s.z / 2));
                 const trans = new Ammo.btTransform();
                 trans.setIdentity();
-                trans.getOrigin().setValue(soilBlock.t.x, soilBlock.t.y, soilBlock.t.z);
-                trans.setRotation(new Ammo.btQuaternion(soilBlock.r.x, soilBlock.r.y, soilBlock.r.z, soilBlock.r.w));
+                trans.getOrigin().setValue(block.t.x, block.t.y, block.t.z);
+                trans.setRotation(new Ammo.btQuaternion(block.r.x, block.r.y, block.r.z, block.r.w));
     
                 const motion = new Ammo.btDefaultMotionState(trans);
                 const rbInfo = new Ammo.btRigidBodyConstructionInfo(0, motion, shape, new Ammo.btVector3(0, 0, 0)); // static (mass,intertia=0)
-                const ground = new Ammo.btRigidBody(rbInfo);
+                const rb = new Ammo.btRigidBody(rbInfo);
     
-                this.addGroundRigidBody(ground);
+                this.addSoilRigidBody(rb);
             });
         }
 
@@ -684,14 +684,10 @@
 
                 tfParent.setIdentity();
                 if (cell.parentCell === null) {
-                    if (this.indexToRigidBody.get(this.cellIndexToGroundIndex.get(cellIndex)) !== undefined) {
-                        // point on ground
+                    if (this.indexToRigidBody.get(this.cellIndexToSoilIndex.get(cellIndex)) !== undefined) {
+                        // point on soil
                         const cellPos = new THREE.Vector3().applyMatrix4(cell.cellToWorld);
-
-
-                        const cellPosLoc = this.indexToRigidBody.get(this.cellIndexToGroundIndex.get(cellIndex)).getCenterOfMassTransform().invXform(new Ammo.btVector3(cellPos.x, cellPos.y, cellPos.z));
-
-                        //cellPos.setZ(cellPos.z + this.thickness / 2); // world -> ground local
+                        const cellPosLoc = this.indexToRigidBody.get(this.cellIndexToSoilIndex.get(cellIndex)).getCenterOfMassTransform().invXform(new Ammo.btVector3(cellPos.x, cellPos.y, cellPos.z));
                         tfParent.setOrigin(cellPosLoc);
                         Ammo.destroy(cellPosLoc);
                     }
@@ -706,7 +702,7 @@
                         const rb = this.indexToRigidBody.get(cellIndex);
 
                         // Add constraint.
-                        let parentRb = cell.parentCell === null ? this.indexToRigidBody.get(this.cellIndexToGroundIndex.get(cellIndex)) : this.indexToRigidBody.get(this.cellToIndex.get(cell.parentCell));
+                        let parentRb = cell.parentCell === null ? this.indexToRigidBody.get(this.cellIndexToSoilIndex.get(cellIndex)) : this.indexToRigidBody.get(this.cellToIndex.get(cell.parentCell));
                         let constraint = new Ammo.btGeneric6DofSpringConstraint(rb, parentRb, tfCell, tfParent, true);
                         constraint.setAngularLowerLimit(new Ammo.btVector3(0.01, 0.01, 0.01));
                         constraint.setAngularUpperLimit(new Ammo.btVector3(-0.01, -0.01, -0.01));
@@ -727,10 +723,10 @@
                     const constraint = this.indexToConstraint.get(cellIndex);
 
                     if (cell.parentCell === null) {
-                        // ground link
+                        // cell-soil link
                         constraint.setFrames(tfCell, constraint.getFrameOffsetB());
                     } else {
-                        // plant link
+                        // cell-parent cell link
                         constraint.setFrames(tfCell, tfParent);
                     }
                 }
@@ -749,12 +745,12 @@
             return liveCells.size;
         }
 
-        addGroundRigidBody(rb) {
+        addSoilRigidBody(rb) {
             const index = this.issueNewUserIndex();
             rb.setUserIndex(index);
 
-            this.rigidWorld.addRigidBody(rb, Chunk.COLLISION_MASK_GROUND, Chunk.COLLISION_MASK_CELL | Chunk.COLLISION_MASK_GROUND);
-            this.groundIndices.add(index);
+            this.rigidWorld.addRigidBody(rb, Chunk.COLLISION_MASK_SOIL, Chunk.COLLISION_MASK_CELL | Chunk.COLLISION_MASK_SOIL);
+            this.soilIndices.add(index);
             this.indexToRigidBody.set(index, rb);
 
             return index;
@@ -764,7 +760,7 @@
             const index = this.issueNewUserIndex();
             rb.setUserIndex(index);
 
-            this.rigidWorld.addRigidBody(rb, Chunk.COLLISION_MASK_CELL, Chunk.COLLISION_MASK_CELL | Chunk.COLLISION_MASK_GROUND);
+            this.rigidWorld.addRigidBody(rb, Chunk.COLLISION_MASK_CELL, Chunk.COLLISION_MASK_CELL | Chunk.COLLISION_MASK_SOIL);
             this.cellToIndex.set(cell, index);
             this.indexToCell.set(index, cell);
             this.indexToRigidBody.set(index, rb);
@@ -793,7 +789,7 @@
             this.cellToIndex.delete(cell);
             this.indexToCell.delete(index);
             this.indexToRigidBody.delete(index);
-            this.cellIndexToGroundIndex.delete(index);
+            this.cellIndexToSoilIndex.delete(index);
             Ammo.destroy(rb);
         }
 
@@ -823,12 +819,12 @@
                 const i0 = collision.getBody0().getUserIndex();
                 const i1 = collision.getBody1().getUserIndex();
                 
-                if (this.groundIndices.has(i0)) {
+                if (this.soilIndices.has(i0)) {
                     this.indexToCell.get(i1).plant.rooted = true;
-                    this.cellIndexToGroundIndex.set(i1, i0);
-                } else if (this.groundIndices.has(i1)) {
+                    this.cellIndexToSoilIndex.set(i1, i0);
+                } else if (this.soilIndices.has(i1)) {
                     this.indexToCell.get(i0).plant.rooted = true;
-                    this.cellIndexToGroundIndex.set(i0, i1);
+                    this.cellIndexToSoilIndex.set(i0, i1);
                 }
             }
         }

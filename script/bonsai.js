@@ -455,7 +455,6 @@ class Bonsai {
         });
         soilMesh.receiveShadow = true;
         soilMesh.castShadow = true;
-        console.log(chunk.soil.blocks.length);
         proxy.add(soilMesh);
 
         return proxy;
