@@ -415,6 +415,9 @@
      * step & serialize. Other methods are mostly for statistics.
      */  
     class Chunk {
+        static COLLISION_MASK_GROUND = 0b01
+        static COLLISION_MASK_CELL = 0b10
+
         constructor() {
             // Chunk spatial constants.
             this.size = 100;
@@ -428,8 +431,8 @@
             this.plants = [];  // w/ internal "bio" aspect
 
             // chunk <-> ammo object mappings
-            this.groundUserIndex = 0;
             this.userIndex = 1;
+            this.groundIndices = new Set();
             this.cellToIndex = new Map(); // Cell -> btRigidBody userindex
             this.indexToCell = new Map(); // btRigidBody userindex -> Cell
             this.indexToRigidBody = new Map(); // btRigidBody userindex -> btRigidBody
@@ -439,7 +442,7 @@
             // Physical aspects.
             this.light = new Light(this, this.size);
             this.rigidWorld = this._createRigidWorld();
-            this.light.step(); // update shadow map
+            this._addGround();
         }
 
         _createRigidWorld() {
@@ -448,9 +451,13 @@
             const overlappingPairCache = new Ammo.btDbvtBroadphase();
             const solver = new Ammo.btSequentialImpulseConstraintSolver();
             const rigidWorld = new Ammo.btDiscreteDynamicsWorld(dispatcher, overlappingPairCache, solver, collisionConfig);
-            rigidWorld.setGravity(new Ammo.btVector3(0, 0, -100));
+            const gravity = new Ammo.btVector3(0, 0, -100);
+            rigidWorld.setGravity(gravity);
+            Ammo.destroy(gravity);
+            return rigidWorld;
+        }
 
-            // Add ground.
+        _addGround() {
             const groundShape = new Ammo.btBoxShape(new Ammo.btVector3(this.size / 2, this.size / 2, this.thickness / 2));
             const trans = new Ammo.btTransform();
             trans.setIdentity();
@@ -460,11 +467,8 @@
             const rbInfo = new Ammo.btRigidBodyConstructionInfo(0, motion, groundShape, new Ammo.btVector3(0, 0, 0)); // static (mass,intertia=0)
             const ground = new Ammo.btRigidBody(rbInfo);
 
-            ground.setUserIndex(this.groundUserIndex);
-            rigidWorld.addRigidBody(ground);
-            this.groundRb = ground;
-
-            return rigidWorld;
+            this.addGroundRigidBody(ground);
+            this.groundRb = ground; // TODO: Generalize to multi-body
         }
 
         // Add standard plant seed.
@@ -602,7 +606,7 @@
                         const rbInfo = new Ammo.btRigidBodyConstructionInfo(cell.getMass(), motionState, cellShape, localInertia);
                         const rb = new Ammo.btRigidBody(rbInfo);
                         rb.setFriction(0.8);
-                        this.addCellAsRigidBody(rb, cell);
+                        this.addCellRigidBody(rb, cell);
 
                         //Ammo.destroy(motionState); // this will lead to a crash
                         Ammo.destroy(rbInfo);
@@ -689,23 +693,39 @@
             }
             return liveCells.size;
         }
-        
-        addCellAsRigidBody(rb, cell) {
-            const index = this.userIndex;
-            this.userIndex++;
-            if (this.userIndex >= 2**31) {
-                console.warn('userIndex overflown; simulation might break');
-                this.userIndex = 1; // restart from 1 (this will break if cell id 1 still retamins in the scene)
-            }
 
+        addGroundRigidBody(rb) {
+            const index = this.issueNewUserIndex();
             rb.setUserIndex(index);
 
-            this.rigidWorld.addRigidBody(rb);
+            this.rigidWorld.addRigidBody(rb, Chunk.COLLISION_MASK_GROUND, Chunk.COLLISION_MASK_CELL | Chunk.COLLISION_MASK_GROUND);
+            this.groundIndices.add(index);
+            this.indexToRigidBody.set(index, rb);
+
+            return index;
+        }
+        
+        addCellRigidBody(rb, cell) {
+            const index = this.issueNewUserIndex();
+            rb.setUserIndex(index);
+
+            this.rigidWorld.addRigidBody(rb, Chunk.COLLISION_MASK_CELL, Chunk.COLLISION_MASK_CELL | Chunk.COLLISION_MASK_GROUND);
             this.cellToIndex.set(cell, index);
             this.indexToCell.set(index, cell);
             this.indexToRigidBody.set(index, rb);
 
             return index;
+        }
+
+        issueNewUserIndex() {
+            const index = this.userIndex;
+
+            this.userIndex++;
+            if (this.userIndex >= 2**31) {
+                this.userIndex = 1; // restart from 1 (this will break if cell id 1 still retamins in the scene)
+            }
+
+            return this.indexToRigidBody.has(index) ? this.issueNewUserIndex() : index;
         }
 
         removeCellAsRigidBody(cell) {
@@ -742,9 +762,9 @@
                 const collision = dispatcher.getManifoldByIndexInternal(i);
                 const i0 = collision.getBody0().getUserIndex();
                 const i1 = collision.getBody1().getUserIndex();
-                if (i0 === this.groundUserIndex) {
+                if (this.groundIndices.has(i0)) {
                     this.indexToCell.get(i1).plant.rooted = true;
-                } else if (i1 === this.groundUserIndex) {
+                } else if (this.groundIndices.has(i1)) {
                     this.indexToCell.get(i0).plant.rooted = true;
                 }
             }
