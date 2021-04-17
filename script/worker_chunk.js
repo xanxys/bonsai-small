@@ -27,7 +27,6 @@
                 position,
                 new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.random() * 2 * Math.PI),
                 new THREE.Vector3(1, 1, 1));
-            this.position = position;
 
             // biophysics
             this.energy = energy;
@@ -231,7 +230,7 @@
 
             // Bio-physics.
             // TODO: define remover semantics.
-            let removers = {};
+            const removers = {};
             this.signals.forEach(signal => {
                 if (signal.length >= 2 && signal[0] === Signal.REMOVER) {
                     let rm = signal.substr(1);
@@ -243,7 +242,7 @@
                 }
             });
 
-            let new_signals = [];
+            const newSignals = [];
             this.signals.forEach(signal => {
                 if (signal.length === 3 && signal[0] === Signal.DIFF) {
                     _this.addCont(signal[1], signal[2]);
@@ -256,28 +255,19 @@
                 } else if (removers[signal] !== undefined && removers[signal] > 0) {
                     removers[signal] -= 1;
                 } else {
-                    new_signals.push(signal);
+                    newSignals.push(signal);
                 }
             });
-            this.signals = new_signals;
+            this.signals = newSignals;
 
             // Physics
             if (this.signals.includes(Signal.FLOWER)) {
                 // Disperse seed once in a while.
-                // TODO: this should be handled by physics, not biology.
                 // Maybe dead cells with stored energy survives when fallen off.
                 if (Math.random() < 0.01) {
-                    let seedEnergy = _this._withdrawVariableEnergy(Math.pow(20e-3, 3) * 10);
-
-                    // Get world coordinates.
-                    let trans = new THREE.Vector3();
-                    let _rot = new THREE.Quaternion();
-                    let _scale = new THREE.Vector3();
-                    this.cellToWorld.decompose(trans, _rot, _scale);
-
-                    // TODO: should be world coodinate of the flower
-                    this.plant.unsafeChunk.addPlant(
-                        trans, seedEnergy, this.plant.genome.naturalClone());
+                    const seedEnergy = _this._withdrawVariableEnergy(Math.pow(20e-3, 3) * 10);
+                    const seedPosWorld = new THREE.Vector3().applyMatrix4(this.cellToWorld);
+                    this.plant.unsafeChunk.addPlant(seedPosWorld, seedEnergy, this.plant.genome.naturalClone());
                 }
             }
         }
@@ -531,11 +521,10 @@
         // genome :: genome for new plant
         // return :: Plant
         addPlant(pos, energy, genome) {
-            let shoot = new Plant(pos, this, energy, genome, this.newPlantId);
+            const seed = new Plant(pos, this, energy, genome, this.newPlantId);
             this.newPlantId += 1;
-            this.plants.push(shoot);
-
-            return shoot;
+            this.plants.push(seed);
+            return seed;
         }
 
         // Plant :: must be returned by add_plant
@@ -688,7 +677,10 @@
                 tfParent.setIdentity();
                 if (cell.parentCell === null) {
                     // point on ground
-                    tfParent.setOrigin(new Ammo.btVector3(cell.plant.position.x, cell.plant.position.y, this.thickness / 2));
+                    const cellPos = new THREE.Vector3().applyMatrix4(cell.cellToWorld);
+                    cellPos.setZ(cellPos.z + this.thickness / 2); // world -> ground local
+                    
+                    tfParent.setOrigin(new Ammo.btVector3(cellPos.x, cellPos.y, cellPos.z));
                 } else {
                     // outnode of parent
                     tfParent.setOrigin(new Ammo.btVector3(0, 0, cell.parentCell.sz / 2));
@@ -718,7 +710,14 @@
                 } else {
                     // Update constraint.
                     const constraint = this.indexToConstraint.get(cellIndex);
-                    constraint.setFrames(tfCell, tfParent);
+
+                    if (cell.parentCell === null) {
+                        // ground link
+                        constraint.setFrames(tfCell, constraint.getFrameOffsetB());
+                    } else {
+                        // plant link
+                        constraint.setFrames(tfCell, tfParent);
+                    }
                 }
             }
             Ammo.destroy(tfCell);
