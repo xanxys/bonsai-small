@@ -50,6 +50,11 @@ git clone https://github.com/kripken/ammo.js/
 
 Add following line and re-compile ammo.js using docker.
 ```
+interface btTransform {
+  ...
+  [Value] btVector3 invXform([Const, Ref] btVector3 inVec);
+  ...
+}
 interface btGeneric6DofConstraint {
   ...
   void setFrames([Const, Ref] btTransform frameA, [Const, Ref] btTransform frameB);
