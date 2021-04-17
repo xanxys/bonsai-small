@@ -603,6 +603,8 @@
             this._syncRigidToCells();
             simStats['rigid/ms'] = performance.now() - t0;
 
+            this._despawnPlants();
+
             return simStats;
         }
 
@@ -792,6 +794,21 @@
                     this.indexToCell.get(i0).plant.rooted = true;
                 }
             }
+        }
+
+        _despawnPlants() {
+            const despawnHeight = -50;
+            const p = new THREE.Vector3();
+
+            const plantToDestroy = new Set();
+            for (const cell of this.cellToIndex.keys()) {
+                p.set(0, 0, 0);
+                p.applyMatrix4(cell.cellToWorld);
+                if (p.z < despawnHeight) {
+                    plantToDestroy.add(cell.plant);
+                }               
+            }
+            this.plants = this.plants.filter(plant => !plantToDestroy.has(plant));
         }
 
         serialize() {
