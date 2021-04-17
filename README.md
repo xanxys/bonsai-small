@@ -53,6 +53,7 @@ Add following line and re-compile ammo.js using docker.
 interface btGeneric6DofConstraint {
   ...
   void setFrames([Const, Ref] btTransform frameA, [Const, Ref] btTransform frameB);
+  [Const, Ref] btTransform getFrameOffsetB();
   ...
 }
 ```
