@@ -282,17 +282,15 @@
             return this.cellToWorld.clone().multiply(outnodeToLoc);
         }
 
-        getBtTransform() {
+        computeBtTransform(tf) {
             const trans = new THREE.Vector3();
             const quat = new THREE.Quaternion();
             const unusedScale = new THREE.Vector3();
             this.cellToWorld.decompose(trans, quat, unusedScale);
 
-            const tf = new Ammo.btTransform();
             tf.setIdentity();
             tf.setOrigin(new Ammo.btVector3(trans.x, trans.y, trans.z));
             tf.setRotation(new Ammo.btQuaternion(quat.x, quat.y, quat.z, quat.w));
-            return tf;
         }
 
         setBtTransform(tf) {
@@ -640,7 +638,10 @@
                         cellShape.calculateLocalInertia(cell.getMass(), localInertia);
                         // TODO: Is it correct to use total mass, after LocalScaling??
 
-                        const motionState = new Ammo.btDefaultMotionState(cell.getBtTransform());
+                        const tf = new Ammo.btTransform();
+                        cell.computeBtTransform(tf);
+                        const motionState = new Ammo.btDefaultMotionState(tf);
+                        Ammo.destroy(tf);
                         const rbInfo = new Ammo.btRigidBodyConstructionInfo(cell.getMass(), motionState, cellShape, localInertia);
                         const rb = new Ammo.btRigidBody(rbInfo);
                         rb.setFriction(0.8);
@@ -674,18 +675,17 @@
                 const constraint = this.indexToConstraint.get(cellIndex);
 
                 tfCell.setIdentity();
-                tfCell.setOrigin(new Ammo.btVector3(0, 0, -cell.sz / 2)); // innode
+                tfCell.getOrigin().setValue(0, 0, -cell.sz / 2); // innode
 
                 tfParent.setIdentity();
                 if (cell.parentCell === null) {
                     // point on ground
                     const cellPos = new THREE.Vector3().applyMatrix4(cell.cellToWorld);
                     cellPos.setZ(cellPos.z + this.thickness / 2); // world -> ground local
-                    
-                    tfParent.setOrigin(new Ammo.btVector3(cellPos.x, cellPos.y, cellPos.z));
+                    tfParent.getOrigin().setValue(cellPos.x, cellPos.y, cellPos.z);
                 } else {
                     // outnode of parent
-                    tfParent.setOrigin(new Ammo.btVector3(0, 0, cell.parentCell.sz / 2));
+                    tfParent.getOrigin().setValue(0, 0, cell.parentCell.sz / 2);
                 }
 
                 if (constraint === undefined) {
