@@ -364,33 +364,6 @@
         }
     }
 
-    // Represents soil surface state by a grid.
-    // parent :: Chunk
-    // size :: float > 0
-    class Soil {
-        constructor(parent, size) {
-            this.parent = parent;
-
-            this.n = 64;
-            this.size = size;
-        }
-
-        serialize() {
-            let array = [];
-            for (let y = 0; y < this.n; y++) {
-                for (let x = 0; x < this.n; x++) {
-                    let v = Math.min(1, this.parent.light.shadowMap[x + y * this.n] / 2 + 0.1);
-                    array.push(v);
-                }
-            }
-            return {
-                luminance: array,
-                n: this.n,
-                size: this.size
-            };
-        }
-    }
-
     // Downward directional light.
     class Light {
         constructor(chunk, size) {
@@ -398,27 +371,17 @@
 
             this.n = 64;
             this.size = size;
-
-            // number of photos that hit ground.
-            this.shadowMap = new Float32Array(this.n * this.n);
         }
 
         step() {
-            this._updateShadowMap(this.chunk.rigidWorld, this.chunk.indexToCell);
+            this._castRays(this.chunk.rigidWorld, this.chunk.indexToCell);
         }
 
-        _updateShadowMap(rigidWorld, indexToCell) {
+        _castRays(rigidWorld, indexToCell) {
             const posFrom = new Ammo.btVector3();
             const posTo = new Ammo.btVector3();
             for (let i = 0; i < this.n; i++) {
                 for (let j = 0; j < this.n; j++) {
-                    this.shadowMap[i + j * this.n] = 0;
-
-                    // 50% light in smaller i region
-                    if (i < this.n / 2 && Math.random() < 0.5) {
-                        continue;
-                    }
-
                     const cb = new Ammo.ClosestRayResultCallback();
                     const x = ((i + Math.random()) / this.n - 0.5) * this.size;
                     const y = ((j + Math.random()) / this.n - 0.5) * this.size;
@@ -433,7 +396,6 @@
                             cell.givePhoton();
                         } else {
                             // hit ground
-                            this.shadowMap[i + j * this.n] += 1.0;    
                         }
                     } else {
                         // hit nothing (shouldn't happen)
@@ -464,7 +426,6 @@
 
             // Entities.
             this.plants = [];  // w/ internal "bio" aspect
-            this.soil = new Soil(this, this.size);
 
             // chunk <-> ammo object mappings
             this.groundUserIndex = 0;
@@ -812,7 +773,9 @@
                     'cells': plant.serializeCells(),
                 };
             });
-            ser['soil'] = this.soil.serialize();
+            ser['soil'] = {
+                'size': this.size,
+            };
 
             return ser;
         }

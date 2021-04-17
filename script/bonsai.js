@@ -34,6 +34,8 @@ class Bonsai {
         this.renderer = new THREE.WebGLRenderer({antialias: true});
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         this.renderer.setClearColor('#eee');
+        this.renderer.shadowMap.enabled = true;
+        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         document.getElementById('main').append(this.renderer.domElement);
 
         // add mouse control (need to be done after canvas insertion)
@@ -305,11 +307,24 @@ class Bonsai {
 
     /* 3D UI */
     _insertBackground() {
-        const sunlight = new THREE.DirectionalLight(0xcccccc);
-        sunlight.position.set(0, 0, 100).normalize();
+        const sunlight = new THREE.DirectionalLight();
+        sunlight.intensity = 0.8;
+        sunlight.position.set(0, 0, 250);
+        sunlight.castShadow = true;
+        
+        const halfSize = 50;
+        const halfSizeWithMargin = halfSize * 1.2;
+        sunlight.shadow.camera.left = -halfSizeWithMargin;
+        sunlight.shadow.camera.bottom = -halfSizeWithMargin;
+        sunlight.shadow.camera.right = halfSizeWithMargin;
+        sunlight.shadow.camera.top = halfSizeWithMargin;
+        sunlight.shadow.camera.updateProjectionMatrix();
         this.scene.add(sunlight);
+        //this.scene.add(new THREE.CameraHelper(sunlight.shadow.camera));
 
-        this.scene.add(new THREE.AmbientLight(0x333333));
+        const amblight = new THREE.AmbientLight();
+        amblight.intensity = 0.2;
+        this.scene.add(amblight);
 
         const bg = new THREE.Mesh(
             new THREE.IcosahedronGeometry(800, 1),
@@ -395,7 +410,7 @@ class Bonsai {
 
         // de-serialize plants
         const cellInstanceGeom = new THREE.BoxGeometry(1, 1, 1);
-        const cellInstanceMat = new THREE.MeshToonMaterial();
+        const cellInstanceMat = new THREE.MeshStandardMaterial();
 
         let cellCount = 0;
         chunk.plants.forEach(plant => {
@@ -420,54 +435,25 @@ class Bonsai {
             });
         });
         cellMesh.instanceIdToPlantId = instanceIdToPlantId;
+        cellMesh.receiveShadow = true;
+        cellMesh.castShadow = true;
         proxy.add(cellMesh);
 
         // Attach tiles to the base.
-        const tex = this._deserializeSoilTexture(chunk.soil);
-        const soil_plate = new THREE.Mesh(
+        const soilPlate = new THREE.Mesh(
             new THREE.BoxGeometry(chunk.soil.size, chunk.soil.size, 1e-1),
-            new THREE.MeshBasicMaterial({map: tex}));
-        proxy.add(soil_plate);
+            new THREE.MeshStandardMaterial({color:'gray'}));
+        soilPlate.receiveShadow = true;
+        proxy.add(soilPlate);
 
         // hides flipped backside texture
         const soilBackPlate = new THREE.Mesh(
             new THREE.BoxGeometry(chunk.soil.size, chunk.soil.size, 10),
-            new THREE.MeshBasicMaterial({color: '#333'}));
+            new THREE.MeshStandardMaterial({color: '#333'}));
         soilBackPlate.position.set(0, 0, -(10+ 1e-1)/2);
         proxy.add(soilBackPlate);
 
         return proxy;
-    }
-
-    _deserializeSoilTexture(soil) {
-        const texSize = 64;
-
-        if (this.soilDeserializerCanvas === undefined) {
-            const canvas = document.createElement('canvas');
-            canvas.width = texSize;
-            canvas.height = texSize;
-            this.soilDeserializerCanvas = canvas;
-        }
-
-        const ctx = this.soilDeserializerCanvas.getContext('2d');
-        ctx.save();
-        ctx.scale(texSize / soil.n, texSize / soil.n);
-        ctx.fillStyle = 'black';
-        ctx.fillRect(0, 0, soil.n, soil.n);
-        
-        for (let y = 0; y < soil.n; y++) {
-            for (let x = 0; x < soil.n; x++) {
-                const v = soil.luminance[x + y * soil.n];
-                const chVal = Math.floor(v * 255);
-                ctx.fillStyle = `rgba(${chVal}, ${chVal}, ${chVal}, 1)`;
-                ctx.fillRect(x, soil.n - 1 - y, 1, 1);
-            }
-        }
-        ctx.restore();
-
-        const tex = new THREE.Texture(this.soilDeserializerCanvas);
-        tex.needsUpdate = true;
-        return tex;
     }
 
     animate() {
