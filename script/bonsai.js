@@ -439,19 +439,12 @@ class Bonsai {
         cellMesh.castShadow = true;
         proxy.add(cellMesh);
 
-        // Attach tiles to the base.
         const soilPlate = new THREE.Mesh(
-            new THREE.BoxGeometry(chunk.soil.size, chunk.soil.size, 1e-1),
+            new THREE.BoxGeometry(chunk.soil.size, chunk.soil.size, 10),
             new THREE.MeshStandardMaterial({color:'gray'}));
         soilPlate.receiveShadow = true;
+        soilPlate.position.set(0, 0, -5);
         proxy.add(soilPlate);
-
-        // hides flipped backside texture
-        const soilBackPlate = new THREE.Mesh(
-            new THREE.BoxGeometry(chunk.soil.size, chunk.soil.size, 10),
-            new THREE.MeshStandardMaterial({color: '#333'}));
-        soilBackPlate.position.set(0, 0, -(10+ 1e-1)/2);
-        proxy.add(soilBackPlate);
 
         return proxy;
     }
