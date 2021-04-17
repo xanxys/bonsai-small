@@ -276,7 +276,7 @@
                     this.cellToWorld.decompose(trans, _rot, _scale);
 
                     // TODO: should be world coodinate of the flower
-                    this.plant.unsafeChunk.disperseSeedFrom(
+                    this.plant.unsafeChunk.addPlant(
                         trans, seedEnergy, this.plant.genome.naturalClone());
                 }
             }
@@ -472,12 +472,11 @@
 
             // tracer
             this.age = 0;
-            this.new_plant_id = 0;
+            this.newPlantId = 0;
 
             // Entities.
             this.plants = [];  // w/ internal "bio" aspect
             this.soil = new Soil(this, this.size);
-            this.seeds = [];
 
             // chunk <-> ammo object mappings
             this.groundUserIndex = 0;
@@ -523,7 +522,7 @@
         addDefaultPlant(pos) {
             return this.addPlant(
                 pos,
-                Math.pow(20e-3, 3) * 100, // allow 2cm cube for 100T)
+                Math.pow(20e-3, 3) * 100, // allow 2cm cube for 100T
                 new Genome());
         }
 
@@ -532,28 +531,11 @@
         // genome :: genome for new plant
         // return :: Plant
         addPlant(pos, energy, genome) {
-            let shoot = new Plant(pos, this, energy, genome, this.new_plant_id);
-            this.new_plant_id += 1;
+            let shoot = new Plant(pos, this, energy, genome, this.newPlantId);
+            this.newPlantId += 1;
             this.plants.push(shoot);
 
             return shoot;
-        }
-
-        // pos :: THREE.Vector3
-        // return :: ()
-        disperseSeedFrom(pos, energy, genome) {
-            //let angle = Math.PI / 3;
-            //let sigma = Math.tan(angle) * pos.z;
-
-            // TODO: Use gaussian
-            //let dx = sigma * 2 * (Math.random() - 0.5);
-            //let dy = sigma * 2 * (Math.random() - 0.5);
-
-            this.seeds.push({
-                pos: pos, // new THREE.Vector3(pos.x + dx, pos.y + dy, 0),
-                energy: energy,
-                genome: genome
-            });
         }
 
         // Plant :: must be returned by add_plant
@@ -564,7 +546,7 @@
 
         // return :: dict
         getStat() {
-            let storedEnergy = sum(this.plants.map(plant => {
+            const storedEnergy = sum(this.plants.map(plant => {
                 return plant.energy;
             }));
 
@@ -612,34 +594,27 @@
             this.age += 1;
 
             let t0 = 0;
-            let sim_stats = {};
+            const simStats = {};
 
             t0 = performance.now();
-            this.plants.forEach(plant => {
-                plant.step();
-            });
-
-            this.seeds.forEach(seed => {
-                this.addPlant(seed.pos, seed.energy, seed.genome);
-            });
-            this.seeds = [];
-            sim_stats['bio/ms'] = performance.now() - t0;
+            this.plants.forEach(plant => plant.step());
+            simStats['bio/ms'] = performance.now() - t0;
 
             t0 = performance.now();
             const numLiveCells = this._syncCellsToRigid();
-            sim_stats['#live_cell'] = numLiveCells;
-            sim_stats['cell->rigid/ms'] = performance.now() - t0;
+            simStats['#live_cell'] = numLiveCells;
+            simStats['cell->rigid/ms'] = performance.now() - t0;
 
             t0 = performance.now();
             this.light.step(this.rigidWorld, this.indexToCell);
-            sim_stats['light/ms'] = performance.now() - t0;
+            simStats['light/ms'] = performance.now() - t0;
 
             t0 = performance.now();
             this.rigidWorld.stepSimulation(0.04, 2);
             this._syncRigidToCells();
-            sim_stats['rigid/ms'] = performance.now() - t0;
+            simStats['rigid/ms'] = performance.now() - t0;
 
-            return sim_stats;
+            return simStats;
         }
 
         /**
@@ -692,7 +667,6 @@
                         rb.getCollisionShape().calculateLocalInertia(cell.getMass(), localInertia);
                         rb.setMassProps(cell.getMass(), localInertia);
                         rb.updateInertiaTensor();
-                        // TODO: maybe need to call some other updates?
 
                         Ammo.destroy(localScaling);
                         Ammo.destroy(localInertia);
@@ -738,7 +712,7 @@
                         });
                         constraint.setBreakingImpulseThreshold(100);
     
-                        this.rigidWorld.addConstraint(constraint, true); // true: collision between neighbors
+                        this.rigidWorld.addConstraint(constraint, true); // true: disable collision between neighbors
                         this.indexToConstraint.set(cellIndex, constraint);
                     }
                 } else {
@@ -801,10 +775,9 @@
             }
         }
 
-
         /** Syncs transform of rigid bodies back to cells, without touching creating / destroying objects. */
         _syncRigidToCells() {
-            for (let [cell, index] of this.cellToIndex) {
+            for (const [cell, index] of this.cellToIndex) {
                 const rb = this.indexToRigidBody.get(index);
                 cell.setBtTransform(rb.getCenterOfMassTransform());
             }
@@ -812,15 +785,11 @@
             const dispatcher = this.rigidWorld.getDispatcher();
             for (let i = 0; i < dispatcher.getNumManifolds(); i++) {
                 const collision = dispatcher.getManifoldByIndexInternal(i);
-                const b0 = collision.getBody0();
-                const b1 = collision.getBody1();
-                const i0 = b0.getUserIndex();
-                const i1 = b1.getUserIndex();
+                const i0 = collision.getBody0().getUserIndex();
+                const i1 = collision.getBody1().getUserIndex();
                 if (i0 === this.groundUserIndex) {
-                    //console.log('ground collision', i1);
                     this.indexToCell.get(i1).plant.rooted = true;
                 } else if (i1 === this.groundUserIndex) {
-                    //console.log('ground collision', i0);
                     this.indexToCell.get(i0).plant.rooted = true;
                 }
             }
