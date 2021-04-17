@@ -13,7 +13,7 @@ function startChunkWorker(Ammo) {
         for (let iy = -2; iy <= 2; iy ++) {
             for (let ix = -2; ix <= 2; ix ++) {
                 this.current_plant = chunk.addDefaultPlant(
-                    new THREE.Vector3(ix * 5, iy * 5, 20));
+                    new THREE.Vector3(30 + ix * 5, 30 + iy * 5, 20));
             }
         }
     } else {

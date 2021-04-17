@@ -442,6 +442,18 @@
             scaleFactor *= 0.8;
         }
 
+        // "pillar"
+        for (let i = 0; i < 1; i++) {
+            const h = Math.random() * 60 + 40;
+            pos = new THREE.Vector3((Math.random() - 0.5) * horizontalSize * 0.3, (Math.random() - 0.5) * horizontalSize * 0.3, h * 0.4);
+            
+            res.push({
+                t: pos.clone(),
+                r: new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.random() * Math.PI * 0.1, Math.random() * Math.PI * 0.1, Math.random() * Math.PI * 0.1)),
+                s: new THREE.Vector3(Math.random() * 20 + 5, Math.random() * 20 + 5, h),
+            });
+        }
+
         // "ceilings"
         for (let i = 0; i < 2; i++) {
             pos = new THREE.Vector3((Math.random() - 0.5) * horizontalSize * 0.7, (Math.random() - 0.5) * horizontalSize * 0.7, 20 + Math.random() * 60);
@@ -452,8 +464,6 @@
                 s: new THREE.Vector3(Math.random() * 100, Math.random() * 50, Math.random() * 5 + 5),
             });
         }
-
-
 
         return res.map(d => {
             return {
