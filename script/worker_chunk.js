@@ -19,6 +19,9 @@
             this.age = 0;
             this.id = plantId;
 
+            // common physics
+            this.rooted = false;
+
             // physics
             const seedInnodeToWorld = new THREE.Matrix4().compose(
                 position,
@@ -36,6 +39,10 @@
         }
 
         step() {
+            if (!this.rooted) {
+                return;
+            }
+
             // Step cells (w/o collecting/stepping separation, infinite growth will occur)
             this.age += 1;
             this.cells.forEach(cell => cell.step());
@@ -473,6 +480,7 @@
             this.seeds = [];
 
             // chunk <-> ammo object mappings
+            this.groundUserIndex = 0;
             this.userIndex = 1;
             this.cellToIndex = new Map(); // Cell -> btRigidBody userindex
             this.indexToCell = new Map(); // btRigidBody userindex -> Cell
@@ -504,7 +512,7 @@
             const rbInfo = new Ammo.btRigidBodyConstructionInfo(0, motion, groundShape, new Ammo.btVector3(0, 0, 0)); // static (mass,intertia=0)
             const ground = new Ammo.btRigidBody(rbInfo);
 
-            ground.setUserIndex(0);
+            ground.setUserIndex(this.groundUserIndex);
             rigidWorld.addRigidBody(ground);
             this.groundRb = ground;
 
@@ -524,14 +532,6 @@
         // genome :: genome for new plant
         // return :: Plant
         addPlant(pos, energy, genome) {
-            console.assert(Math.abs(pos.z) < 1e-3);
-
-            // Torus-like boundary
-            pos = new THREE.Vector3(
-                (pos.x + 1.5 * this.size) % this.size - this.size / 2,
-                (pos.y + 1.5 * this.size) % this.size - this.size / 2,
-                pos.z);
-
             let shoot = new Plant(pos, this, energy, genome, this.new_plant_id);
             this.new_plant_id += 1;
             this.plants.push(shoot);
@@ -542,22 +542,15 @@
         // pos :: THREE.Vector3
         // return :: ()
         disperseSeedFrom(pos, energy, genome) {
-            console.assert(pos.z >= 0);
-            // Discard seeds thrown from too low altitude.
-            if (pos.z < 0.01) {
-                return;
-            }
-
-            let angle = Math.PI / 3;
-
-            let sigma = Math.tan(angle) * pos.z;
+            //let angle = Math.PI / 3;
+            //let sigma = Math.tan(angle) * pos.z;
 
             // TODO: Use gaussian
-            let dx = sigma * 2 * (Math.random() - 0.5);
-            let dy = sigma * 2 * (Math.random() - 0.5);
+            //let dx = sigma * 2 * (Math.random() - 0.5);
+            //let dy = sigma * 2 * (Math.random() - 0.5);
 
             this.seeds.push({
-                pos: new THREE.Vector3(pos.x + dx, pos.y + dy, 0),
+                pos: pos, // new THREE.Vector3(pos.x + dx, pos.y + dy, 0),
                 energy: energy,
                 genome: genome
             });
@@ -688,7 +681,7 @@
                         this.addCellAsRigidBody(rb, cell);
 
                         Ammo.destroy(localInertia);
-                        //Ammo.destroy(motionState); // this will lead to crash
+                        //Ammo.destroy(motionState); // this will lead to a crash
                         Ammo.destroy(rbInfo);
                     } else {
                         const localScaling = new Ammo.btVector3(cell.sx, cell.sy, cell.sz);
@@ -728,24 +721,26 @@
                 }
 
                 if (constraint === undefined) {
-                    const rb = this.indexToRigidBody.get(cellIndex);
+                    if (cell.plant.rooted) {
+                        const rb = this.indexToRigidBody.get(cellIndex);
 
-                    // Add constraint.
-                    let parentRb = cell.parentCell === null ? this.groundRb : this.indexToRigidBody.get(this.cellToIndex.get(cell.parentCell));
-                    let constraint = new Ammo.btGeneric6DofSpringConstraint(rb, parentRb, tfCell, tfParent, true);
-                    constraint.setAngularLowerLimit(new Ammo.btVector3(0.01, 0.01, 0.01));
-                    constraint.setAngularUpperLimit(new Ammo.btVector3(-0.01, -0.01, -0.01));
-                    constraint.setLinearLowerLimit(new Ammo.btVector3(0.01, 0.01, 0.01));
-                    constraint.setLinearUpperLimit(new Ammo.btVector3(-0.01, -0.01, -0.01));
-                    [0, 1, 2, 3, 4, 5].forEach(ix => {
-                        constraint.enableSpring(ix, true);
-                        constraint.setStiffness(ix, 100);
-                        constraint.setDamping(ix, 0.1);
-                    });
-                    constraint.setBreakingImpulseThreshold(100);
-
-                    this.rigidWorld.addConstraint(constraint, true); // true: collision between neighbors
-                    this.indexToConstraint.set(cellIndex, constraint);
+                        // Add constraint.
+                        let parentRb = cell.parentCell === null ? this.groundRb : this.indexToRigidBody.get(this.cellToIndex.get(cell.parentCell));
+                        let constraint = new Ammo.btGeneric6DofSpringConstraint(rb, parentRb, tfCell, tfParent, true);
+                        constraint.setAngularLowerLimit(new Ammo.btVector3(0.01, 0.01, 0.01));
+                        constraint.setAngularUpperLimit(new Ammo.btVector3(-0.01, -0.01, -0.01));
+                        constraint.setLinearLowerLimit(new Ammo.btVector3(0.01, 0.01, 0.01));
+                        constraint.setLinearUpperLimit(new Ammo.btVector3(-0.01, -0.01, -0.01));
+                        [0, 1, 2, 3, 4, 5].forEach(ix => {
+                            constraint.enableSpring(ix, true);
+                            constraint.setStiffness(ix, 100);
+                            constraint.setDamping(ix, 0.1);
+                        });
+                        constraint.setBreakingImpulseThreshold(100);
+    
+                        this.rigidWorld.addConstraint(constraint, true); // true: collision between neighbors
+                        this.indexToConstraint.set(cellIndex, constraint);
+                    }
                 } else {
                     // Update constraint.
                     const constraint = this.indexToConstraint.get(cellIndex);
@@ -799,9 +794,11 @@
 
         removeConstraint(cellIndex) {
             const constraint = this.indexToConstraint.get(cellIndex);
-            this.indexToConstraint.delete(cellIndex);
-            this.rigidWorld.removeConstraint(constraint);
-            Ammo.destroy(constraint);
+            if (constraint !== undefined) {
+                this.indexToConstraint.delete(cellIndex);
+                this.rigidWorld.removeConstraint(constraint);
+                Ammo.destroy(constraint);
+            }
         }
 
 
@@ -810,6 +807,22 @@
             for (let [cell, index] of this.cellToIndex) {
                 const rb = this.indexToRigidBody.get(index);
                 cell.setBtTransform(rb.getCenterOfMassTransform());
+            }
+
+            const dispatcher = this.rigidWorld.getDispatcher();
+            for (let i = 0; i < dispatcher.getNumManifolds(); i++) {
+                const collision = dispatcher.getManifoldByIndexInternal(i);
+                const b0 = collision.getBody0();
+                const b1 = collision.getBody1();
+                const i0 = b0.getUserIndex();
+                const i1 = b1.getUserIndex();
+                if (i0 === this.groundUserIndex) {
+                    //console.log('ground collision', i1);
+                    this.indexToCell.get(i1).plant.rooted = true;
+                } else if (i1 === this.groundUserIndex) {
+                    //console.log('ground collision', i0);
+                    this.indexToCell.get(i0).plant.rooted = true;
+                }
             }
         }
 
