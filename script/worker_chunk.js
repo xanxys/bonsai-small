@@ -619,24 +619,20 @@
             // NOTE: all new Ammo.XXXX() calls must be acoompanied by Ammo.destroy(), otherwise memory will leak.
 
             // Add/Update cells.
+            const cellBoxSize = new Ammo.btVector3(0.5, 0.5, 0.5);
             const liveCells = new Set();
             for (const plant of this.plants) {
                 for (const cell of plant.cells) {
                     const cellIndex = this.cellToIndex.get(cell);
                     const rb = cellIndex !== undefined ? this.indexToRigidBody.get(cellIndex) : undefined;
 
+                    const localScaling = new Ammo.btVector3(cell.sx, cell.sy, cell.sz);
+                    const localInertia = new Ammo.btVector3(0, 0, 0);
                     if (rb === undefined) {
                         // Add cell.
-                        const boxSize = new Ammo.btVector3(0.5, 0.5, 0.5);
-                        const localScaling = new Ammo.btVector3(cell.sx, cell.sy, cell.sz);
-                        const cellShape = new Ammo.btBoxShape(boxSize); // (1cm)^3 cube
+                        const cellShape = new Ammo.btBoxShape(cellBoxSize); // (1cm)^3 cube
                         cellShape.setLocalScaling(localScaling);
-                        Ammo.destroy(boxSize);
-                        Ammo.destroy(localScaling);
-
-                        const localInertia = new Ammo.btVector3(0, 0, 0);
                         cellShape.calculateLocalInertia(cell.getMass(), localInertia);
-                        // TODO: Is it correct to use total mass, after LocalScaling??
 
                         const tf = new Ammo.btTransform();
                         cell.computeBtTransform(tf);
@@ -647,25 +643,22 @@
                         rb.setFriction(0.8);
                         this.addCellAsRigidBody(rb, cell);
 
-                        Ammo.destroy(localInertia);
                         //Ammo.destroy(motionState); // this will lead to a crash
                         Ammo.destroy(rbInfo);
                     } else {
-                        const localScaling = new Ammo.btVector3(cell.sx, cell.sy, cell.sz);
-                        const localInertia = new Ammo.btVector3(0, 0, 0);
-
                         // Update cell size.
                         rb.getCollisionShape().setLocalScaling(localScaling);
                         rb.getCollisionShape().calculateLocalInertia(cell.getMass(), localInertia);
                         rb.setMassProps(cell.getMass(), localInertia);
-                        rb.updateInertiaTensor();
-
-                        Ammo.destroy(localScaling);
-                        Ammo.destroy(localInertia);
+                        rb.updateInertiaTensor();    
                     }
+                    Ammo.destroy(localScaling);
+                    Ammo.destroy(localInertia);
+
                     liveCells.add(cell);
                 }
             }
+            Ammo.destroy(cellBoxSize);
 
             // Add/Update constraints. (assumes each cell has exactly 1 constraint)
             const tfCell = new Ammo.btTransform();
