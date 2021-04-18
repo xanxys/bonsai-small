@@ -562,19 +562,7 @@
             this.plants = this.plants.filter(p => p !== plant);
         }
 
-        // return :: dict
-        getStat() {
-            const storedEnergy = sum(this.plants.map(plant => {
-                return plant.energy;
-            }));
-
-            return {
-                'age/T': this.age,
-                'plant': this.plants.length,
-                'stored/E': storedEnergy
-            };
-        }
-
+  
         /**
          * Retrieve current statistics about specified plant id.
          * @param {number} plant id 
@@ -604,8 +592,7 @@
             simStats['bio/ms'] = performance.now() - t0;
 
             t0 = performance.now();
-            const numLiveCells = this._syncCellsToRigid();
-            simStats['#live_cell'] = numLiveCells;
+            this._syncCellsToRigid();
             simStats['cell->rigid/ms'] = performance.now() - t0;
 
             t0 = performance.now();
@@ -628,8 +615,6 @@
          * - growth: sets size
          * - removal: removes dead cells.
          * Other cells remain untouched.
-         * 
-         * @returns {number} num of live cells
          */
         _syncCellsToRigid() {
             // NOTE: all new Ammo.XXXX() calls must be acoompanied by Ammo.destroy(), otherwise memory will leak.
@@ -751,7 +736,6 @@
                     this.removeCellAsRigidBody(cell);
                 }
             }
-            return liveCells.size;
         }
 
         addSoilRigidBody(rb) {
@@ -854,7 +838,7 @@
         }
 
         serialize() {
-            let ser = {};
+            const ser = {};
             ser['plants'] = this.plants.map(plant => {
                 return {
                     'id': plant.id,
@@ -864,14 +848,29 @@
             ser['soil'] = {
                 'blocks': this.soilData,
             };
+            ser['stats'] = this._getStat();
 
             return ser;
         }
 
+        _getStat() {
+            const storedEnergy = sum(this.plants.map(plant => {
+                return plant.energy;
+            }));
+            const numCells = sum(this.plants.map(plant => plant.cells.length));
+
+            return {
+                'age': this.age,
+                '#plant': this.plants.length,
+                '#cell': numCells,
+                'energy:stored': storedEnergy
+            };
+        }
+
         // Kill plant with specified id.
-        kill(id) {
+        killPlant(plantId) {
             this.plants = this.plants.filter(plant => {
-                return (plant.id !== id);
+                return (plant.id !== plantId);
             });
         }
     }

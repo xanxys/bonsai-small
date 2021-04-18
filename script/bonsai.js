@@ -74,7 +74,6 @@ class Bonsai {
                 cells: [],
                 genome: [],
 
-                chunkInfoText: '',
                 simInfoText: '',
                 plantGenome: null,
 
@@ -179,10 +178,6 @@ class Bonsai {
                 },
 
                 updatePlantView: function(stat) {
-                    if (stat === null) {
-                        return;
-                    }
-
                     this.selectedPlant.age = stat['age/T'];
                     this.selectedPlant.numCells = stat['#cells'];
                     this.selectedPlant.storedEnergy = stat['stored/E'];
@@ -232,29 +227,32 @@ class Bonsai {
             const msgType = ev.data.type;
             const payload = ev.data.data;
 
-            if (msgType === 'init-complete') {
+            if (msgType === 'init-complete-event') {
                 this.chunkWorker.postMessage({
-                    type: 'serialize'
+                    type: 'serialize-req'
                 });
-            } else if (msgType === 'serialize') {
+            } else if (msgType === 'serialize-resp') {
                 this.chunkState = payload;
                 this._updateProxy();
                 this._updatePlantSelection();
-            } else if (msgType === 'stat-chunk') {
-                this.vm.age = payload['age/T'];
-                this.vm.numPlants = payload["plant"];
-                this.vm.storedEnergy = payload["stored/E"];
-                this.num_plant_history.push(payload["plant"]);
-                this.energy_history.push(payload["stored/E"]);
+
+                this.vm.age = payload['stats']['age'];
+                this.vm.numPlants = payload['stats']["#plant"];
+                this.vm.numCells = payload['stats']["#cell"];
+                this.vm.storedEnergy = payload['stats']["energy:stored"];
+                this.num_plant_history.push(payload['stats']["#plant"]);
+                this.energy_history.push(payload['stats']["energy:stored"]);
                 this.vm.updateGraph();
-                this.vm.chunkInfoText = JSON.stringify(payload, null, 2);
-            } else if (msgType === 'step-complete') {
+            } else if (msgType === 'step-resp') {
                 this.vm.simInfoText = JSON.stringify(payload, null, 2);
-                this.vm.numCells = payload["#live_cell"];
                 this.vm.notifyStepComplete();
-            } else if (msgType === 'stat-plant') {
-                this.vm.updatePlantView(payload.stat);
-                this.vm.updateGenomeView(Genome.decode(payload.stat.genome));
+            } else if (msgType === 'inspect-plant-resp') {
+                if (payload.stat !== null) {
+                    this.vm.updatePlantView(payload.stat);
+                    this.vm.updateGenomeView(Genome.decode(payload.stat.genome));
+                }
+            } else {
+                console.warn('unknown message type', msgType);
             }
         }, false);
     }
@@ -262,36 +260,27 @@ class Bonsai {
     /* chunk worker interface */
     requestKillPlant(plantId) {
         this.chunkWorker.postMessage({
-            type: 'kill',
+            type: 'kill-plant-req',
             data: {id: plantId}
         });
         this.chunkWorker.postMessage({
-            type: 'serialize'
+            type: 'serialize-req'
         });
     }
 
     requestExecStep() {
         this.chunkWorker.postMessage({
-            type: 'step'
-        });
-        this.chunkWorker.postMessage({
-            type: 'stat'
+            type: 'step-req'
         });
         this.requestPlantStatUpdate();
         this.chunkWorker.postMessage({
-            type: 'serialize'
+            type: 'serialize-req'
         });   
     }
 
     requestPlantStatUpdate() {
         this.chunkWorker.postMessage({
-            type: 'stat-plant',
-            data: {
-                id: this.selectedPlantId
-            }
-        });
-        this.chunkWorker.postMessage({
-            type: 'genome-plant',
+            type: 'inspect-plant-req',
             data: {
                 id: this.selectedPlantId
             }

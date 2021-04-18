@@ -30,39 +30,36 @@ function startChunkWorker(Ammo) {
         const payload = ev.data.data;
 
         try {
-            if (msgType === 'step') {
+            if (msgType === 'step-req') {
                 let sim_stat = chunk.step();
                 self.postMessage({
-                    type: 'step-complete',
+                    type: 'step-resp',
                     data: sim_stat
                 });
-            } else if (msgType === 'kill') {
-                chunk.kill(payload.id);
-            } else if (msgType === 'serialize') {
+            } else if (msgType === 'kill-plant-req') {
+                chunk.killPlant(payload.id);
+            } else if (msgType === 'serialize-req') {
                 self.postMessage({
-                    type: 'serialize',
+                    type: 'serialize-resp',
                     data: chunk.serialize()
                 });
-            } else if (msgType === 'stat') {
+            } else if (msgType === 'inspect-plant-req') {
                 self.postMessage({
-                    type: 'stat-chunk',
-                    data: chunk.getStat()
-                });
-            } else if (msgType === 'stat-plant') {
-                self.postMessage({
-                    type: 'stat-plant',
+                    type: 'inspect-plant-resp',
                     data: {
                         id: payload.id,
                         stat: chunk.getPlantStat(payload.id)
                     }
                 });
+            } else {
+                console.warn('unknown message type', msgType);
             }
         } catch (e) {
             console.trace(e);
         }
     });
 
-    self.postMessage({type: 'init-complete'});
+    self.postMessage({type: 'init-complete-event'});
 };
 
 Ammo().then(Ammo => {
