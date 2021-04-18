@@ -1,0 +1,126 @@
+/********************************************************************************************************
+ * Panel instances
+ ********************************************************************************************************/
+ .mainpanel-sim {
+	position: absolute;
+	left: 0;
+	top: 0;
+
+	height: 72px;
+	width: calc(72px * 7);
+
+	font-size: 32px;
+	font-family: 'B612', sans-serif;
+	font-weight: 700;
+}
+
+.subpanel-simdetail {
+	position: absolute;
+	left: 0;
+	top: 72px;
+
+	height: calc(72px * 4);
+	width: calc(72px * 7);
+
+	overflow-x: hidden;
+	overflow-y: hidden;
+}
+
+
+.mainpanel-mode {
+	position: absolute;
+	left: 0;
+	bottom: 0;
+
+	height: 72px;
+}
+
+.subpanel-plantdetail {
+	position: absolute;
+	left: 0;
+	bottom: 72px;
+
+	height: calc(72px * 4);
+	width: calc(72px * 8);
+
+	overflow-x: hidden;
+	overflow-y: auto;
+}
+
+
+.mainpanel-about {
+	position: absolute;
+	right: 0;
+	top: 0;
+
+	height: 72px;
+	width: 72px;
+}
+
+.subpanel-about {
+    position: absolute;
+	right: 0;
+	top: 72px;
+
+	height: calc(72px * 2);
+	width: calc(72px * 3);
+
+    padding: 8px;
+}
+
+
+/********************************************************************************************************
+ * Special Widgets
+ ********************************************************************************************************/
+
+.figure {
+	background-color: #222;
+	color: #eee;
+}
+
+table.signals {
+	margin-right: 2px;
+
+	font-family: 'B612 Mono', monospace;
+	font-weight: 700;
+	font-size: 10px;
+}
+
+table.gene {
+	border-right: 2px solid #ccc;
+	display: inline-block;
+}
+
+table.gene td {
+	background-color: none;
+	padding-top: 0;
+	padding-bottom: 0;
+}
+
+table.gene tr:first-child {
+	font-family: 'B612 Mono', monospace;
+	font-weight: 700;
+	font-size: 10px;
+}
+
+table.gene tr:not(first-child) {
+	font-family: 'B612', sans-serif;
+	font-weight: 400;
+	font-size: 8px;
+}
+
+.ct-intrinsic {
+	background-color: #341;
+}
+
+.ct-compound {
+	background-color: #79c;
+}
+
+.ct-standard {
+	background-color: #673;
+}
+
+.ct-unknown {
+	background-color: #a33;
+}

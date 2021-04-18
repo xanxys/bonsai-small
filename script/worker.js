@@ -10,17 +10,17 @@ function startChunkWorker(Ammo) {
     // Should be moved to bonsai.js
     let stressTest = false;
     if (!stressTest) {
-        for (let iy = -3; iy <= 3; iy ++) {
-            for (let ix = -3; ix <= 3; ix ++) {
-                this.current_plant = chunk.addDefaultPlant(
-                    new THREE.Vector3(ix * 7, iy * 7, 0));
+        for (let iy = -2; iy <= 2; iy ++) {
+            for (let ix = -2; ix <= 2; ix ++) {
+                this.current_plant = chunk.addPlant(
+                    new THREE.Vector3(30 + ix * 5, 30 + iy * 5, 20));
             }
         }
     } else {
         for (let iy = -10; iy <= 10; iy ++) {
             for (let ix = -10; ix <= 10; ix ++) {
-                this.current_plant = chunk.addDefaultPlant(
-                    new THREE.Vector3(ix * 3, iy * 3, 0));
+                this.current_plant = chunk.addPlant(
+                    new THREE.Vector3(ix * 3, iy * 3, 20));
             }
         }
     }
@@ -30,47 +30,40 @@ function startChunkWorker(Ammo) {
         const payload = ev.data.data;
 
         try {
-            if (msgType === 'step') {
+            if (msgType === 'step-req') {
                 let sim_stat = chunk.step();
                 self.postMessage({
-                    type: 'step-complete',
+                    type: 'step-resp',
                     data: sim_stat
                 });
-            } else if (msgType === 'kill') {
-                chunk.kill(payload.id);
-            } else if (msgType === 'serialize') {
+            } else if (msgType === 'add-plant-req') {
+                chunk.addPlant(
+                    new THREE.Vector3(payload.position.x, payload.position.y, payload.position.z),
+                    Genome.decode(payload.encodedGenome));
+            } else if (msgType === 'kill-plant-req') {
+                chunk.removePlantById(payload.id);
+            } else if (msgType === 'serialize-req') {
                 self.postMessage({
-                    type: 'serialize',
+                    type: 'serialize-resp',
                     data: chunk.serialize()
                 });
-            } else if (msgType === 'stat') {
+            } else if (msgType === 'inspect-plant-req') {
                 self.postMessage({
-                    type: 'stat-chunk',
-                    data: chunk.getStat()
-                });
-            } else if (msgType === 'stat-plant') {
-                self.postMessage({
-                    type: 'stat-plant',
+                    type: 'inspect-plant-resp',
                     data: {
                         id: payload.id,
                         stat: chunk.getPlantStat(payload.id)
                     }
                 });
-            } else if (msgType === 'genome-plant') {
-                self.postMessage({
-                    type: 'genome-plant',
-                    data: {
-                        id: payload.id,
-                        genome: chunk.getPlantGenome(payload.id)
-                    }
-                });
+            } else {
+                console.warn('unknown message type', msgType);
             }
         } catch (e) {
             console.trace(e);
         }
     });
 
-    self.postMessage({type: 'init-complete'});
+    self.postMessage({type: 'init-complete-event'});
 };
 
 Ammo().then(Ammo => {

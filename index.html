@@ -7,162 +7,112 @@
 	<meta charset="utf-8" />
 
 	<link href="./ui_asset/common.css" rel="stylesheet" type="text/css" />
+	<link href="./ui_asset/special.css" rel="stylesheet" type="text/css" />
 	<link rel="icon" href="./favicon.png" type="image/png" />
 </head>
 
 <body>
 	<div id="ui">
-		<div class="logo">
-			<span class="logo-text">Bonsai</span>
-		</div>
+		<div class="panel panel-h mainpanel-sim">
+			<section class="w-module module-size-1x">
+				<h1>TIME</h1>
+				<div><span>{{age}}</span></div>
+			</section>
 
-		<div class="column-buttons">
-			<button v-on:click="onClickToggleTime" v-bind:class="{active: timePanelVisible}" title="Open/close time control panel.">
-				<img src="ui_asset/icon_time.png" />
+			<button v-on:click.exact="onClickPlay" v-on:click.shift="onClickStep" v-if="!playing" class="button-big" title="Start simulation (Shift+Click to simulate 1 step)">
+				<img src="ui_asset/play_arrow_white_48dp.svg" />
 			</button>
-			<button v-on:click="onClickToggleChunk" v-bind:class="{active: chunkPanelVisible}" title="Open/close chunk statistics panel.">
-				<img src="ui_asset/icon_chunk.png" />
-			</button>
-			<button v-on:click="onClickToggleChart" v-bind:class="{active: chartPanelVisible}" title="Open/close energy and population history.">
-				<img src="ui_asset/icon_chart.png" />
+			<button v-on:click="onClickPause" v-if="playing" class="button-big" title="Pause simulation">
+				<img src="ui_asset/pause_white_48dp.svg" />
 			</button>
 
-			<hr />
+			<section class="w-module module-size-2x">
+				<h1>MATTER</h1>
+				<div><label>PLANT</label><span>{{numPlants}}</span></div>
+				<div><label>CELL</label><span>{{numCells}}</span></div>
+			</section>
 
-			<button v-on:click="onClickTogglePlant" v-bind:class="{active: plantPanelVisible}" title="Open/close plant statistics.">
-				<img src="ui_asset/icon_plant.png" />
-			</button>
-			<button v-on:click="onClickToggleGenome" v-bind:class="{active: genomePanelVisible}" title="Open/close genome view.">
-				<img src="ui_asset/icon_genome.png" />
-			</button>
-
-			<hr />
-
-			<button v-on:click="onClickToggleAbout" v-bind:class="{active: aboutPanelVisible}" title="Open/close about.">
-				<img src="ui_asset/icon_about.png" />
+			<section class="w-module module-size-2x">
+				<h1>ENERGY</h1>
+				<div><label>STORED</label><span>{{(storedEnergy * 1000).toFixed(0)}}m</span></div>
+			</section>
+			 
+			<button class="button-big" v-on:click="onClickToggleChart" v-bind:class="{active: showingChart}" title="Show/hide data history">
+				<img src="ui_asset/show_chart_white_48dp.svg" />
 			</button>
 		</div>
+		<div class="panel panel-v subpanel-simdetail" v-show="showingChart">
+			<line-plot :chart-data="historydata" :options="historyoption" height="200"></line-plot>
+		</div>
 
-		<div class="column-windows">
-			<div class="pane-panel bg-time" v-show="timePanelVisible">
-				<h1>Time</h1>
-				<span style="font-size: 150%">{{age}}T</span>
-				<button v-on:click="onClickPlay" v-if="!playing">&#x25b6;</button>
-				<button v-on:click="onClickPlay" v-if="playing">&#x25a0;</button>
-
-				<button v-on:click="onClickStep(1)">+1T</button>
-				<button v-on:click="onClickStep(10)">+10T</button>
-				<button v-on:click="onClickStep(50)">+50T</button>
+		<div class="panel panel-h mainpanel-mode">
+			<button v-on:click="onClickInspect" class="button-big" v-bind:class="{active: isInspectMode}" title="Inspect plant: click a plant to see its details">
+				<img src="ui_asset/search_white_48dp.svg" />
+			</button>
+			<button v-on:click="onClickAdd" class="button-big" v-bind:class="{active: isAddMode}" title="Add plant: click to insert a plant seed">
+				<img src="ui_asset/add_circle_outline_white_48dp.svg" />
+			</button>
+		</div>
+		<div class="panel panel-v subpanel-plantdetail" v-show="isInspectMode && plantSelected">
+			<div class="panel-header">
+				<h1>PLANT#{{selectedPlant.id}}</h1>
+				<button class="button-small" v-on:click="onClickKillPlant" title="Remove the plant">
+					<img src="ui_asset/delete_forever_white_48dp.svg" />
+				</button>
 			</div>
-
-			<div class="pane-panel bg-chunk" v-show="chunkPanelVisible">
-				<h1>Chunk</h1>
-				<pre>{{chunkInfoText}}</pre>
+			<div style="display:flex">
+				<section class="w-module module-size-2x">
+					<h1>STATS</h1>
+					<div><label>AGE</label><span>{{selectedPlant.age}}</span></div>
+					<div><label>CELL</label><span>{{selectedPlant.numCells}}</span></div>
+				</section>
+				<section class="w-module module-size-2x">
+					<h1>ENERGY</h1>
+					<div><label>STORED</label><span>{{(selectedPlant.storedEnergy * 1e6).toFixed(0)}}μ</span></div>
+					<div><label>DELTA</label><span>{{(selectedPlant.deltaEnergy * 1e6).toFixed(0)}}μ</span></div>
+				</section>
 			</div>
+			<div style="display:flex">
+				<section class="w-module module-size-2x">
+					<h1>GENOME</h1>
+					<div><label>GENE</label><span>{{selectedPlant.numGenes}}</span></div>
+					<div><label>SIZE</label><span>{{selectedPlant.genomeSize}}</span></div>
+				</section>
 
-			<div class="pane-panel bg-chunk" v-show="chunkPanelVisible">
-				<h1>Simulation</h1>
-				<pre>{{simInfoText}}</pre>
-			</div>
-
-			<div class="pane-panel bg-chart" v-show="chartPanelVisible">
-				<h1>History</h1>
-				<line-plot :chart-data="historydata" :options="historyoption" height="200"></line-plot>
-			</div>
-
-			<div class="pane-panel bg-plant" v-show="plantPanelVisible">
-				<h1>Plant</h1>
-				<pre>{{plantInfoText}}</pre>
-				<button v-on:click="onClickKillPlant">Kill</button>
-				<br/>
-				Cells
-				<table>
-					<tr v-for="cellStat in cells">
-						<td>{{cellStat}}</td>
-					</tr>
-				</table>
-			</div>
-
-			<div class="pane-panel bg-genome" v-show="genomePanelVisible">
-				<h1>Genome</h1>
-				Click a plant to see its genome.
-				<div class="figure">
-					<div class="gene" v-for="gene in genome">{{gene.name}}<br/>
-						<table>
+				<div class="figure" style="overflow-y: scroll; height: 72px; flex-grow: 1">
+					<div v-for="gene in selectedPlantGenesStyled">
+						<table class="gene">
 							<tr><td v-for="elem in gene.when" v-bind:class="elem.classObj">{{elem.seq}}</td></tr>
 							<tr><td v-for="elem in gene.when">{{elem.role}}</td></tr>
 						</table>
-						<table>
+						<table  class="gene">
 							<tr><td v-for="elem in gene.emit" v-bind:class="elem.classObj">{{elem.seq}}</td></tr>
 							<tr><td v-for="elem in gene.emit">{{elem.role}}</td></tr>
 						</table>
 					</div>
 				</div>
 			</div>
-
-			<div class="pane-panel bg-about" v-show="aboutPanelVisible">
-				<h1>About</h1>
-				<h2>What's this?</h2>
-				<p>
-					Bonsai is primarily a plant evolution simulator,
-					and partly a tech demo of HTML5.
-				</p>
-				<p>
-					For now, you can just watch plants reproduce (and die).
-					You can also click plant to inspect its genome, signals, stats etc.
-					Simulated factors are energy, mutation, and in-cell signaling based growth.
-				</p>
-
-				<h2>Plant Model</h2>
-				<p>
-					A plant consists of organ-scale cells, each of them contains
-					set of signals. A plant also has a single scalar energy, which is shared among the all cells in the
-					plant.
-				</p>
-
-				<h2>Energy Model</h2>
-				<p>
-					In bonsai, each plant has stored energy which changes over time from several factors. Only way to
-					produce energy is via photosynthesis, and it's simulated by number of rays hitting cells that contains
-					chloroplast. (it also affects shadow)
-				</p>
-
-				<p>
-					Everything else (including mere existence) costs energy and
-					plants with low energy turns blue and eventually dies.
-				</p>
-
-				<h2>Cell Model</h2>
-				A cell contains signals, which is a string of alphabets. Signals are generated by expression of a gene.
-
-				<p>
-					Genome consists of gene, and each gene looks like
-					(condition, production). Condition determines a probability of generating the signals in production
-					term, by
-					multiplying concentration of each signal.
-				</p>
-
-				<p>
-					Some signals have special builtin meanings:
-				<ul>
-					<li><span class="gene">g</span>: growth factor determined by plant age</li>
-					<li><span class="gene">iα</span>: 1 - probability of α</li>
-					<li><span class="gene">p</span>: multiply 0.5</li>
-					<li><span class="gene">dαβ</span>: produce new cell containing signal α in direction β</li>
-					<li><span class="gene">rα</span>: delete signal α</li>
-					<li><span class="gene">chlr</span>: act as chloroplast</li>
-					<li><span class="gene">x</span>,
-						<span class="gene">y</span>,
-						<span class="gene">z</span>: grow in specified direction
-					</li>
-				</ul>
-
-				<h2>Problems...?</h2>
-				<p>
-					You need a browser with WebGL &amp; Web Worker support.
-					Also bonsai is only tested on Chrome/Linux.
-				</p>
+			<div style="padding-left: 8px">
+				<h1>CELL SIGNALS</h1>
+				<div style="overflow-y: scroll; height: 72px">
+					<table class="signals" >
+						<tr v-for="cellStat in selectedPlant.cells">
+							<td>{{cellStat}}</td>
+						</tr>
+					</table>
+				</div>
 			</div>
+		</div>
+		<div class="panel panel-v subpanel-inventory" v-show="isAddMode">
+		</div>
+
+		<div class="panel mainpanel-about">
+			<button v-on:click="onClickAbout" class="button-big">
+				<img style="filter: grayscale(1.0) brightness(5)" src="ui_asset/logo.svg" />
+			</button>
+		</div>
+		<div class="panel panel-v subpanel-about" v-show="showingAbout">
+			<pre>{{simInfoText}}</pre>
 		</div>
 	</div>
 

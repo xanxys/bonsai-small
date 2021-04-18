@@ -9,14 +9,17 @@ Vue.component('line-plot', Vue.extend({
     },
 }));
 
+const CURSOR_MODE_INSPECT = 'inspect';
+const CURSOR_MODE_ADD = 'add';
+
 class Bonsai {
     constructor() {
         this.scene = new THREE.Scene();
 
         this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.5, 1500);
         this.camera.up = new THREE.Vector3(0, 0, 1);
-        this.camera.position.set(30, 30, 40);
-        this.camera.lookAt(new THREE.Vector3(0, 0, 0));
+        this.camera.position.set(70, 70, 50);
+        this.camera.lookAt(new THREE.Vector3(0, 0, 15));
 
         this._insertBackground();
 
@@ -34,6 +37,8 @@ class Bonsai {
         this.renderer = new THREE.WebGLRenderer({antialias: true});
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         this.renderer.setClearColor('#eee');
+        this.renderer.shadowMap.enabled = true;
+        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         document.getElementById('main').append(this.renderer.domElement);
 
         // add mouse control (need to be done after canvas insertion)
@@ -45,31 +50,33 @@ class Bonsai {
             caster.setFromCamera(posNdc, this.camera);
             const intersections = caster.intersectObject(this.scene, true);
 
-            if (intersections.length > 0 && intersections[0].object.instanceIdToPlantId !== undefined) {
-                this.selectedPlantId = intersections[0].object.instanceIdToPlantId.get(intersections[0].instanceId);
-            } else {
-                this.selectedPlantId = null;
+            if (this.vm.cursorMode === CURSOR_MODE_INSPECT) {
+                if (intersections.length > 0 && intersections[0].object.instanceIdToPlantId !== undefined) {
+                    this.vm.plantSelected = true;
+                    this.selectedPlantId = intersections[0].object.instanceIdToPlantId.get(intersections[0].instanceId);
+                } else {
+                    this.vm.plantSelected = false;
+                    this.selectedPlantId = null;
+                }
+                this._updatePlantSelection();
+            } else if (this.vm.cursorMode === CURSOR_MODE_ADD) {
+                if (intersections.length > 0) {
+                    this.requestAddPlant(intersections[0].point);
+                }
             }
-            this._updatePlantSelection();
         };
 
         const app = this;
         this.vm = new Vue({
             el: '#ui',
             data: {
-                timePanelVisible: true,
-                chunkPanelVisible: false,
-                chartPanelVisible: false,
-                plantPanelVisible: false,
-                genomePanelVisible: false,
-                aboutPanelVisible: false,
-
                 playing: false,
                 age: 0,
+                numPlants: 0,
+                numCells: 0,
+                storedEnergy: 0,
 
-                chunkInfoText: '',
-                simInfoText: '',
-
+                showingChart: false,
                 historydata: {},
                 historyoption: {
                     color: '#fff',
@@ -110,55 +117,46 @@ class Bonsai {
                     },
                 },
 
-                plantInfoText: '',
-                cells: [],
+                plantSelected: false,
+                selectedPlant: {},
 
-                genome: [],
+                cursorMode: CURSOR_MODE_INSPECT,
+
+                showingAbout: false,
+                simInfoText: '',
             },
             methods: {
-                onClickToggleTime: function() {
-                    this.timePanelVisible = !this.timePanelVisible;
-                },
-                onClickToggleChunk: function() {
-                    this.chunkPanelVisible = !this.chunkPanelVisible;
-                },
                 onClickToggleChart: function() {
-                    this.chartPanelVisible = !this.chartPanelVisible;
+                    this.showingChart = !this.showingChart;
                 },
-                onClickTogglePlant: function() {
-                    this.plantPanelVisible = !this.plantPanelVisible;
-                },
-                onClickToggleGenome: function() {
-                    this.genomePanelVisible = !this.genomePanelVisible;
-                },
-                onClickToggleAbout: function() {
-                    this.aboutPanelVisible = !this.aboutPanelVisible;
+                onClickAbout: function() {
+                    this.showingAbout = !this.showingAbout;
                 },
 
                 onClickPlay: function() {
-                    if (this.playing) {
-                        this.playing = false;
-                    } else {
-                        this.playing = true;
-                        app.requestExecStep(1);
-                    }
+                    this.playing = true;
+                    app.requestExecStep();
                 },
-                onClickStep: function(n) {
+                onClickPause: function() {
                     this.playing = false;
-                    app.requestExecStep(n);
                 },
+                onClickStep: function() {
+                    this.playing = false;
+                    app.requestExecStep();
+                },
+                onClickKillPlant: function() {
+                    if (app.curr_selection !== null) {
+                        app.requestKillPlant(app.selectedPlantId);
+                        app.requestPlantStatUpdate();
+                    }
+                    this.plantSelected = false;
+                },
+
                 notifyStepComplete: function() {
                     if (this.playing) {
                         setTimeout(() => {
                             app.requestExecStep(1);
                         }, 50);
-                    }
-                },
-
-                onClickKillPlant: function() {
-                    if (app.curr_selection !== null) {
-                        app.requestKillPlant(app.selectedPlantId);
-                        app.requestPlantStatUpdate();
                     }
                 },
 
@@ -186,20 +184,30 @@ class Bonsai {
                     };
                 },
 
-                updatePlantView: function(stat) {
-                    const statsWithoutCellDetail = {};
-                    Object.assign(statsWithoutCellDetail, stat);
-                    delete statsWithoutCellDetail.cells;
-                    this.plantInfoText = JSON.stringify(statsWithoutCellDetail, null, 2);
-             
-                    let cells = [];
-                    if (stat !== null) {
-                        cells = stat['cells'].map(cellStat => JSON.stringify(cellStat, null, 0));
-                    }
-                    this.cells = cells;
-                },
 
-                updateGenomeView: function(genome) {
+                onClickInspect: function() {
+                    this.cursorMode = CURSOR_MODE_INSPECT;
+                },
+                onClickAdd: function() {
+                    this.cursorMode = CURSOR_MODE_ADD;
+                },
+                updatePlantView: function(plantId, stat) {
+                    const genome = Genome.decode(stat.genome);
+                    this.selectedPlant = {
+                        id: plantId,
+                        age: stat['age'],
+                        numCells: stat['#cell'],
+                        storedEnergy: stat['energy:stored'],
+                        deltaEnergy: stat['energy:delta'],
+                        genomeSize: stat.genome.length,
+                        numGenes: genome.genes.length,
+                        cells: stat['cells'].map(cellStat => JSON.stringify(cellStat, null, 0)),
+                        genome: genome,
+                    };
+                },
+            },
+            computed: {
+                selectedPlantGenesStyled: function() {
                     function convertSignals(sigs) {
                         return sigs.map(sig => {
                             const desc = parseIntrinsicSignal(sig);
@@ -215,20 +223,22 @@ class Bonsai {
                             };
                         });
                     }
-            
-                    if (genome === null) {
-                        this.genome = [];
-                        return;
+                    if (this.selectedPlant.genome === undefined) {
+                        return [];
                     }
-            
-                    this.genome = genome.unity.map(gene => {
+                    return this.selectedPlant.genome.genes.map(gene => {
                         return {
-                            name: gene["tracer_desc"],
                             when: convertSignals(gene.when),
                             emit: convertSignals(gene.emit),
                         };
                     });
-                }
+                },
+                isInspectMode: function() {
+                    return this.cursorMode === CURSOR_MODE_INSPECT;
+                },
+                isAddMode: function() {
+                    return this.cursorMode === CURSOR_MODE_ADD;
+                },
             },
         });
 
@@ -237,66 +247,72 @@ class Bonsai {
             const msgType = ev.data.type;
             const payload = ev.data.data;
 
-            if (msgType === 'init-complete') {
+            if (msgType === 'init-complete-event') {
                 this.chunkWorker.postMessage({
-                    type: 'serialize'
+                    type: 'serialize-req'
                 });
-            } else if (msgType === 'serialize') {
+            } else if (msgType === 'serialize-resp') {
                 this.chunkState = payload;
                 this._updateProxy();
                 this._updatePlantSelection();
-            } else if (msgType === 'stat-chunk') {
-                this.vm.age = payload['age/T'];
-                this.num_plant_history.push(payload["plant"]);
-                this.energy_history.push(payload["stored/E"]);
+
+                this.vm.age = payload['stats']['age'];
+                this.vm.numPlants = payload['stats']["#plant"];
+                this.vm.numCells = payload['stats']["#cell"];
+                this.vm.storedEnergy = payload['stats']["energy:stored"];
+                this.num_plant_history.push(payload['stats']["#plant"]);
+                this.energy_history.push(payload['stats']["energy:stored"]);
                 this.vm.updateGraph();
-                this.vm.chunkInfoText = JSON.stringify(payload, null, 2);
-            } else if (msgType === 'step-complete') {
+            } else if (msgType === 'step-resp') {
                 this.vm.simInfoText = JSON.stringify(payload, null, 2);
                 this.vm.notifyStepComplete();
-            } else if (msgType === 'stat-plant') {
-                this.vm.updatePlantView(payload.stat);
-            } else if (msgType === 'genome-plant') {
-                this.vm.updateGenomeView(payload.genome);
+            } else if (msgType === 'inspect-plant-resp') {
+                if (payload.stat !== null) {
+                    this.vm.updatePlantView(payload.id, payload.stat);
+                }
+            } else {
+                console.warn('unknown message type', msgType);
             }
         }, false);
     }
 
     /* chunk worker interface */
-    requestKillPlant(plantId) {
+    requestAddPlant(pos) {
         this.chunkWorker.postMessage({
-            type: 'kill',
-            data: {id: plantId}
+            type: 'add-plant-req',
+            data: {
+                position: {x: pos.x, y: pos.y, z: pos.z},
+                encodedGenome: new Genome().encode(),
+            },
         });
         this.chunkWorker.postMessage({
-            type: 'serialize'
+            type: 'serialize-req'
         });
     }
 
-    requestExecStep(n) {
-        for (let i = 0; i < n; i++) {
-            this.chunkWorker.postMessage({
-                type: 'step'
-            });
-            this.chunkWorker.postMessage({
-                type: 'stat'
-            });
-            this.requestPlantStatUpdate();
-        }
+    requestKillPlant(plantId) {
         this.chunkWorker.postMessage({
-            type: 'serialize'
+            type: 'kill-plant-req',
+            data: {id: plantId}
+        });
+        this.chunkWorker.postMessage({
+            type: 'serialize-req'
+        });
+    }
+
+    requestExecStep() {
+        this.chunkWorker.postMessage({
+            type: 'step-req'
+        });
+        this.requestPlantStatUpdate();
+        this.chunkWorker.postMessage({
+            type: 'serialize-req'
         });   
     }
 
     requestPlantStatUpdate() {
         this.chunkWorker.postMessage({
-            type: 'stat-plant',
-            data: {
-                id: this.selectedPlantId
-            }
-        });
-        this.chunkWorker.postMessage({
-            type: 'genome-plant',
+            type: 'inspect-plant-req',
             data: {
                 id: this.selectedPlantId
             }
@@ -305,17 +321,30 @@ class Bonsai {
 
     /* 3D UI */
     _insertBackground() {
-        const sunlight = new THREE.DirectionalLight(0xcccccc);
-        sunlight.position.set(0, 0, 100).normalize();
+        const sunlight = new THREE.DirectionalLight();
+        sunlight.intensity = 0.8;
+        sunlight.position.set(0, 0, 250);
+        sunlight.castShadow = true;
+        
+        const halfSize = 50;
+        const halfSizeWithMargin = halfSize * 1.2;
+        sunlight.shadow.camera.left = -halfSizeWithMargin;
+        sunlight.shadow.camera.bottom = -halfSizeWithMargin;
+        sunlight.shadow.camera.right = halfSizeWithMargin;
+        sunlight.shadow.camera.top = halfSizeWithMargin;
+        sunlight.shadow.camera.updateProjectionMatrix();
         this.scene.add(sunlight);
+        //this.scene.add(new THREE.CameraHelper(sunlight.shadow.camera));
 
-        this.scene.add(new THREE.AmbientLight(0x333333));
+        const amblight = new THREE.AmbientLight();
+        amblight.intensity = 0.2;
+        this.scene.add(amblight);
 
         const bg = new THREE.Mesh(
             new THREE.IcosahedronGeometry(800, 1),
             new THREE.MeshBasicMaterial({
                 wireframe: true,
-                color: '#ccc'
+                color: '#cccccc'
             }));
         this.scene.add(bg);
     }
@@ -379,7 +408,7 @@ class Bonsai {
             new THREE.BoxGeometry(cursorSize.x, cursorSize.y, cursorSize.z),
             new THREE.MeshBasicMaterial({
                 wireframe: true,
-                color: new THREE.Color("rgb(173,127,168)"),
+                color: new THREE.Color("#BC004F"),
                 wireframeLinewidth: 2,
             }));
         cursor.position.copy(cursorCenter.clone().add(new THREE.Vector3(0, 0, 5e-1 + 1e-1)));
@@ -395,7 +424,7 @@ class Bonsai {
 
         // de-serialize plants
         const cellInstanceGeom = new THREE.BoxGeometry(1, 1, 1);
-        const cellInstanceMat = new THREE.MeshToonMaterial();
+        const cellInstanceMat = new THREE.MeshStandardMaterial();
 
         let cellCount = 0;
         chunk.plants.forEach(plant => {
@@ -420,54 +449,29 @@ class Bonsai {
             });
         });
         cellMesh.instanceIdToPlantId = instanceIdToPlantId;
+        cellMesh.receiveShadow = true;
+        cellMesh.castShadow = true;
         proxy.add(cellMesh);
 
-        // Attach tiles to the base.
-        const tex = this._deserializeSoilTexture(chunk.soil);
-        const soil_plate = new THREE.Mesh(
-            new THREE.BoxGeometry(chunk.soil.size, chunk.soil.size, 1e-1),
-            new THREE.MeshBasicMaterial({map: tex}));
-        proxy.add(soil_plate);
 
-        // hides flipped backside texture
-        const soilBackPlate = new THREE.Mesh(
-            new THREE.BoxGeometry(chunk.soil.size, chunk.soil.size, 2),
-            new THREE.MeshBasicMaterial({color: '#333'}));
-        soilBackPlate.position.set(0, 0, -(2 + 1e-1)/2);
-        proxy.add(soilBackPlate);
+        // de-serialize soil
+        const soilInstanceGeom = new THREE.BoxGeometry(1, 1, 1);
+        const soilInstanceMat = new THREE.MeshStandardMaterial({color:'#5A5165'});
+        const soilMesh = new THREE.InstancedMesh(soilInstanceGeom, soilInstanceMat, chunk.soil.blocks.length);
+        chunk.soil.blocks.forEach((block, blockIx) => {
+            const m = new THREE.Matrix4();
+            m.compose(
+                new THREE.Vector3(block.t.x, block.t.y, block.t.z),
+                new THREE.Quaternion(block.r.x, block.r.y, block.r.z, block.r.w),
+                new THREE.Vector3(1,1,1));
+            m.scale(new THREE.Vector3(block.s.x, block.s.y, block.s.z));
+            soilMesh.setMatrixAt(blockIx, m);
+        });
+        soilMesh.receiveShadow = true;
+        soilMesh.castShadow = true;
+        proxy.add(soilMesh);
 
         return proxy;
-    }
-
-    _deserializeSoilTexture(soil) {
-        const texSize = 64;
-
-        if (this.soilDeserializerCanvas === undefined) {
-            const canvas = document.createElement('canvas');
-            canvas.width = texSize;
-            canvas.height = texSize;
-            this.soilDeserializerCanvas = canvas;
-        }
-
-        const ctx = this.soilDeserializerCanvas.getContext('2d');
-        ctx.save();
-        ctx.scale(texSize / soil.n, texSize / soil.n);
-        ctx.fillStyle = 'black';
-        ctx.fillRect(0, 0, soil.n, soil.n);
-        
-        for (let y = 0; y < soil.n; y++) {
-            for (let x = 0; x < soil.n; x++) {
-                const v = soil.luminance[x + y * soil.n];
-                const chVal = Math.floor(v * 255);
-                ctx.fillStyle = `rgba(${chVal}, ${chVal}, ${chVal}, 1)`;
-                ctx.fillRect(x, soil.n - 1 - y, 1, 1);
-            }
-        }
-        ctx.restore();
-
-        const tex = new THREE.Texture(this.soilDeserializerCanvas);
-        tex.needsUpdate = true;
-        return tex;
     }
 
     animate() {
