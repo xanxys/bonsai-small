@@ -48,8 +48,10 @@ class Bonsai {
             const intersections = caster.intersectObject(this.scene, true);
 
             if (intersections.length > 0 && intersections[0].object.instanceIdToPlantId !== undefined) {
+                this.vm.plantSelected = true;
                 this.selectedPlantId = intersections[0].object.instanceIdToPlantId.get(intersections[0].instanceId);
             } else {
+                this.vm.plantSelected = false;
                 this.selectedPlantId = null;
             }
             this._updatePlantSelection();
@@ -59,14 +61,18 @@ class Bonsai {
         this.vm = new Vue({
             el: '#ui',
             data: {
-                timePanelVisible: true,
-                chunkPanelVisible: false,
-                chartPanelVisible: false,
-                plantPanelVisible: false,
-                aboutPanelVisible: false,
-
                 playing: false,
                 age: 0,
+                numPlants: 0,
+                numCells: 0,
+                storedEnergy: 0,
+
+                showingChart: false,
+
+                plantSelected: false,
+                selectedPlant: {},
+                cells: [],
+                genome: [],
 
                 chunkInfoText: '',
                 simInfoText: '',
@@ -112,26 +118,14 @@ class Bonsai {
                     },
                 },
 
-                plantInfoText: '',
-                cells: [],
-
-                genome: [],
+                showingAbout: false,
             },
             methods: {
-                onClickToggleTime: function() {
-                    this.timePanelVisible = !this.timePanelVisible;
-                },
-                onClickToggleChunk: function() {
-                    this.chunkPanelVisible = !this.chunkPanelVisible;
-                },
                 onClickToggleChart: function() {
-                    this.chartPanelVisible = !this.chartPanelVisible;
+                    this.showingChart = !this.showingChart;
                 },
-                onClickTogglePlant: function() {
-                    this.plantPanelVisible = !this.plantPanelVisible;
-                },
-                onClickToggleAbout: function() {
-                    this.aboutPanelVisible = !this.aboutPanelVisible;
+                onClickAbout: function() {
+                    this.showingAbout = !this.showingAbout;
                 },
 
                 onClickPlay: function() {
@@ -186,10 +180,14 @@ class Bonsai {
                 },
 
                 updatePlantView: function(stat) {
-                    const statsWithoutCellDetail = {};
-                    Object.assign(statsWithoutCellDetail, stat);
-                    delete statsWithoutCellDetail.cells;
-                    this.plantInfoText = JSON.stringify(statsWithoutCellDetail, null, 2);
+                    if (stat === null) {
+                        return;
+                    }
+
+                    this.selectedPlant.age = stat['age/T'];
+                    this.selectedPlant.numCells = stat['#cells'];
+                    this.selectedPlant.storedEnergy = stat['stored/E'];
+                    this.selectedPlant.deltaEnergy = stat['delta/(E/T)'];
              
                     let cells = [];
                     if (stat !== null) {
@@ -245,12 +243,15 @@ class Bonsai {
                 this._updatePlantSelection();
             } else if (msgType === 'stat-chunk') {
                 this.vm.age = payload['age/T'];
+                this.vm.numPlants = payload["plant"];
+                this.vm.storedEnergy = payload["stored/E"];
                 this.num_plant_history.push(payload["plant"]);
                 this.energy_history.push(payload["stored/E"]);
                 this.vm.updateGraph();
                 this.vm.chunkInfoText = JSON.stringify(payload, null, 2);
             } else if (msgType === 'step-complete') {
                 this.vm.simInfoText = JSON.stringify(payload, null, 2);
+                this.vm.numCells = payload["#live_cell"];
                 this.vm.notifyStepComplete();
             } else if (msgType === 'stat-plant') {
                 this.vm.updatePlantView(payload.stat);
@@ -325,7 +326,7 @@ class Bonsai {
             new THREE.IcosahedronGeometry(800, 1),
             new THREE.MeshBasicMaterial({
                 wireframe: true,
-                color: '#ccc'
+                color: '#cccccc'
             }));
         this.scene.add(bg);
     }
@@ -389,7 +390,7 @@ class Bonsai {
             new THREE.BoxGeometry(cursorSize.x, cursorSize.y, cursorSize.z),
             new THREE.MeshBasicMaterial({
                 wireframe: true,
-                color: new THREE.Color("rgb(173,127,168)"),
+                color: new THREE.Color("#BC004F"),
                 wireframeLinewidth: 2,
             }));
         cursor.position.copy(cursorCenter.clone().add(new THREE.Vector3(0, 0, 5e-1 + 1e-1)));
@@ -437,7 +438,7 @@ class Bonsai {
 
         // de-serialize soil
         const soilInstanceGeom = new THREE.BoxGeometry(1, 1, 1);
-        const soilInstanceMat = new THREE.MeshStandardMaterial({color:'#877'});
+        const soilInstanceMat = new THREE.MeshStandardMaterial({color:'#5A5165'});
         const soilMesh = new THREE.InstancedMesh(soilInstanceGeom, soilInstanceMat, chunk.soil.blocks.length);
         chunk.soil.blocks.forEach((block, blockIx) => {
             const m = new THREE.Matrix4();

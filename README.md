@@ -31,16 +31,11 @@ What I want to confirm / expect to see with this project:
 * Formation of ecological niches
 * Emergence of creative usage of physics
 
-
-TODO: Write more details before I forget
-
+See https://github.com/xanxys/bonsai-small/PHYSICS.md for details.
 
 ## Plans
-* Fix ammo.js integration
-* More complex light pattern
-* More complex landscape
-* Soil physics (root strength? & water?)
-* Automatically share mutated genome to appengine (or something)
+
+* genome pool in cloud (maybe firebase)
 
 
 ## Compilation
