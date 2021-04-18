@@ -55,7 +55,7 @@
 		</div>
 		<div class="panel panel-v subpanel-plantdetail" v-show="isInspectMode && plantSelected">
 			<div class="panel-header">
-				<h1>PLANT</h1>
+				<h1>PLANT#{{selectedPlant.id}}</h1>
 				<button class="button-small" v-on:click="onClickKillPlant" title="Remove the plant">
 					<img src="ui_asset/delete_forever_white_48dp.svg" />
 				</button>

@@ -191,9 +191,10 @@ class Bonsai {
                 onClickAdd: function() {
                     this.cursorMode = CURSOR_MODE_ADD;
                 },
-                updatePlantView: function(stat) {
+                updatePlantView: function(plantId, stat) {
                     const genome = Genome.decode(stat.genome);
                     this.selectedPlant = {
+                        id: plantId,
                         age: stat['age'],
                         numCells: stat['#cell'],
                         storedEnergy: stat['energy:stored'],
@@ -267,7 +268,7 @@ class Bonsai {
                 this.vm.notifyStepComplete();
             } else if (msgType === 'inspect-plant-resp') {
                 if (payload.stat !== null) {
-                    this.vm.updatePlantView(payload.stat);
+                    this.vm.updatePlantView(payload.id, payload.stat);
                 }
             } else {
                 console.warn('unknown message type', msgType);
