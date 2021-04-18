@@ -9,6 +9,9 @@ Vue.component('line-plot', Vue.extend({
     },
 }));
 
+const CURSOR_MODE_INSPECT = 'inspect';
+const CURSOR_MODE_ADD = 'add';
+
 class Bonsai {
     constructor() {
         this.scene = new THREE.Scene();
@@ -47,14 +50,20 @@ class Bonsai {
             caster.setFromCamera(posNdc, this.camera);
             const intersections = caster.intersectObject(this.scene, true);
 
-            if (intersections.length > 0 && intersections[0].object.instanceIdToPlantId !== undefined) {
-                this.vm.plantSelected = true;
-                this.selectedPlantId = intersections[0].object.instanceIdToPlantId.get(intersections[0].instanceId);
-            } else {
-                this.vm.plantSelected = false;
-                this.selectedPlantId = null;
+            if (this.vm.cursorMode === CURSOR_MODE_INSPECT) {
+                if (intersections.length > 0 && intersections[0].object.instanceIdToPlantId !== undefined) {
+                    this.vm.plantSelected = true;
+                    this.selectedPlantId = intersections[0].object.instanceIdToPlantId.get(intersections[0].instanceId);
+                } else {
+                    this.vm.plantSelected = false;
+                    this.selectedPlantId = null;
+                }
+                this._updatePlantSelection();
+            } else if (this.vm.cursorMode === CURSOR_MODE_ADD) {
+                if (intersections.length > 0) {
+                    this.requestAddPlant(intersections[0].point);
+                }
             }
-            this._updatePlantSelection();
         };
 
         const app = this;
@@ -68,15 +77,6 @@ class Bonsai {
                 storedEnergy: 0,
 
                 showingChart: false,
-
-                plantSelected: false,
-                selectedPlant: {},
-                cells: [],
-                genome: [],
-
-                simInfoText: '',
-                plantGenome: null,
-
                 historydata: {},
                 historyoption: {
                     color: '#fff',
@@ -117,7 +117,13 @@ class Bonsai {
                     },
                 },
 
+                plantSelected: false,
+                selectedPlant: {},
+
+                cursorMode: CURSOR_MODE_INSPECT,
+
                 showingAbout: false,
+                simInfoText: '',
             },
             methods: {
                 onClickToggleChart: function() {
@@ -178,6 +184,13 @@ class Bonsai {
                     };
                 },
 
+
+                onClickInspect: function() {
+                    this.cursorMode = CURSOR_MODE_INSPECT;
+                },
+                onClickAdd: function() {
+                    this.cursorMode = CURSOR_MODE_ADD;
+                },
                 updatePlantView: function(stat) {
                     const genome = Genome.decode(stat.genome);
                     this.selectedPlant = {
@@ -190,7 +203,7 @@ class Bonsai {
                         cells: stat['cells'].map(cellStat => JSON.stringify(cellStat, null, 0)),
                         genome: genome,
                     };
-                }
+                },
             },
             computed: {
                 selectedPlantGenesStyled: function() {
@@ -218,6 +231,12 @@ class Bonsai {
                             emit: convertSignals(gene.emit),
                         };
                     });
+                },
+                isInspectMode: function() {
+                    return this.cursorMode === CURSOR_MODE_INSPECT;
+                },
+                isAddMode: function() {
+                    return this.cursorMode === CURSOR_MODE_ADD;
                 },
             },
         });
@@ -257,6 +276,19 @@ class Bonsai {
     }
 
     /* chunk worker interface */
+    requestAddPlant(pos) {
+        this.chunkWorker.postMessage({
+            type: 'add-plant-req',
+            data: {
+                position: {x: pos.x, y: pos.y, z: pos.z},
+                encodedGenome: new Genome().encode(),
+            },
+        });
+        this.chunkWorker.postMessage({
+            type: 'serialize-req'
+        });
+    }
+
     requestKillPlant(plantId) {
         this.chunkWorker.postMessage({
             type: 'kill-plant-req',

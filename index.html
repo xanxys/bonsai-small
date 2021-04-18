@@ -46,14 +46,14 @@
 		</div>
 
 		<div class="panel panel-h mainpanel-mode">
-			<button class="button-big" v-bind:class="{active: true}" title="Inspect plant: click a plant to see its details">
+			<button v-on:click="onClickInspect" class="button-big" v-bind:class="{active: isInspectMode}" title="Inspect plant: click a plant to see its details">
 				<img src="ui_asset/search_white_48dp.svg" />
 			</button>
-			<button class="button-big" title="Add a plant (not implemented yet)">
+			<button v-on:click="onClickAdd" class="button-big" v-bind:class="{active: isAddMode}" title="Add plant: click to insert a plant seed">
 				<img src="ui_asset/add_circle_outline_white_48dp.svg" />
 			</button>
 		</div>
-		<div class="panel panel-v subpanel-plantdetail" v-show="plantSelected">
+		<div class="panel panel-v subpanel-plantdetail" v-show="isInspectMode && plantSelected">
 			<div class="panel-header">
 				<h1>PLANT</h1>
 				<button class="button-small" v-on:click="onClickKillPlant" title="Remove the plant">
@@ -102,6 +102,8 @@
 					</table>
 				</div>
 			</div>
+		</div>
+		<div class="panel panel-v subpanel-inventory" v-show="isAddMode">
 		</div>
 
 		<div class="panel mainpanel-about">

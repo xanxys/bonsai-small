@@ -12,14 +12,14 @@ function startChunkWorker(Ammo) {
     if (!stressTest) {
         for (let iy = -2; iy <= 2; iy ++) {
             for (let ix = -2; ix <= 2; ix ++) {
-                this.current_plant = chunk.addDefaultPlant(
+                this.current_plant = chunk.addPlant(
                     new THREE.Vector3(30 + ix * 5, 30 + iy * 5, 20));
             }
         }
     } else {
         for (let iy = -10; iy <= 10; iy ++) {
             for (let ix = -10; ix <= 10; ix ++) {
-                this.current_plant = chunk.addDefaultPlant(
+                this.current_plant = chunk.addPlant(
                     new THREE.Vector3(ix * 3, iy * 3, 20));
             }
         }
@@ -36,8 +36,12 @@ function startChunkWorker(Ammo) {
                     type: 'step-resp',
                     data: sim_stat
                 });
+            } else if (msgType === 'add-plant-req') {
+                chunk.addPlant(
+                    new THREE.Vector3(payload.position.x, payload.position.y, payload.position.z),
+                    Genome.decode(payload.encodedGenome));
             } else if (msgType === 'kill-plant-req') {
-                chunk.killPlant(payload.id);
+                chunk.removePlantById(payload.id);
             } else if (msgType === 'serialize-req') {
                 self.postMessage({
                     type: 'serialize-resp',

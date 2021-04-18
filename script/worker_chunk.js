@@ -51,7 +51,7 @@
 
             if (this.energy <= 0) {
                 // die
-                this.unsafeChunk.removePlant(this);
+                this.unsafeChunk.removePlantById(this.id);
             }
         }
 
@@ -264,7 +264,7 @@
                 if (Math.random() < 0.01) {
                     const seedEnergy = _this._withdrawVariableEnergy(Math.pow(20e-3, 3) * 10);
                     const seedPosWorld = new THREE.Vector3().applyMatrix4(this.cellToWorld);
-                    this.plant.unsafeChunk.addPlant(seedPosWorld, seedEnergy, this.plant.genome.naturalClone());
+                    this.plant.unsafeChunk.addPlant(seedPosWorld, this.plant.genome.naturalClone(), seedEnergy);
                 }
             }
         }
@@ -537,32 +537,21 @@
             });
         }
 
-        // Add standard plant seed.
-        addDefaultPlant(pos) {
-            return this.addPlant(
-                pos,
-                Math.pow(20e-3, 3) * 100, // allow 2cm cube for 100T
-                new Genome());
-        }
+        /**
+         * @param {THREE.Vector3} pos 
+         * @param {Genome} genome 
+         * @param {number} energy 
+         * @returns {Plant} added plant
+         */
+        addPlant(pos, genome, energy) {
+            const DEFAULT_SEED_ENERGY = Math.pow(20e-3, 3) * 100; // allow 2cm cube for 100T
 
-        // pos :: THREE.Vector3 (z must be 0)
-        // energy :: Total starting energy for the new plant.
-        // genome :: genome for new plant
-        // return :: Plant
-        addPlant(pos, energy, genome) {
-            const seed = new Plant(pos, this, energy, genome, this.newPlantId);
+            const seedPlant = new Plant(pos, this, energy ?? DEFAULT_SEED_ENERGY, genome ?? new Genome(), this.newPlantId);
             this.newPlantId += 1;
-            this.plants.push(seed);
-            return seed;
+            this.plants.push(seedPlant);
+            return seedPlant;
         }
 
-        // Plant :: must be returned by add_plant
-        // return :: ()
-        removePlant(plant) {
-            this.plants = this.plants.filter(p => p !== plant);
-        }
-
-  
         /**
          * Retrieve current statistics about specified plant id.
          * @param {number} plant id 
@@ -867,8 +856,10 @@
             };
         }
 
-        // Kill plant with specified id.
-        killPlant(plantId) {
+        /**
+         * @param {number} plantId 
+         */
+        removePlantById(plantId) {
             this.plants = this.plants.filter(plant => {
                 return (plant.id !== plantId);
             });
