@@ -138,18 +138,19 @@ class Bonsai {
                     this.playing = false;
                     app.requestExecStep();
                 },
+                onClickKillPlant: function() {
+                    if (app.curr_selection !== null) {
+                        app.requestKillPlant(app.selectedPlantId);
+                        app.requestPlantStatUpdate();
+                    }
+                    this.plantSelected = false;
+                },
+
                 notifyStepComplete: function() {
                     if (this.playing) {
                         setTimeout(() => {
                             app.requestExecStep(1);
                         }, 50);
-                    }
-                },
-
-                onClickKillPlant: function() {
-                    if (app.curr_selection !== null) {
-                        app.requestKillPlant(app.selectedPlantId);
-                        app.requestPlantStatUpdate();
                     }
                 },
 
@@ -178,19 +179,21 @@ class Bonsai {
                 },
 
                 updatePlantView: function(stat) {
-                    this.selectedPlant.age = stat['age/T'];
-                    this.selectedPlant.numCells = stat['#cells'];
-                    this.selectedPlant.storedEnergy = stat['stored/E'];
-                    this.selectedPlant.deltaEnergy = stat['delta/(E/T)'];
-             
-                    let cells = [];
-                    if (stat !== null) {
-                        cells = stat['cells'].map(cellStat => JSON.stringify(cellStat, null, 0));
-                    }
-                    this.cells = cells;
-                },
-
-                updateGenomeView: function(genome) {
+                    const genome = Genome.decode(stat.genome);
+                    this.selectedPlant = {
+                        age: stat['age'],
+                        numCells: stat['#cell'],
+                        storedEnergy: stat['energy:stored'],
+                        deltaEnergy: stat['energy:delta'],
+                        genomeSize: stat.genome.length,
+                        numGenes: genome.genes.length,
+                        cells: stat['cells'].map(cellStat => JSON.stringify(cellStat, null, 0)),
+                        genome: genome,
+                    };
+                }
+            },
+            computed: {
+                selectedPlantGenesStyled: function() {
                     function convertSignals(sigs) {
                         return sigs.map(sig => {
                             const desc = parseIntrinsicSignal(sig);
@@ -206,19 +209,16 @@ class Bonsai {
                             };
                         });
                     }
-            
-                    if (genome === null) {
-                        this.plantGenome = null;
-                        return;
+                    if (this.selectedPlant.genome === undefined) {
+                        return [];
                     }
-            
-                    this.plantGenome = genome.genes.map(gene => {
+                    return this.selectedPlant.genome.genes.map(gene => {
                         return {
                             when: convertSignals(gene.when),
                             emit: convertSignals(gene.emit),
                         };
                     });
-                }
+                },
             },
         });
 
@@ -249,7 +249,6 @@ class Bonsai {
             } else if (msgType === 'inspect-plant-resp') {
                 if (payload.stat !== null) {
                     this.vm.updatePlantView(payload.stat);
-                    this.vm.updateGenomeView(Genome.decode(payload.stat.genome));
                 }
             } else {
                 console.warn('unknown message type', msgType);

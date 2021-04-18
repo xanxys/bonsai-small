@@ -75,12 +75,12 @@
 			<div style="display:flex">
 				<section class="w-module module-size-2x">
 					<h1>GENOME</h1>
-					<div><label>GENE</label><span>12</span></div>
-					<div><label>SIZE</label><span>323</span></div>
+					<div><label>GENE</label><span>{{selectedPlant.numGenes}}</span></div>
+					<div><label>SIZE</label><span>{{selectedPlant.genomeSize}}</span></div>
 				</section>
 
 				<div class="figure" style="overflow-y: scroll; height: 72px; flex-grow: 1">
-					<div v-for="gene in plantGenome">
+					<div v-for="gene in selectedPlantGenesStyled">
 						<table class="gene">
 							<tr><td v-for="elem in gene.when" v-bind:class="elem.classObj">{{elem.seq}}</td></tr>
 							<tr><td v-for="elem in gene.when">{{elem.role}}</td></tr>
@@ -96,7 +96,7 @@
 				<h1>CELL SIGNALS</h1>
 				<div style="overflow-y: scroll; height: 72px">
 					<table class="signals" >
-						<tr v-for="cellStat in cells">
+						<tr v-for="cellStat in selectedPlant.cells">
 							<td>{{cellStat}}</td>
 						</tr>
 					</table>

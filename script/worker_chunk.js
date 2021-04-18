@@ -75,11 +75,11 @@
         getStat() {
             const statCells = this.cells.map(cell => cell.signals);
             const stat = {};
-            stat["#cells"] = statCells.length;
+            stat["#cell"] = statCells.length;
             stat['cells'] = statCells;
-            stat['age/T'] = this.age;
-            stat['stored/E'] = this.energy;
-            stat['delta/(E/T)'] = this._powerForPlant();
+            stat['age'] = this.age;
+            stat['energy:stored'] = this.energy;
+            stat['energy:delta'] = this._powerForPlant();
             stat['genome'] = this.genome.encode();
             return stat;
         }
