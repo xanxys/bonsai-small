@@ -129,16 +129,15 @@ class Bonsai {
                 },
 
                 onClickPlay: function() {
-                    if (this.playing) {
-                        this.playing = false;
-                    } else {
-                        this.playing = true;
-                        app.requestExecStep(1);
-                    }
+                    this.playing = true;
+                    app.requestExecStep();
                 },
-                onClickStep: function(n) {
+                onClickPause: function() {
                     this.playing = false;
-                    app.requestExecStep(n);
+                },
+                onClickStep: function() {
+                    this.playing = false;
+                    app.requestExecStep();
                 },
                 notifyStepComplete: function() {
                     if (this.playing) {
@@ -271,16 +270,14 @@ class Bonsai {
         });
     }
 
-    requestExecStep(n) {
-        for (let i = 0; i < n; i++) {
-            this.chunkWorker.postMessage({
-                type: 'step'
-            });
-            this.chunkWorker.postMessage({
-                type: 'stat'
-            });
-            this.requestPlantStatUpdate();
-        }
+    requestExecStep() {
+        this.chunkWorker.postMessage({
+            type: 'step'
+        });
+        this.chunkWorker.postMessage({
+            type: 'stat'
+        });
+        this.requestPlantStatUpdate();
         this.chunkWorker.postMessage({
             type: 'serialize'
         });   

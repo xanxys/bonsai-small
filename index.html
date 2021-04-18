@@ -19,11 +19,10 @@
 				<div><span>{{age}}</span></div>
 			</section>
 
-			<!-- TODO: Shift+Click -> call onClickStep(1) -->
-			<button v-on:click="onClickPlay" v-if="!playing" class="button-big">
+			<button v-on:click.exact="onClickPlay" v-on:click.shift="onClickStep" v-if="!playing" class="button-big" title="Start simulation (Shift+Click to simulate 1 step)">
 				<img src="ui_asset/play_arrow_white_48dp.svg" />
 			</button>
-			<button v-on:click="onClickPlay" v-if="playing" class="button-big">
+			<button v-on:click="onClickPause" v-if="playing" class="button-big" title="Pause simulation">
 				<img src="ui_asset/pause_white_48dp.svg" />
 			</button>
 
@@ -38,7 +37,7 @@
 				<div><label>STORED</label><span>{{(storedEnergy * 1000).toFixed(0)}}m</span></div>
 			</section>
 			 
-			<button class="button-big" v-on:click="onClickToggleChart" v-bind:class="{active: showingChart}">
+			<button class="button-big" v-on:click="onClickToggleChart" v-bind:class="{active: showingChart}" title="Show/hide data history">
 				<img src="ui_asset/show_chart_white_48dp.svg" />
 			</button>
 		</div>
@@ -47,17 +46,17 @@
 		</div>
 
 		<div class="panel panel-h mainpanel-mode">
-			<button class="button-big" v-bind:class="{active: true}">
+			<button class="button-big" v-bind:class="{active: true}" title="Inspect plant: click a plant to see its details">
 				<img src="ui_asset/search_white_48dp.svg" />
 			</button>
-			<button class="button-big">
+			<button class="button-big" title="Add a plant (not implemented yet)">
 				<img src="ui_asset/add_circle_outline_white_48dp.svg" />
 			</button>
 		</div>
 		<div class="panel panel-v subpanel-plantdetail" v-show="plantSelected">
 			<div class="panel-header">
 				<h1>PLANT</h1>
-				<button class="button-small" v-on:click="onClickKillPlant">
+				<button class="button-small" v-on:click="onClickKillPlant" title="Remove the plant">
 					<img src="ui_asset/delete_forever_white_48dp.svg" />
 				</button>
 			</div>
