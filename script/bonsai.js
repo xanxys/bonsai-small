@@ -120,10 +120,19 @@ class Bonsai {
                 plantSelected: false,
                 selectedPlant: {},
 
+                genomeList: [],
+                currentGenome: "",
+
                 cursorMode: CURSOR_MODE_INSPECT,
 
                 showingAbout: false,
                 simInfoText: '',
+            },
+            created: function() {
+                const defaultGenome = "a,g,p,p,p>s,daci,dlf,r|a,g,p,p,p>s,dacw,dah,ra|a,ig,p,p>w,ra|w,p,p>x,y,y,yy|l>z|l,p,p,p,p,p,p>x,x,x,x,xu,xk,y|s>z|a,p,p,p>x,y|l,p,p,p>chlr";
+
+                this.genomeList.push({encoded: defaultGenome});
+                this.currentGenome = defaultGenome;
             },
             methods: {
                 onClickToggleChart: function() {
@@ -205,8 +214,27 @@ class Bonsai {
                         genome: genome,
                     };
                 },
+
+                onClickSave: function() {
+                    const newGenome = this.selectedPlant.genome.encode();
+                    if (this.genomeList.find(g => g.encoded === newGenome) !== undefined) {
+                        return;
+                    }
+
+                    this.genomeList.push({encoded: newGenome});
+                },
+                onClickGenome: function(genome) {
+                    this.currentGenome = genome;
+                },
             },
             computed: {
+                selectedPlantGenomeRegistered: function() {
+                    if (this.selectedPlant === null || this.selectedPlant.genome === undefined) {
+                        return;
+                    }
+                    const genome = this.selectedPlant.genome.encode();
+                    return (this.genomeList.find(g => g.encoded === genome) !== undefined);
+                },
                 selectedPlantGenesStyled: function() {
                     function convertSignals(sigs) {
                         return sigs.map(sig => {
@@ -282,7 +310,7 @@ class Bonsai {
             type: 'add-plant-req',
             data: {
                 position: {x: pos.x, y: pos.y, z: pos.z},
-                encodedGenome: new Genome().encode(),
+                encodedGenome: this.vm.currentGenome,
             },
         });
         this.chunkWorker.postMessage({

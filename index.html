@@ -59,6 +59,13 @@
 				<button class="button-small" v-on:click="onClickKillPlant" title="Remove the plant">
 					<img src="ui_asset/delete_forever_white_48dp.svg" />
 				</button>
+
+				<button class="button-small" v-on:click="onClickSave" v-if="!selectedPlantGenomeRegistered" title="Save plant genome to inventory">
+					<img src="ui_asset/favorite_border_white_48dp.svg" />
+				</button>
+				<button class="button-small" v-if="selectedPlantGenomeRegistered" title="Genome is already registetered to inventory">
+					<img src="ui_asset/favorite_white_48dp.svg" />
+				</button>
 			</div>
 			<div style="display:flex">
 				<section class="w-module module-size-2x">
@@ -104,6 +111,9 @@
 			</div>
 		</div>
 		<div class="panel panel-v subpanel-inventory" v-show="isAddMode">
+			<div v-for="genome in genomeList" v-on:click="onClickGenome(genome.encoded)">
+				<span v-if="genome.encoded === currentGenome">(active)</span> {{genome.encoded}}
+			</div>
 		</div>
 
 		<div class="panel mainpanel-about">
