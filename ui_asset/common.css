@@ -108,6 +108,10 @@ button:hover,  button.active {
 	flex-direction: column;
 }
 
+section.w-module.active {
+	background-color: #BC004F;
+}
+
 section.w-module h1 {
 	margin: 0px;
 

@@ -215,17 +215,32 @@ class Bonsai {
                     };
                 },
 
-                onClickSave: function() {
-                    const newGenome = this.selectedPlant.genome.encode();
-                    if (this.genomeList.find(g => g.encoded === newGenome) !== undefined) {
-                        return;
-                    }
+                onClickCopy: function() {
+                    navigator.clipboard.writeText(this.currentGenome);
+                },
+                onClickPaste: async function() {
+                    const text = await navigator.clipboard.readText();
+                    this._insertGenomeIfNew(text);
+                },
 
-                    this.genomeList.push({encoded: newGenome});
+                onClickSave: function() {
+                    this._insertGenomeIfNew(this.selectedPlant.genome.encode());
                 },
                 onClickGenome: function(genome) {
                     this.currentGenome = genome;
                 },
+
+                /**
+                 * @param {string} newGenome 
+                 * @returns true if inserted. false otherwise (i.e. alread exists)
+                 */
+                _insertGenomeIfNew: function(newGenome) {
+                    if (this.genomeList.find(g => g.encoded === newGenome) !== undefined) {
+                        return false;
+                    }
+                    this.genomeList.push({encoded: newGenome});
+                    return true;
+                }
             },
             computed: {
                 selectedPlantGenomeRegistered: function() {

@@ -111,8 +111,39 @@
 			</div>
 		</div>
 		<div class="panel panel-v subpanel-inventory" v-show="isAddMode">
-			<div v-for="genome in genomeList" v-on:click="onClickGenome(genome.encoded)">
-				<span v-if="genome.encoded === currentGenome">(active)</span> {{genome.encoded}}
+			<div style="display:flex">
+				<section class="w-module module-size-2x">
+					<h1>GENOME</h1>
+					<div><label>GENE</label><span>32</span></div>
+					<div><label>SIZE</label><span>153</span></div>
+				</section>
+				<section class="w-module module-size-2x">
+					<h1>POPULATION</h1>
+					<div><label>CURRENT</label><span>12</span></div>
+					<div><label>TOTAL</label><span>4324</span></div>
+				</section>
+			</div>
+
+			{{currentGenome}}
+			<button class="button-small" v-on:click="onClickCopy" title="Copy genome to clipboard">
+				<img src="ui_asset/content_copy_white_48dp.svg" />
+			</button>
+
+			<div style="display:flex">
+				<div v-for="genome in genomeList" v-on:click="onClickGenome(genome.encoded)">
+					<section class="w-module module-size-2x" v-bind:class="{active: genome.encoded === currentGenome}">
+						<div><label>GENOME</label><span>12</span></div>
+						<div><label>POP(TOTAL)</label><span>432</span></div>
+						<div><label>LIFETIME(AVG)</label><span>432</span></div>
+					</section>
+				</div>
+				<div>
+					<section class="w-module module-size-2x">
+						<button class="button-small" v-on:click="onClickPaste" title="Paste genome from clipboard" style="width: 100%; height: 100%">
+							<img src="ui_asset/content_paste_white_48dp.svg" />
+						</button>
+					</section>
+				</div>
 			</div>
 		</div>
 
