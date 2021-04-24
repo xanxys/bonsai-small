@@ -114,13 +114,13 @@
 			<div style="display:flex">
 				<section class="w-module module-size-2x">
 					<h1>GENOME</h1>
-					<div><label>GENE</label><span>32</span></div>
-					<div><label>SIZE</label><span>153</span></div>
+					<div><label>GENE</label><span>{{currentGenomeDetail().geneCount}}</span></div>
+					<div><label>SIZE</label><span>{{currentGenomeDetail().genomeSize}}</span></div>
 				</section>
 				<section class="w-module module-size-2x">
 					<h1>POPULATION</h1>
-					<div><label>CURRENT</label><span>12</span></div>
-					<div><label>TOTAL</label><span>4324</span></div>
+					<div><label>TOTAL</label><span>{{currentGenomeDetail().popTotal}}</span></div>
+					<div><label>CURRENT</label><span>{{currentGenomeDetail().popCurrent}}</span></div>
 				</section>
 			</div>
 
@@ -130,11 +130,11 @@
 			</button>
 
 			<div style="display:flex">
-				<div v-for="genome in genomeList" v-on:click="onClickGenome(genome.encoded)">
+				<div v-for="genome in genomeDetailList()" v-on:click="onClickGenome(genome.encoded)">
 					<section class="w-module module-size-2x" v-bind:class="{active: genome.encoded === currentGenome}">
-						<div><label>GENOME</label><span>12</span></div>
-						<div><label>POP(TOTAL)</label><span>432</span></div>
-						<div><label>LIFETIME(AVG)</label><span>432</span></div>
+						<div><label>GENOME-SIZE</label><span>{{genome.genomeSize}}</span></div>
+						<div><label>POP-TOTAL</label><span>{{genome.popTotal}}</span></div>
+						<div><label>POP-CURRENT</label><span>{{genome.popCurrent}}</span></div>
 					</section>
 				</div>
 				<div>

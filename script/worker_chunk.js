@@ -831,6 +831,7 @@
             ser['plants'] = this.plants.map(plant => {
                 return {
                     'id': plant.id,
+                    'genome': plant.genome.encode(),
                     'cells': plant.serializeCells(),
                 };
             });

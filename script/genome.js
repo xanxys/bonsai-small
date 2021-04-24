@@ -194,8 +194,16 @@
         }
 
         static decode(e) {
-            return new Genome(e.split('|').map(geneEnc => {
-                const [whenEnc, emitEnc] = geneEnc.split('>');
+            if (typeof e !== 'string') {
+                throw 'GenomeFormatError:' + e;
+            }
+            const geneListE = e.split('|');
+            if (e.length === 0) {
+                throw 'GenomeFormatError: no gene: ' + e;
+            }
+            return new Genome(geneListE.map(geneEnc => {
+                const geneElemList = geneEnc.split('>');
+                const [whenEnc, emitEnc] = geneElemList;
                 return {
                     'when': whenEnc.split(','),
                     'emit': emitEnc.split(','),

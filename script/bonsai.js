@@ -12,6 +12,51 @@ Vue.component('line-plot', Vue.extend({
 const CURSOR_MODE_INSPECT = 'inspect';
 const CURSOR_MODE_ADD = 'add';
 
+
+/** Tracks stats for each genome for entire history. */
+class GenomeTracker {
+    constructor() {
+        this.accum = new Map();
+        this.latest = new Map();
+    }
+
+    /**
+     * @param {Array<{plantId:string, genome:string}>}
+     */
+    notifyLivePlants(plants) {
+        this.latest = new Map();
+        plants.forEach(plant => {
+            {
+                const idSet = this.accum.get(plant.genome) ?? new Set();
+                idSet.add(plant.plantId);
+                this.accum.set(plant.genome, idSet);
+            }
+            {
+                const idSet = this.latest.get(plant.genome) ?? new Set();
+                idSet.add(plant.plantId);
+                this.latest.set(plant.genome, idSet);
+            }
+        });
+    }
+
+    /**
+     * 
+     * @param {string} encodedGenome 
+     * @returns {object | null}
+     */
+    get(encodedGenome) {
+        return {
+            encoded: encodedGenome,
+            genomeSize: encodedGenome.length,
+            geneCount: Genome.decode(encodedGenome).genes.length,
+
+            popCurrent: (this.latest.get(encodedGenome) ?? new Set()).size,
+            popTotal: (this.accum.get(encodedGenome) ?? new Set()).size,
+        };
+    }
+}
+
+
 class Bonsai {
     constructor() {
         this.scene = new THREE.Scene();
@@ -28,6 +73,7 @@ class Bonsai {
         this.selectedPlantId = null;
         this.num_plant_history = [];
         this.energy_history = [];
+        this.genomeTracker = new GenomeTracker();
 
         // 3D view presentation
         this.currProxy = null;
@@ -129,9 +175,9 @@ class Bonsai {
                 simInfoText: '',
             },
             created: function() {
-                const defaultGenome = "a,g,p,p,p>s,daci,dlf,r|a,g,p,p,p>s,dacw,dah,ra|a,ig,p,p>w,ra|w,p,p>x,y,y,yy|l>z|l,p,p,p,p,p,p>x,x,x,x,xu,xk,y|s>z|a,p,p,p>x,y|l,p,p,p>chlr";
+                const defaultGenome = "a,g,p,p,p>s,dac,dlf,ra|a,g,p,p>s,dac,dah,ra|a,ig,p,p>w,ra|w,p,p>x,y,z|l>z|l,p,p,p,p>x,x,x,x,x,x,y|s>z|a,p,p,p>x,y|l,p,p,p>chlr";
 
-                this.genomeList.push({encoded: defaultGenome});
+                this.genomeList.push(defaultGenome);
                 this.currentGenome = defaultGenome;
             },
             methods: {
@@ -216,7 +262,7 @@ class Bonsai {
                 },
 
                 onClickCopy: function() {
-                    navigator.clipboard.writeText(this.currentGenome);
+                    navigator.clipboard.writeText(this.currentGenome.encoded);
                 },
                 onClickPaste: async function() {
                     const text = await navigator.clipboard.readText();
@@ -226,8 +272,8 @@ class Bonsai {
                 onClickSave: function() {
                     this._insertGenomeIfNew(this.selectedPlant.genome.encode());
                 },
-                onClickGenome: function(genome) {
-                    this.currentGenome = genome;
+                onClickGenome: function(encodedGenome) {
+                    this.currentGenome = encodedGenome;
                 },
 
                 /**
@@ -235,12 +281,19 @@ class Bonsai {
                  * @returns true if inserted. false otherwise (i.e. alread exists)
                  */
                 _insertGenomeIfNew: function(newGenome) {
-                    if (this.genomeList.find(g => g.encoded === newGenome) !== undefined) {
+                    if (this.genomeList.find(g => g === newGenome) !== undefined) {
                         return false;
                     }
-                    this.genomeList.push({encoded: newGenome});
+                    this.genomeList.push(newGenome);
                     return true;
-                }
+                },
+
+                currentGenomeDetail: function() {
+                    return app.genomeTracker.get(this.currentGenome) ?? {};
+                },
+                genomeDetailList: function() {
+                    return this.genomeList.map(g => app.genomeTracker.get(g)).filter(detail => detail);
+                },
             },
             computed: {
                 selectedPlantGenomeRegistered: function() {
@@ -248,7 +301,7 @@ class Bonsai {
                         return;
                     }
                     const genome = this.selectedPlant.genome.encode();
-                    return (this.genomeList.find(g => g.encoded === genome) !== undefined);
+                    return (this.genomeList.find(g => g === genome) !== undefined);
                 },
                 selectedPlantGenesStyled: function() {
                     function convertSignals(sigs) {
@@ -306,6 +359,10 @@ class Bonsai {
                 this.num_plant_history.push(payload['stats']["#plant"]);
                 this.energy_history.push(payload['stats']["energy:stored"]);
                 this.vm.updateGraph();
+
+                this.genomeTracker.notifyLivePlants(payload['plants'].map(plant => {
+                    return {plantId: plant.id, genome: plant.genome};
+                }));
             } else if (msgType === 'step-resp') {
                 this.vm.simInfoText = JSON.stringify(payload, null, 2);
                 this.vm.notifyStepComplete();
