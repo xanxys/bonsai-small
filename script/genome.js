@@ -7,7 +7,7 @@
         INVERT: 'i',
 
         // Intrisinc functionals.
-        CHLOROPLAST: 'chlr',
+        CHLOROPLAST: 'c',
         G_DX: 'x',
         G_DY: 'y',
         G_DZ: 'z',

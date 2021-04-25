@@ -179,11 +179,11 @@
         };
 
         _getPhotoSynthesisEfficiency() {
-            // 1:1/2, 2:3/4, etc...
+            // 0:0, 1:0.2, 2:0.36, 3:0.49, ...
             const numChlr = sum(this.signals.map(sig => {
                 return (sig === Signal.CHLOROPLAST) ? 1 : 0;
             }));
-            return 1 - Math.pow(0.5, numChlr);
+            return 1 - Math.pow(0.8, numChlr);
         }
 
         // return :: ()
