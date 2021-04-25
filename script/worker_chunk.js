@@ -161,9 +161,6 @@
             deltaStatic += this.photons * efficiency;
             this.photons = 0;
 
-            // -: basic consumption (stands for common func.)
-            deltaStatic -= 100 * 1e-3;
-
             // -: linear-volume consumption (stands for cell substrate maintainance)
             const volumeConsumption = 1.0;
             deltaStatic -= this.sx * this.sy * this.sz * volumeConsumption;
@@ -206,18 +203,15 @@
                 }
             }
 
-            function genes_calc_prob(when) {
+            function geneCalcProb(when) {
                 return product(when.map(genes_calc_prob_term));
             }
 
             // Gene expression and transcription.
             this.plant.genome.genes.forEach(gene => {
-                if (genes_calc_prob(gene['when']) > Math.random()) {
-                    let num_codon = sum(gene['emit'].map(sig => {
-                        return sig.length
-                    }));
-
-                    if (_this._withdrawEnergy(num_codon * 1e-4)) {
+                if (geneCalcProb(gene['when']) > Math.random()) {
+                    const numCodon = sum(gene['emit'].map(sig => sig.length));
+                    if (_this._withdrawEnergy(numCodon * 1e-4)) {
                         _this.signals = _this.signals.concat(gene['emit']);
                     }
                 }
