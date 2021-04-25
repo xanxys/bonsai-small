@@ -154,26 +154,25 @@
         }
 
         _withdrawStaticEnergy() {
-            let delta_static = 0;
+            let deltaStatic = 0;
 
             // +: photo synthesis
-            let efficiency = this._getPhotoSynthesisEfficiency();
-            delta_static += this.photons * 1e-6 * efficiency;
-
-            // -: basic consumption (stands for common func.)
-            delta_static -= 100 * 1e-9;
-
-            // -: linear-volume consumption (stands for cell substrate maintainance)
-            let volume_consumption = 1e-6;
-            delta_static -= this.sx * this.sy * this.sz * volume_consumption;
-
+            const efficiency = this._getPhotoSynthesisEfficiency();
+            deltaStatic += this.photons * 1e-6 * efficiency;
             this.photons = 0;
 
-            if (this.plant.energy < delta_static) {
+            // -: basic consumption (stands for common func.)
+            deltaStatic -= 100 * 1e-9;
+
+            // -: linear-volume consumption (stands for cell substrate maintainance)
+            const volumeConsumption = 1e-6;
+            deltaStatic -= this.sx * this.sy * this.sz * volumeConsumption;
+
+            if (this.plant.energy < deltaStatic) {
                 this.plant.energy = -1e-3;  // set death flag (TODO: implicit value encoding is bad idea)
             } else {
-                this.power += delta_static;
-                this.plant.energy += delta_static;
+                this.power += deltaStatic;
+                this.plant.energy += deltaStatic;
             }
         };
 
