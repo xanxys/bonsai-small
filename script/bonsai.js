@@ -182,6 +182,12 @@ class Bonsai {
                 this.genomeList.push(DEFAULT_GENOME);
                 this.currentGenome = DEFAULT_GENOME;
             },
+            watch: {
+                lightIntensity: function(newV, oldV) {
+                    app.sunlight.intensity = 0.7 * (newV / 5);
+                    app.amblight.intensity = (newV === 0) ? 0.6 : 0.2;
+                }
+            },
             methods: {
                 onClickToggleChart: function() {
                     if (this.showingChart) {
@@ -393,9 +399,6 @@ class Bonsai {
                 this.vm.numCells = payload['stats']["#cell"];
 
                 this.vm.lightIntensity = payload['light'];
-                this.sunlight.intensity = 0.8 * (payload['light'] / 6);
-                this.amblight.intensity = (payload['light'] === 0) ? 0.6 : 0.2;
-
                 this.vm.storedEnergy = payload['stats']["energy:stored"];
                 this.num_plant_history.push(payload['stats']["#plant"]);
                 this.energy_history.push(payload['stats']["energy:stored"]);
