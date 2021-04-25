@@ -164,9 +164,11 @@ class Bonsai {
                         },
                     },
                 },
+                showingEnvControl: false,
+                lightIntensity: 0,
 
                 plantSelected: false,
-                selectedPlant: {},
+                selectedPlant: {storedEnergy:0, deltaEnergy:0},
 
                 genomeList: [],
                 currentGenome: "",
@@ -180,9 +182,34 @@ class Bonsai {
                 this.genomeList.push(DEFAULT_GENOME);
                 this.currentGenome = DEFAULT_GENOME;
             },
+            watch: {
+                lightIntensity: function(newV, oldV) {
+                    app.sunlight.intensity = 0.7 * (newV / 5);
+                    app.amblight.intensity = (newV === 0) ? 0.6 : 0.2;
+                }
+            },
             methods: {
                 onClickToggleChart: function() {
-                    this.showingChart = !this.showingChart;
+                    if (this.showingChart) {
+                        this.showingChart = false;
+                    } else {
+                        this.showingEnvControl = false;
+                        this.showingChart = true;
+                    }
+                },
+                onClickToggleEnvControl: function() {
+                    if (this.showingEnvControl) {
+                        this.showingEnvControl = false;
+                    } else {
+                        this.showingChart = false;
+                        this.showingEnvControl = true;
+                    }
+                },
+                onClickDecreaseLight: function() {
+                    app.requestSetLightIntensity(Math.max(0, this.lightIntensity - 1));
+                },
+                onClickIncreaseLight: function() {
+                    app.requestSetLightIntensity(Math.min(25, this.lightIntensity + 1));
                 },
                 onClickAbout: function() {
                     this.showingAbout = !this.showingAbout;
@@ -370,6 +397,8 @@ class Bonsai {
                 this.vm.age = payload['stats']['age'];
                 this.vm.numPlants = payload['stats']["#plant"];
                 this.vm.numCells = payload['stats']["#cell"];
+
+                this.vm.lightIntensity = payload['light'];
                 this.vm.storedEnergy = payload['stats']["energy:stored"];
                 this.num_plant_history.push(payload['stats']["#plant"]);
                 this.energy_history.push(payload['stats']["energy:stored"]);
@@ -398,6 +427,18 @@ class Bonsai {
             data: {
                 position: {x: pos.x, y: pos.y, z: pos.z},
                 encodedGenome: this.vm.currentGenome,
+            },
+        });
+        this.chunkWorker.postMessage({
+            type: 'serialize-req'
+        });
+    }
+
+    requestSetLightIntensity(lightIntensity) {
+        this.chunkWorker.postMessage({
+            type: 'set-env-req',
+            data: {
+                light: lightIntensity,
             },
         });
         this.chunkWorker.postMessage({
@@ -440,6 +481,7 @@ class Bonsai {
         sunlight.intensity = 0.8;
         sunlight.position.set(0, 0, 250);
         sunlight.castShadow = true;
+        this.sunlight = sunlight;
         
         const halfSize = 50;
         const halfSizeWithMargin = halfSize * 1.2;
@@ -454,6 +496,7 @@ class Bonsai {
         const amblight = new THREE.AmbientLight();
         amblight.intensity = 0.2;
         this.scene.add(amblight);
+        this.amblight = amblight;
 
         const bg = new THREE.Mesh(
             new THREE.IcosahedronGeometry(800, 1),

@@ -154,36 +154,34 @@
         }
 
         _withdrawStaticEnergy() {
-            let delta_static = 0;
+            let deltaStatic = 0;
 
             // +: photo synthesis
-            let efficiency = this._getPhotoSynthesisEfficiency();
-            delta_static += this.photons * 1e-9 * 15000 * efficiency;
-
-            // -: basic consumption (stands for common func.)
-            delta_static -= 100 * 1e-9;
-
-            // -: linear-volume consumption (stands for cell substrate maintainance)
-            let volume_consumption = 1e-6;
-            delta_static -= this.sx * this.sy * this.sz * volume_consumption;
-
+            const efficiency = this._getPhotoSynthesisEfficiency();
+            deltaStatic += this.photons * efficiency;
             this.photons = 0;
 
-            if (this.plant.energy < delta_static) {
-                this.plant.energy = -1e-3;  // set death flag (TODO: implicit value encoding is bad idea)
+            // -: basic consumption (stands for common func.)
+            deltaStatic -= 100 * 1e-3;
+
+            // -: linear-volume consumption (stands for cell substrate maintainance)
+            const volumeConsumption = 1.0;
+            deltaStatic -= this.sx * this.sy * this.sz * volumeConsumption;
+
+            if (this.plant.energy < deltaStatic) {
+                this.plant.energy = -1000;  // set death flag (TODO: implicit value encoding is bad idea)
             } else {
-                this.power += delta_static;
-                this.plant.energy += delta_static;
+                this.power += deltaStatic;
+                this.plant.energy += deltaStatic;
             }
         };
 
         _getPhotoSynthesisEfficiency() {
             // 1:1/2, 2:3/4, etc...
-            let num_chl = sum(this.signals.map(sig => {
+            const numChlr = sum(this.signals.map(sig => {
                 return (sig === Signal.CHLOROPLAST) ? 1 : 0;
             }));
-
-            return 1 - Math.pow(0.5, num_chl);
+            return 1 - Math.pow(0.5, numChlr);
         }
 
         // return :: ()
@@ -219,7 +217,7 @@
                         return sig.length
                     }));
 
-                    if (_this._withdrawEnergy(num_codon * 1e-10)) {
+                    if (_this._withdrawEnergy(num_codon * 1e-4)) {
                         _this.signals = _this.signals.concat(gene['emit']);
                     }
                 }
@@ -262,7 +260,7 @@
                 // Disperse seed once in a while.
                 // Maybe dead cells with stored energy survives when fallen off.
                 if (Math.random() < 0.01) {
-                    const seedEnergy = _this._withdrawVariableEnergy(Math.pow(20e-3, 3) * 10);
+                    const seedEnergy = _this._withdrawVariableEnergy(80);
                     const seedPosWorld = new THREE.Vector3().applyMatrix4(this.cellToWorld);
                     this.plant.unsafeChunk.addPlant(seedPosWorld, this.plant.genome.naturalClone(), seedEnergy);
                 }
@@ -320,8 +318,8 @@
             return {r:colorDiffuse.r, g:colorDiffuse.g, b:colorDiffuse.b};
         }
 
-        givePhoton() {
-            this.photons += 1;
+        givePhotons(n) {
+            this.photons += n;
         }
 
         // initial :: Signal
@@ -363,11 +361,15 @@
 
     // Downward directional light.
     class Light {
-        constructor(chunk, size) {
+        /**
+         * @param {Chunk} chunk 
+         * @param {number} size: full extend of the light
+         * @param {*} intensity: photon count / (cm^2 * step)
+         */
+        constructor(chunk, size, intensity) {
             this.chunk = chunk;
-
-            this.n = 64;
-            this.size = size;
+            this.halfSize = Math.ceil(size / 2);
+            this.intensity = intensity;
         }
 
         step() {
@@ -377,11 +379,12 @@
         _castRays(rigidWorld, indexToCell) {
             const posFrom = new Ammo.btVector3();
             const posTo = new Ammo.btVector3();
-            for (let i = 0; i < this.n; i++) {
-                for (let j = 0; j < this.n; j++) {
+            for (let iy = -this.halfSize; iy < this.halfSize; iy++) {
+                for (let ix = -this.halfSize; ix < this.halfSize; ix++) {
+
                     const cb = new Ammo.ClosestRayResultCallback();
-                    const x = ((i + Math.random()) / this.n - 0.5) * this.size;
-                    const y = ((j + Math.random()) / this.n - 0.5) * this.size;
+                    const x = ix + Math.random();
+                    const y = iy + Math.random();
                     posFrom.setValue(x, y, 100);
                     posTo.setValue(x, y, -1);
                     rigidWorld.rayTest(posFrom, posTo, cb);
@@ -390,7 +393,7 @@
                         const uIndex = cb.m_collisionObject.getUserIndex();
                         const cell = indexToCell.get(uIndex);
                         if (cell !== undefined) {
-                            cell.givePhoton();
+                            cell.givePhotons(this.intensity);
                         } else {
                             // hit soil
                         }
@@ -482,7 +485,7 @@
         static COLLISION_MASK_CELL = 0b10
 
         constructor() {
-            const approxChunkSize = 100;
+            const approxChunkSize = 100; // end-to-end size of the chunk (soil) in cm
 
             // tracer
             this.age = 0;
@@ -502,7 +505,7 @@
             this.indexToConstraint = new Map(); // btRigidBody userindex (child) -> btConstraint
 
             // Physical aspects.
-            this.light = new Light(this, approxChunkSize);
+            this.light = new Light(this, approxChunkSize, 6);
             this.rigidWorld = this._createRigidWorld();
 
             this.soilData = generateSoil(approxChunkSize);
@@ -544,7 +547,7 @@
          * @returns {Plant} added plant
          */
         addPlant(pos, genome, energy) {
-            const DEFAULT_SEED_ENERGY = Math.pow(20e-3, 3) * 100; // allow 2cm cube for 100T
+            const DEFAULT_SEED_ENERGY = 800;
 
             const seedPlant = new Plant(pos, this, energy ?? DEFAULT_SEED_ENERGY, genome, this.newPlantId);
             this.newPlantId += 1;
@@ -838,9 +841,14 @@
             ser['soil'] = {
                 'blocks': this.soilData,
             };
+            ser['light'] = this.light.intensity;
             ser['stats'] = this._getStat();
 
             return ser;
+        }
+
+        setEnvironment(lightIntensity) {
+            this.light.intensity = lightIntensity;
         }
 
         _getStat() {

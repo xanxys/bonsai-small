@@ -34,15 +34,34 @@
 
 			<section class="w-module module-size-2x">
 				<h1>ENERGY</h1>
-				<div><label>STORED</label><span>{{(storedEnergy * 1000).toFixed(0)}}m</span></div>
+				<div><label>STORED</label><span>{{(storedEnergy / 1000).toFixed(0)}}k</span></div>
 			</section>
 			 
 			<button class="button-big" v-on:click="onClickToggleChart" v-bind:class="{active: showingChart}" title="Show/hide data history">
 				<img src="ui_asset/show_chart_white_48dp.svg" />
 			</button>
+
+			<button class="button-big" v-on:click="onClickToggleEnvControl" v-bind:class="{active: showingEnvControl}" title="Show/hide environment control">
+				<img src="ui_asset/tune_white_48dp.svg" />
+			</button>
 		</div>
 		<div class="panel panel-v subpanel-simdetail" v-show="showingChart">
 			<line-plot :chart-data="historydata" :options="historyoption" height="200"></line-plot>
+		</div>
+		<div class="panel panel-h subpanel-envcontrol" v-show="showingEnvControl">
+			<section class="w-module module-size-2x">
+				<h1>LIGHT</h1>
+				<div><label>INTENSITY</label><span>{{lightIntensity}}</span></div>
+			</section>
+			
+			<div style="display: flex; flex-direction: row; align-items: center">
+				<button v-on:click="onClickDecreaseLight" class="button-small" title="Decrease light intensity">
+					<img src="ui_asset/remove_circle_outline_white_48dp.svg" />
+				</button>
+				<button v-on:click="onClickIncreaseLight" class="button-small" title="Increase light intensity">
+					<img src="ui_asset/add_circle_outline_white_48dp.svg" />
+				</button>
+			</div>
 		</div>
 
 		<div class="panel panel-h mainpanel-mode">
@@ -75,8 +94,8 @@
 				</section>
 				<section class="w-module module-size-2x">
 					<h1>ENERGY</h1>
-					<div><label>STORED</label><span>{{(selectedPlant.storedEnergy * 1e6).toFixed(0)}}μ</span></div>
-					<div><label>DELTA</label><span>{{(selectedPlant.deltaEnergy * 1e6).toFixed(0)}}μ</span></div>
+					<div><label>STORED</label><span>{{selectedPlant.storedEnergy.toFixed(0)}}</span></div>
+					<div><label>DELTA</label><span>{{selectedPlant.deltaEnergy.toFixed(0)}}</span></div>
 				</section>
 			</div>
 			<div style="display:flex">

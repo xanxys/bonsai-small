@@ -37,29 +37,29 @@
     };
 
     function parseIntrinsicSignal(sig) {
-        let inv_table = {};
+        const invTable = {};
         for (const [name, signal] of Object.entries(Signal)) {
-            inv_table[signal] = name;
+            invTable[signal] = name;
         }
 
-        let signals_simple = [
+        const signalsSimple = [
             Signal.GROWTH,
             Signal.HALF, Signal.CHLOROPLAST,
             Signal.G_DX, Signal.G_DY, Signal.G_DZ];
 
-        let signals_standard = [
+        const signalsStandard = [
             Signal.LEAF,
             Signal.SHOOT, Signal.SHOOT_END, Signal.FLOWER];
 
-        if (signals_simple.includes(sig)) {
+        if (signalsSimple.includes(sig)) {
             return {
-                long: inv_table[sig],
+                long: invTable[sig],
                 raw: sig,
                 type: 'intrinsic'
             };
-        } else if (signals_standard.includes(sig)) {
+        } else if (signalsStandard.includes(sig)) {
             return {
-                long: inv_table[sig],
+                long: invTable[sig],
                 raw: sig,
                 type: 'standard'
             };
@@ -146,73 +146,64 @@
         // diffuse into all states.
         // return :: Genome
         naturalClone() {
-            let _this = this;
-
-            let genome = new Genome();
-            genome.genes = this._shuffle(this.genes,
-                function (gene) {
-                    return _this._naturalCloneGene(gene, '');
-                },
-                function (gene) {
-                    return _this._naturalCloneGene(gene, '/Duplicated/');
-                });
-
-            return genome;
+            const genes = this._shuffle(
+                this.genes,
+                gene => this._naturalCloneGene(gene),
+                gene => this._naturalCloneGene(gene));
+            return new Genome(genes);
         }
 
-        // flag :: A text to attach to description tracer.
-        // return :: Genome.gene
-        _naturalCloneGene(gene_old, flag) {
-            let _this = this;
-
-            let gene = {};
-
-            gene["when"] = this._shuffle(gene_old["when"],
-                function (sig) { return _this._naturalCloneSignal(sig); },
-                function (sig) { return _this._naturalCloneSignal(sig); });
-            gene["emit"] = this._shuffle(gene_old["emit"],
-                function (sig) { return _this._naturalCloneSignal(sig); },
-                function (sig) { return _this._naturalCloneSignal(sig); });
-
-            gene["tracer_desc"] = flag + gene_old["tracer_desc"];
+        /**
+         * @param {Gene} geneOld 
+         * @returns {Gene}
+         */
+        _naturalCloneGene(geneOld) {
+            const gene = {};
+            gene["when"] = this._shuffle(
+                geneOld["when"],
+                sig => this._naturalCloneSignal(sig),
+                sig => this._naturalCloneSignal(sig));
+            gene["emit"] = this._shuffle(
+                geneOld["emit"],
+                sig => this._naturalCloneSignal(sig),
+                sig => this._naturalCloneSignal(sig));
             return gene;
         }
 
         _naturalCloneSignal(sig) {
-            function random_sig1() {
+            function randomSig1() {
                 let set = 'abcdefghijklmnopqrstuvwxyz';
                 return set[Math.floor(Math.random() * set.length)];
             }
 
-            let new_sig = '';
+            let newSig = '';
             for (let i = 0; i < sig.length; i++) {
                 if (Math.random() > 0.01) {
-                    new_sig += sig[i];
+                    newSig += sig[i];
                 }
                 if (Math.random() < 0.01) {
-                    new_sig += random_sig1();
+                    newSig += randomSig1();
                 }
             }
-            return new_sig;
+            return newSig;
         }
 
-        _shuffle(array, modifier_normal, modifier_dup) {
-            let result = [];
+        _shuffle(array, modifierNormal, modifierDup) {
+            const result = [];
 
             // 1st pass: Copy with occasional misses.
             array.forEach(elem => {
                 if (Math.random() > 0.01) {
-                    result.push(modifier_normal(elem));
+                    result.push(modifierNormal(elem));
                 }
             });
 
             // 2nd pass: Occasional duplications.
             array.forEach(elem => {
                 if (Math.random() < 0.01) {
-                    result.push(modifier_dup(elem));
+                    result.push(modifierDup(elem));
                 }
             });
-
             return result;
         }
     }

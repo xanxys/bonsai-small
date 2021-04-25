@@ -24,6 +24,8 @@ function startChunkWorker(Ammo) {
                     Genome.decode(payload.encodedGenome));
             } else if (msgType === 'kill-plant-req') {
                 chunk.removePlantById(payload.id);
+            } else if (msgType === 'set-env-req') {
+                chunk.setEnvironment(payload.light);
             } else if (msgType === 'serialize-req') {
                 self.postMessage({
                     type: 'serialize-resp',

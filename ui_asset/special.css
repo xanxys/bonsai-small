@@ -26,6 +26,18 @@
 	overflow-y: hidden;
 }
 
+.subpanel-envcontrol {
+	position: absolute;
+	left: 0;
+	top: 72px;
+
+	height: calc(72px * 1);
+	width: calc(72px * 3);
+
+	overflow-x: hidden;
+	overflow-y: hidden;
+}
+
 
 .mainpanel-mode {
 	position: absolute;
