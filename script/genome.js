@@ -8,19 +8,16 @@
 
         // Intrisinc functionals.
         CHLOROPLAST: 'c',
+        FLOWER: 'w',
         G_DX: 'x',
         G_DY: 'y',
         G_DZ: 'z',
         DIFF: 'd', // replicate cell
-        REMOVER: 'r',  // compound: r[1...] ([1...]: signal to be removed)
+        REMOVER: 'r',  // remove a signal
 
         // Sell replication modifiers.
         CR_Z: 't',
         CR_X: 's',
-
-        // Cell types.
-        SHOOT_END: 'a',
-        FLOWER: 'w',
     };
 
     class Genome {
@@ -29,7 +26,7 @@
         }
 
         encode() {
-            return this.genes.map(gene => gene.when.join(',') + '>' + gene.emit.join(',')).join('|');
+            return this.genes.map(gene => gene.when.join('') + '>' + gene.emit.join('')).join('|');
         }
 
         static decode(e) {
@@ -44,8 +41,8 @@
                 const geneElemList = geneEnc.split('>');
                 const [whenEnc, emitEnc] = geneElemList;
                 return {
-                    'when': whenEnc.split(','),
-                    'emit': emitEnc.split(','),
+                    'when': new Array(...whenEnc),
+                    'emit': new Array(...emitEnc),
                 };
             }));
         }
@@ -71,30 +68,21 @@
             gene["when"] = this._shuffle(
                 geneOld["when"],
                 sig => this._naturalCloneSignal(sig),
-                sig => this._naturalCloneSignal(sig)).filter(s => s !== '');
+                sig => this._naturalCloneSignal(sig));
             gene["emit"] = this._shuffle(
                 geneOld["emit"],
                 sig => this._naturalCloneSignal(sig),
-                sig => this._naturalCloneSignal(sig)).filter(s => s !== '');
+                sig => this._naturalCloneSignal(sig));
             return gene;
         }
 
         _naturalCloneSignal(sig) {
-            function randomSig1() {
-                let set = 'abcdefghijklmnopqrstuvwxyz';
+            const set = 'abcdefghijklmnopqrstuvwxyz';
+            if (Math.random() < 0.01) {
                 return set[Math.floor(Math.random() * set.length)];
+            } else {
+                return sig;
             }
-
-            let newSig = '';
-            for (let i = 0; i < sig.length; i++) {
-                if (Math.random() > 0.01) {
-                    newSig += sig[i];
-                }
-                if (Math.random() < 0.01) {
-                    newSig += randomSig1();
-                }
-            }
-            return newSig;
         }
 
         _shuffle(array, modifierNormal, modifierDup) {

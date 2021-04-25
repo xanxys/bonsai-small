@@ -56,7 +56,7 @@ class GenomeTracker {
     }
 }
 
-const DEFAULT_GENOME = "a,q,p,p,p>r|g,q,p,p,p,p,p>s,dac,ra|a,ig,p>w|>x,x|l>z|s>|a,pf,p,p>x|p>c";
+const DEFAULT_GENOME = "vvv>cgzs|gi>dhst|ghg>wsz";
 
 class Bonsai {
     constructor() {
@@ -405,7 +405,6 @@ class Bonsai {
                 this.vm.simInfoText = JSON.stringify(payload, null, 2);
                 this.vm.notifyStepComplete();
             } else if (msgType === 'inspect-plant-resp') {
-                console.log(payload);
                 if (payload.stat !== null) {
                     this.vm.updatePlantView(payload.id, payload.stat);
                 }

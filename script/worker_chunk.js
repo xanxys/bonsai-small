@@ -30,7 +30,7 @@
 
             // biophysics
             this.energy = energy;
-            const seed = new Cell(this, new Map([[Signal.SHOOT_END, 1]]), seedInnodeToWorld, new THREE.Quaternion(), null);
+            const seed = new Cell(this, new Map(), seedInnodeToWorld, new THREE.Quaternion(), null);
             this.cells = [seed];  // flat cells in world coords
 
             // genetics
@@ -82,6 +82,27 @@
         }
     }
 
+    function removeRandom(signals) {
+        let ixToRemove = Math.floor(Math.random() * sum(signals.values()));
+        let sigToRemove = null;
+        for (const [sig, num] of signals.entries()) {
+            if (ixToRemove < num) {
+                sigToRemove = sig;
+                break;
+            }
+            ixToRemove -= num;
+        }
+        signals.delete(sigToRemove);
+    }
+
+    function applyDelta(signals, k, n) {
+        const newN = (signals.get(k) ?? 0) + n;
+        if (newN <= 0) {
+            signals.delete(k);
+        } else {
+            signals.set(k, newN);
+        }
+    }
 
     const INITIAL_CELL_SIZE = 0.5;
     //  Power Generation (<- Light):
@@ -195,57 +216,34 @@
                 if (this._geneExpressionProbability(gene['when']) > Math.random()) {
                     const numCodon = sum(gene['emit'].map(sig => sig.length));
                     if (this._withdrawEnergy(numCodon * 1e-2)) {
-                        gene['emit'].forEach(sig => {
-                            this.signals.set(sig, (this.signals.get(sig) ?? 0) + 1);
-                        });
+                        gene['emit'].forEach(sig => applyDelta(this.signals, sig, 1));
                     }
                 }
             });
 
             // Bio-physics.
-            // TODO: define remover semantics.
-            const removers = new Map();
-            this.signals.forEach((num, signal) => {
-                if (signal.length >= 2 && signal[0] === Signal.REMOVER) {
-                    removers.set(signal.substr(1), num);
-                }
-            });
-            removers.forEach((num, sig) => {
-                if (this.signals.has(sig)) {
-                    const numMatches = Math.min(num, this.signals.get(sig));
-                    
-                    this.signals.set(sig, this.signals.get(sig) - numMatches);
-                    this.signals.set(Signal.REMOVER + sig, num - numMatches);
-                }
-            });
-
-
-            const newSignals = new Map();
+            while (this.signals.get(Signal.REMOVER) ?? 0 > 0) {
+                applyDelta(this.signals, Signal.REMOVER, -1);
+                removeRandom(this.signals);
+            }
 
             const numRotZ = this.signals.get(Signal.CR_Z) ?? 0;
             const numRotX = this.signals.get(Signal.CR_X) ?? 0;
-            this.signals.forEach((num, signal) => {
-                for (let i = 0; i < num; i++) {
-                    if (signal.length === 3 && signal[0] === Signal.DIFF) {
-                        if (this._withdrawEnergy(10 + this.plant.genome.encode().length * 1e-2)) {
-                            this.addCont(numRotZ, numRotX);
-                        }
-                    } else if (signal === Signal.G_DX) {
-                        this.sx = Math.min(5, this.sx + 0.1);
-                    } else if (signal === Signal.G_DY) {
-                        this.sy = Math.min(5, this.sy + 0.1);
-                    } else if (signal === Signal.G_DZ) {
-                        this.sz = Math.min(5, this.sz + 0.1);
-                    } else {
-                        newSignals.set(signal, (newSignals.get(signal) ?? 0) + 1);
-                    }
-                }
-            });
-            this.signals = newSignals;
-            this.signals.delete('');
 
-            // Physics
-            if (this.signals.has(Signal.FLOWER)) {
+            if ((this.signals.get(Signal.DIFF) ?? 0) >= 10) {
+                applyDelta(this.signals, Signal.DIFF, -10);
+                this.addCont(numRotZ, numRotX);
+            }
+            this.sx = Math.min(5, this.sx + 0.1 * (this.signals.get(Signal.G_DX) ?? 0));
+            this.signals.delete(Signal.G_DX);
+
+            this.sy = Math.min(5, this.sy + 0.1 * (this.signals.get(Signal.G_DY) ?? 0));
+            this.signals.delete(Signal.G_DY);
+
+            this.sz = Math.min(5, this.sz + 0.1 * (this.signals.get(Signal.G_DZ) ?? 0));
+            this.signals.delete(Signal.G_DZ);
+
+            if ((this.signals.get(Signal.FLOWER) ?? 0) > 0) {
                 // Disperse seed once in a while.
                 // Maybe dead cells with stored energy survives when fallen off.
                 if (Math.random() < 0.01) {
@@ -318,6 +316,16 @@
          * @param {string} initial: initial signal
          */
         addCont(numRotZ, numRotX) {
+            const childSigs = new Map();
+            for (const [sig, n] of this.signals) {
+                childSigs.set(sig, 1);
+                if (n > 2) {
+                    this.signals.set(sig, n - 1);
+                } else {
+                    this.signals.delete(sig);
+                }
+            }
+
             // child-i -> self-o
             const rotQ = new THREE.Quaternion().setFromEuler(new THREE.Euler(
                 Math.min(numRotZ / 16, 1) * Math.PI,
@@ -336,7 +344,7 @@
             c2w.premultiply(so2s);
             c2w.premultiply(s2w);
 
-            const newCell = new Cell(this.plant, new Map(), c2w, rotQ, this);
+            const newCell = new Cell(this.plant, childSigs, c2w, rotQ, this);
             this.plant.cells.push(newCell);            
         }
     }
