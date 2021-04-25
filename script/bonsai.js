@@ -56,7 +56,8 @@ class GenomeTracker {
     }
 }
 
-const DEFAULT_GENOME = "a,g,p,p,p>s,dac,dlf,ra|a,g,p,p>s,dac,dah,ra|a,ig,p,p>w,ra|w,p,p>x,y,z|l>z|l,p,p,p,p>x,x,x,x,x,x,y|s>z|a,p,p,p>x,y|l,p,p,p>chlr";
+const DEFAULT_GENOME_OLD = "a,g,p,p,p>s,dac,dlf,ra|a,g,p,p>s,dac,dah,ra|a,ig,p,p>w,ra|w,p,p>x,y,z|l>z|l,p,p,p,p>x,x,x,x,x,x,y|s>z|a,p,p,p>x,y|l,p,p,p>chlr";
+const DEFAULT_GENOME = "a,g,p,p,p>s,dcl,dlf,ra|a,g,p,p>s,dac,dah,ra|a,ig,p,p>w,ra|w,p,p>x,,z|l>z|l,p,p,p,p>x,x,x,x,x,x,y|se>z|a,p,p,p>x,y|l,p,p,p>chlr";
 
 class Bonsai {
     constructor() {
