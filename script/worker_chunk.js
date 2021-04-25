@@ -841,9 +841,14 @@
             ser['soil'] = {
                 'blocks': this.soilData,
             };
+            ser['light'] = this.light.intensity;
             ser['stats'] = this._getStat();
 
             return ser;
+        }
+
+        setEnvironment(lightIntensity) {
+            this.light.intensity = lightIntensity;
         }
 
         _getStat() {

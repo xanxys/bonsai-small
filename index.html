@@ -51,14 +51,14 @@
 		<div class="panel panel-h subpanel-envcontrol" v-show="showingEnvControl">
 			<section class="w-module module-size-2x">
 				<h1>LIGHT</h1>
-				<div><label>INTENSITY</label><span>6</span></div>
+				<div><label>INTENSITY</label><span>{{lightIntensity}}</span></div>
 			</section>
 			
 			<div style="display: flex; flex-direction: row; align-items: center">
-				<button class="button-small" title="Decrease light intensity">
+				<button v-on:click="onClickDecreaseLight" class="button-small" title="Decrease light intensity">
 					<img src="ui_asset/remove_circle_outline_white_48dp.svg" />
 				</button>
-				<button class="button-small" title="Increase light intensity">
+				<button v-on:click="onClickIncreaseLight" class="button-small" title="Increase light intensity">
 					<img src="ui_asset/add_circle_outline_white_48dp.svg" />
 				</button>
 			</div>
