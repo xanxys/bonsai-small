@@ -47,6 +47,18 @@
 	overflow-y: auto;
 }
 
+.subpanel-inventory {
+	position: absolute;
+	left: 0;
+	bottom: 72px;
+
+	height: calc(72px * 4);
+	width: calc(72px * 8);
+
+	overflow-x: hidden;
+	overflow-y: auto;
+}
+
 
 .mainpanel-about {
 	position: absolute;

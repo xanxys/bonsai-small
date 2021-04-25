@@ -12,6 +12,53 @@ Vue.component('line-plot', Vue.extend({
 const CURSOR_MODE_INSPECT = 'inspect';
 const CURSOR_MODE_ADD = 'add';
 
+
+/** Tracks stats for each genome for entire history. */
+class GenomeTracker {
+    constructor() {
+        this.accum = new Map();
+        this.latest = new Map();
+    }
+
+    /**
+     * @param {Array<{plantId:string, genome:string}>}
+     */
+    notifyLivePlants(plants) {
+        this.latest = new Map();
+        plants.forEach(plant => {
+            {
+                const idSet = this.accum.get(plant.genome) ?? new Set();
+                idSet.add(plant.plantId);
+                this.accum.set(plant.genome, idSet);
+            }
+            {
+                const idSet = this.latest.get(plant.genome) ?? new Set();
+                idSet.add(plant.plantId);
+                this.latest.set(plant.genome, idSet);
+            }
+        });
+    }
+
+    /**
+     * 
+     * @param {string} encodedGenome 
+     * @returns {object | null}
+     */
+    get(encodedGenome) {
+        return {
+            encoded: encodedGenome,
+            genomeSize: encodedGenome.length,
+            geneCount: Genome.decode(encodedGenome).genes.length,
+
+            popCurrent: (this.latest.get(encodedGenome) ?? new Set()).size,
+            popTotal: (this.accum.get(encodedGenome) ?? new Set()).size,
+        };
+    }
+}
+
+const DEFAULT_GENOME_OLD = "a,g,p,p,p>s,dac,dlf,ra|a,g,p,p>s,dac,dah,ra|a,ig,p,p>w,ra|w,p,p>x,y,z|l>z|l,p,p,p,p>x,x,x,x,x,x,y|s>z|a,p,p,p>x,y|l,p,p,p>chlr";
+const DEFAULT_GENOME = "a,g,p,p,p>s,dcl,dlf,ra|a,g,p,p>s,dac,dah,ra|a,ig,p,p>w,ra|w,p,p>x,,z|l>z|l,p,p,p,p>x,x,x,x,x,x,y|se>z|a,p,p,p>x,y|l,p,p,p>chlr";
+
 class Bonsai {
     constructor() {
         this.scene = new THREE.Scene();
@@ -28,6 +75,7 @@ class Bonsai {
         this.selectedPlantId = null;
         this.num_plant_history = [];
         this.energy_history = [];
+        this.genomeTracker = new GenomeTracker();
 
         // 3D view presentation
         this.currProxy = null;
@@ -120,10 +168,17 @@ class Bonsai {
                 plantSelected: false,
                 selectedPlant: {},
 
+                genomeList: [],
+                currentGenome: "",
+
                 cursorMode: CURSOR_MODE_INSPECT,
 
                 showingAbout: false,
                 simInfoText: '',
+            },
+            created: function() {
+                this.genomeList.push(DEFAULT_GENOME);
+                this.currentGenome = DEFAULT_GENOME;
             },
             methods: {
                 onClickToggleChart: function() {
@@ -184,7 +239,6 @@ class Bonsai {
                     };
                 },
 
-
                 onClickInspect: function() {
                     this.cursorMode = CURSOR_MODE_INSPECT;
                 },
@@ -205,8 +259,49 @@ class Bonsai {
                         genome: genome,
                     };
                 },
+
+                onClickCopy: function() {
+                    navigator.clipboard.writeText(this.currentGenome);
+                },
+                onClickPaste: async function() {
+                    const text = await navigator.clipboard.readText();
+                    this._insertGenomeIfNew(text);
+                },
+
+                onClickSave: function() {
+                    this._insertGenomeIfNew(this.selectedPlant.genome.encode());
+                },
+                onClickGenome: function(encodedGenome) {
+                    this.currentGenome = encodedGenome;
+                },
+
+                /**
+                 * @param {string} newGenome 
+                 * @returns true if inserted. false otherwise (i.e. alread exists)
+                 */
+                _insertGenomeIfNew: function(newGenome) {
+                    if (this.genomeList.find(g => g === newGenome) !== undefined) {
+                        return false;
+                    }
+                    this.genomeList.push(newGenome);
+                    return true;
+                },
+
+                currentGenomeDetail: function() {
+                    return app.genomeTracker.get(this.currentGenome) ?? {};
+                },
+                genomeDetailList: function() {
+                    return this.genomeList.map(g => app.genomeTracker.get(g)).filter(detail => detail);
+                },
             },
             computed: {
+                selectedPlantGenomeRegistered: function() {
+                    if (this.selectedPlant === null || this.selectedPlant.genome === undefined) {
+                        return;
+                    }
+                    const genome = this.selectedPlant.genome.encode();
+                    return (this.genomeList.find(g => g === genome) !== undefined);
+                },
                 selectedPlantGenesStyled: function() {
                     function convertSignals(sigs) {
                         return sigs.map(sig => {
@@ -248,6 +343,22 @@ class Bonsai {
             const payload = ev.data.data;
 
             if (msgType === 'init-complete-event') {
+                const stressTest = false;
+                const halfN = stressTest ? 10 : 2;
+                const step = stressTest ? 3 : 5;
+                
+                for (let iy = -halfN; iy <= halfN; iy ++) {
+                    for (let ix = -halfN; ix <= halfN; ix ++) {
+                        this.chunkWorker.postMessage({
+                            type: 'add-plant-req',
+                            data: {
+                                position: {x: 30 + ix * step, y: 30 + iy * step, z: 20},
+                                encodedGenome: DEFAULT_GENOME,
+                            },
+                        });
+                    }
+                }
+                
                 this.chunkWorker.postMessage({
                     type: 'serialize-req'
                 });
@@ -263,6 +374,10 @@ class Bonsai {
                 this.num_plant_history.push(payload['stats']["#plant"]);
                 this.energy_history.push(payload['stats']["energy:stored"]);
                 this.vm.updateGraph();
+
+                this.genomeTracker.notifyLivePlants(payload['plants'].map(plant => {
+                    return {plantId: plant.id, genome: plant.genome};
+                }));
             } else if (msgType === 'step-resp') {
                 this.vm.simInfoText = JSON.stringify(payload, null, 2);
                 this.vm.notifyStepComplete();
@@ -282,7 +397,7 @@ class Bonsai {
             type: 'add-plant-req',
             data: {
                 position: {x: pos.x, y: pos.y, z: pos.z},
-                encodedGenome: new Genome().encode(),
+                encodedGenome: this.vm.currentGenome,
             },
         });
         this.chunkWorker.postMessage({

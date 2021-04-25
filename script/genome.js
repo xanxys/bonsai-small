@@ -116,77 +116,7 @@
 
     class Genome {
         constructor(genes) {
-            this.genes = genes ?? [
-                // Topological
-                {
-                    // Diff: Produce leaf
-                    "when": [
-                        Signal.SHOOT_END, Signal.GROWTH, Signal.HALF, Signal.HALF, Signal.HALF
-                    ],
-                    "emit": [
-                        Signal.SHOOT, Signal.DIFF_SHM, Signal.DIFF_LF,
-                        Signal.REMOVER + Signal.SHOOT_END
-                    ]
-                },
-                {
-                    // Diff: Produce branch
-                    "when": [
-                        Signal.SHOOT_END, Signal.GROWTH, Signal.HALF, Signal.HALF],
-                    "emit": [
-                        Signal.SHOOT, Signal.DIFF_SHM, Signal.DIFF_SHS,
-                        Signal.REMOVER + Signal.SHOOT_END
-                    ]
-                },
-                {
-                    // Diff: Produce flower
-                    "when": [
-                        Signal.SHOOT_END, Signal.INVERT + Signal.GROWTH, Signal.HALF, Signal.HALF],
-                    "emit": [
-                        Signal.FLOWER,
-                        Signal.REMOVER + Signal.SHOOT_END]
-                },
-                // Growth
-                {
-                    // Flower growth
-                    "when": [
-                        Signal.FLOWER, Signal.HALF, Signal.HALF],
-                    "emit": [
-                        Signal.G_DX, Signal.G_DY, Signal.G_DZ]
-                },
-                {
-                    // Leaf elongation
-                    "when": [
-                        Signal.LEAF],
-                    "emit": [
-                        Signal.G_DZ],
-                },
-                {
-                    // Leaf shape adjustment
-                    "when": [
-                        Signal.LEAF, Signal.HALF, Signal.HALF, Signal.HALF, Signal.HALF],
-                    "emit": [
-                        Signal.G_DX, Signal.G_DX, Signal.G_DX, Signal.G_DX, Signal.G_DX, Signal.G_DX, Signal.G_DY]
-                },
-                {
-                    // Shoot (end) elongation
-                    "when": [
-                        Signal.SHOOT],
-                    "emit": [Signal.G_DZ]
-                },
-                {
-                    // Shoot thickening
-                    "when": [
-                        Signal.SHOOT_END, Signal.HALF, Signal.HALF, Signal.HALF],
-                    "emit": [Signal.G_DX, Signal.G_DY]
-                },
-                {
-                    // Chloroplast generation
-                    "when": [
-                        Signal.LEAF, Signal.HALF, Signal.HALF, Signal.HALF],
-                    "emit": [
-                        Signal.CHLOROPLAST]
-                }
-            ];
+            this.genes = genes;
         }
 
         encode() {
@@ -194,8 +124,16 @@
         }
 
         static decode(e) {
-            return new Genome(e.split('|').map(geneEnc => {
-                const [whenEnc, emitEnc] = geneEnc.split('>');
+            if (typeof e !== 'string') {
+                throw 'GenomeFormatError:' + e;
+            }
+            const geneListE = e.split('|');
+            if (e.length === 0) {
+                throw 'GenomeFormatError: no gene: ' + e;
+            }
+            return new Genome(geneListE.map(geneEnc => {
+                const geneElemList = geneEnc.split('>');
+                const [whenEnc, emitEnc] = geneElemList;
                 return {
                     'when': whenEnc.split(','),
                     'emit': emitEnc.split(','),

@@ -546,7 +546,7 @@
         addPlant(pos, genome, energy) {
             const DEFAULT_SEED_ENERGY = Math.pow(20e-3, 3) * 100; // allow 2cm cube for 100T
 
-            const seedPlant = new Plant(pos, this, energy ?? DEFAULT_SEED_ENERGY, genome ?? new Genome(), this.newPlantId);
+            const seedPlant = new Plant(pos, this, energy ?? DEFAULT_SEED_ENERGY, genome, this.newPlantId);
             this.newPlantId += 1;
             this.plants.push(seedPlant);
             return seedPlant;
@@ -831,6 +831,7 @@
             ser['plants'] = this.plants.map(plant => {
                 return {
                     'id': plant.id,
+                    'genome': plant.genome.encode(),
                     'cells': plant.serializeCells(),
                 };
             });
