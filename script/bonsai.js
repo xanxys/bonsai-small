@@ -164,6 +164,7 @@ class Bonsai {
                         },
                     },
                 },
+                showingEnvControl: false,
 
                 plantSelected: false,
                 selectedPlant: {},
@@ -182,7 +183,20 @@ class Bonsai {
             },
             methods: {
                 onClickToggleChart: function() {
-                    this.showingChart = !this.showingChart;
+                    if (this.showingChart) {
+                        this.showingChart = false;
+                    } else {
+                        this.showingEnvControl = false;
+                        this.showingChart = true;
+                    }
+                },
+                onClickToggleEnvControl: function() {
+                    if (this.showingEnvControl) {
+                        this.showingEnvControl = false;
+                    } else {
+                        this.showingChart = false;
+                        this.showingEnvControl = true;
+                    }
                 },
                 onClickAbout: function() {
                     this.showingAbout = !this.showingAbout;

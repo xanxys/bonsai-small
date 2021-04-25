@@ -40,9 +40,28 @@
 			<button class="button-big" v-on:click="onClickToggleChart" v-bind:class="{active: showingChart}" title="Show/hide data history">
 				<img src="ui_asset/show_chart_white_48dp.svg" />
 			</button>
+
+			<button class="button-big" v-on:click="onClickToggleEnvControl" v-bind:class="{active: showingEnvControl}" title="Show/hide environment control">
+				<img src="ui_asset/tune_white_48dp.svg" />
+			</button>
 		</div>
 		<div class="panel panel-v subpanel-simdetail" v-show="showingChart">
 			<line-plot :chart-data="historydata" :options="historyoption" height="200"></line-plot>
+		</div>
+		<div class="panel panel-h subpanel-envcontrol" v-show="showingEnvControl">
+			<section class="w-module module-size-2x">
+				<h1>LIGHT</h1>
+				<div><label>INTENSITY</label><span>6</span></div>
+			</section>
+			
+			<div style="display: flex; flex-direction: row; align-items: center">
+				<button class="button-small" title="Decrease light intensity">
+					<img src="ui_asset/remove_circle_outline_white_48dp.svg" />
+				</button>
+				<button class="button-small" title="Increase light intensity">
+					<img src="ui_asset/add_circle_outline_white_48dp.svg" />
+				</button>
+			</div>
 		</div>
 
 		<div class="panel panel-h mainpanel-mode">
