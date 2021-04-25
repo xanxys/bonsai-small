@@ -158,18 +158,18 @@
 
             // +: photo synthesis
             const efficiency = this._getPhotoSynthesisEfficiency();
-            deltaStatic += this.photons * 1e-6 * efficiency;
+            deltaStatic += this.photons * efficiency;
             this.photons = 0;
 
             // -: basic consumption (stands for common func.)
-            deltaStatic -= 100 * 1e-9;
+            deltaStatic -= 100 * 1e-3;
 
             // -: linear-volume consumption (stands for cell substrate maintainance)
-            const volumeConsumption = 1e-6;
+            const volumeConsumption = 1.0;
             deltaStatic -= this.sx * this.sy * this.sz * volumeConsumption;
 
             if (this.plant.energy < deltaStatic) {
-                this.plant.energy = -1e-3;  // set death flag (TODO: implicit value encoding is bad idea)
+                this.plant.energy = -1000;  // set death flag (TODO: implicit value encoding is bad idea)
             } else {
                 this.power += deltaStatic;
                 this.plant.energy += deltaStatic;
@@ -178,11 +178,10 @@
 
         _getPhotoSynthesisEfficiency() {
             // 1:1/2, 2:3/4, etc...
-            let num_chl = sum(this.signals.map(sig => {
+            const numChlr = sum(this.signals.map(sig => {
                 return (sig === Signal.CHLOROPLAST) ? 1 : 0;
             }));
-
-            return 1 - Math.pow(0.5, num_chl);
+            return 1 - Math.pow(0.5, numChlr);
         }
 
         // return :: ()
@@ -218,7 +217,7 @@
                         return sig.length
                     }));
 
-                    if (_this._withdrawEnergy(num_codon * 1e-10)) {
+                    if (_this._withdrawEnergy(num_codon * 1e-4)) {
                         _this.signals = _this.signals.concat(gene['emit']);
                     }
                 }
@@ -261,7 +260,7 @@
                 // Disperse seed once in a while.
                 // Maybe dead cells with stored energy survives when fallen off.
                 if (Math.random() < 0.01) {
-                    const seedEnergy = _this._withdrawVariableEnergy(Math.pow(20e-3, 3) * 10);
+                    const seedEnergy = _this._withdrawVariableEnergy(80);
                     const seedPosWorld = new THREE.Vector3().applyMatrix4(this.cellToWorld);
                     this.plant.unsafeChunk.addPlant(seedPosWorld, this.plant.genome.naturalClone(), seedEnergy);
                 }
@@ -548,7 +547,7 @@
          * @returns {Plant} added plant
          */
         addPlant(pos, genome, energy) {
-            const DEFAULT_SEED_ENERGY = Math.pow(20e-3, 3) * 100; // allow 2cm cube for 100T
+            const DEFAULT_SEED_ENERGY = 800;
 
             const seedPlant = new Plant(pos, this, energy ?? DEFAULT_SEED_ENERGY, genome, this.newPlantId);
             this.newPlantId += 1;

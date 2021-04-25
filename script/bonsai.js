@@ -167,7 +167,7 @@ class Bonsai {
                 showingEnvControl: false,
 
                 plantSelected: false,
-                selectedPlant: {},
+                selectedPlant: {storedEnergy:0, deltaEnergy:0},
 
                 genomeList: [],
                 currentGenome: "",
