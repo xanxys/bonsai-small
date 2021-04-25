@@ -30,7 +30,7 @@
 
             // biophysics
             this.energy = energy;
-            const seed = new Cell(this, Signal.SHOOT_END, null, seedInnodeToWorld);
+            const seed = new Cell(this, [Signal.SHOOT_END], seedInnodeToWorld, null, null);
             this.cells = [seed];  // flat cells in world coords
 
             // genetics
@@ -82,16 +82,25 @@
         }
     }
 
-    // Cell's local coordinates is symmetric for X,Y, but not Z.
-    // Normally Z is growth direction, assuming loc_to_parent to near to identity.
-    //
+
+    const INITIAL_CELL_SIZE = 0.5;
     //  Power Generation (<- Light):
     //    sum of photosynthesis (LEAF)
     //  Power Consumption:
     //    basic (minimum cell volume equivalent)
     //    linear-volume
+    //
+    // I-node (in-node): where this cell connects with the parent cell or soil. (0, 0, -sz/2)
+    // O-node (out-node): where this cell connects with a children. (0, 0, sz/2)
     class Cell {
-        constructor(plant, initialSignal, parentCell, cellToWorld) {
+        /**
+         * @param {Plant} plant 
+         * @param {Array<string>} initialSignals
+         * @param {THREE.Matrix4} cellToWorld 
+         * @param {Cell | null} parentCell 
+         * @param {THREE.Quaternion | null} parentRot (this i-node -> parent o-node transform)
+         */
+        constructor(plant, initialSignals, cellToWorld, parentCell, parentRot) {
             // tracer
             this.age = 0;
 
@@ -99,18 +108,21 @@
             this.photons = 0;
 
             // in-sim (phys + bio)
-            this.sx = 0.5;
-            this.sy = 0.5;
-            this.sz = 0.5;
+            this.sx = INITIAL_CELL_SIZE;
+            this.sy = INITIAL_CELL_SIZE;
+            this.sz = INITIAL_CELL_SIZE;
             this.cellToWorld = cellToWorld;
+
+            // in-sim (fixed phys)
+            this.parentCell = parentCell;
+            this.parentRot = parentRot;
 
             // in-sim (bio)
             this.plant = plant;
-            this.parentCell = parentCell;
             this.power = 0;
 
             // in-sim (genetics)
-            this.signals = [initialSignal];
+            this.signals = initialSignals;
         }
 
         getMass() {
@@ -176,7 +188,6 @@
 
         // return :: ()
         step() {
-            let _this = this;
             this.age += 1;
             this._beginUsePower();
             this._withdrawStaticEnergy();
@@ -185,8 +196,8 @@
             this.plant.genome.genes.forEach(gene => {
                 if (this._geneExpressionProbability(gene['when']) > Math.random()) {
                     const numCodon = sum(gene['emit'].map(sig => sig.length));
-                    if (_this._withdrawEnergy(numCodon * 1e-4)) {
-                        _this.signals = _this.signals.concat(gene['emit'].filter(s => s !== ''));
+                    if (this._withdrawEnergy(numCodon * 1e-4)) {
+                        this.signals = this.signals.concat(gene['emit'].filter(s => s !== ''));
                     }
                 }
             });
@@ -206,17 +217,20 @@
             });
 
             const newSignals = [];
+
+            const numRotZ = this.signals.filter(s => s === Signal.CR_Z).length;
+            const numRotX = this.signals.filter(s => s === Signal.CR_X).length;
             this.signals.forEach(signal => {
                 if (signal.length === 3 && signal[0] === Signal.DIFF) {
                     if (this._withdrawEnergy(10)) {
-                        _this.addCont(signal[1], signal[2]);
+                        this.addCont(numRotZ, numRotX);
                     }
                 } else if (signal === Signal.G_DX) {
-                    _this.sx = Math.min(5, _this.sx + 0.1);
+                    this.sx = Math.min(5, this.sx + 0.1);
                 } else if (signal === Signal.G_DY) {
-                    _this.sy = Math.min(5, _this.sy + 0.1);
+                    this.sy = Math.min(5, this.sy + 0.1);
                 } else if (signal === Signal.G_DZ) {
-                    _this.sz = Math.min(5, _this.sz + 0.1);
+                    this.sz = Math.min(5, this.sz + 0.1);
                 } else if (removers[signal] !== undefined && removers[signal] > 0) {
                     removers[signal] -= 1;
                 } else {
@@ -230,7 +244,7 @@
                 // Disperse seed once in a while.
                 // Maybe dead cells with stored energy survives when fallen off.
                 if (Math.random() < 0.01) {
-                    const seedEnergy = _this._withdrawVariableEnergy(80);
+                    const seedEnergy = this._withdrawVariableEnergy(80);
                     const seedPosWorld = new THREE.Vector3().applyMatrix4(this.cellToWorld);
                     this.plant.unsafeChunk.addPlant(seedPosWorld, this.plant.genome.naturalClone(), seedEnergy);
                 }
@@ -248,16 +262,6 @@
                 }
             });
             return prob;
-        }
-
-        /**
-         * 
-         * @returns {THREE.Matrix4}
-         */
-        getOutNodeToWorld() {
-            const locToOutnode = new THREE.Matrix4().makeTranslation(0, 0, -this.sz / 2);
-            const outnodeToLoc = new THREE.Matrix4().copy(locToOutnode).invert();
-            return this.cellToWorld.clone().multiply(outnodeToLoc);
         }
 
         computeBtTransform(tf) {
@@ -305,39 +309,29 @@
             this.photons += n;
         }
 
-        // initial :: Signal
-        // locator :: LocatorSignal
-        // return :: ()
-        addCont(initial, locator) {
-            function calcRot(desc) {
-                if (desc === Signal.CONICAL) {
-                    return new THREE.Quaternion().setFromEuler(new THREE.Euler(
-                        Math.random() - 0.5,
-                        Math.random() - 0.5,
-                        0));
-                } else if (desc === Signal.HALF_CONICAL) {
-                    return new THREE.Quaternion().setFromEuler(new THREE.Euler(
-                        (Math.random() - 0.5) * 0.5,
-                        (Math.random() - 0.5) * 0.5,
-                        0));
-                } else if (desc === Signal.FLIP) {
-                    return new THREE.Quaternion().setFromEuler(new THREE.Euler(
-                        -Math.PI / 2,
-                        0,
-                        0));
-                } else if (desc === Signal.TWIST) {
-                    return new THREE.Quaternion().setFromEuler(new THREE.Euler(
-                        0,
-                        0,
-                        (Math.random() - 0.5) * 1));
-                } else {
-                    return new THREE.Quaternion();
-                }
-            }
+        /**
+         * @param {string} initial: initial signal
+         */
+        addCont(numRotZ, numRotX) {
+            // child-i -> self-o
+            const rotQ = new THREE.Quaternion().setFromEuler(new THREE.Euler(
+                Math.min(numRotZ / 16, 1) * Math.PI,
+                0,
+                Math.min(numRotX / 16, 1) * Math.PI,
+                'ZYX'));
 
-            const newcellToOutnode = new THREE.Matrix4().makeRotationFromQuaternion(calcRot(locator));
-            const newcellToWorld = this.getOutNodeToWorld().multiply(newcellToOutnode);
-            const newCell = new Cell(this.plant, initial, this, newcellToWorld);
+            const c2ci = new THREE.Matrix4().makeTranslation(0, 0, -INITIAL_CELL_SIZE / 2);
+            const ci2so = new THREE.Matrix4().makeRotationFromQuaternion(rotQ);
+            const so2s = new THREE.Matrix4().makeTranslation(0, 0, this.sz / 2);
+            const s2w = this.cellToWorld;
+
+            const c2w = new THREE.Matrix4();
+            c2w.premultiply(c2ci);
+            c2w.premultiply(ci2so);
+            c2w.premultiply(so2s);
+            c2w.premultiply(s2w);
+
+            const newCell = new Cell(this.plant, [], c2w, this, rotQ);
             this.plant.cells.push(newCell);            
         }
     }
@@ -667,6 +661,9 @@
                             parentRb = this.indexToRigidBody.get(this.cellToIndex.get(cell.parentCell));
                             tfParent.setIdentity();
                             tfParent.getOrigin().setValue(0, 0, cell.parentCell.sz / 2);
+                            const q = new Ammo.btQuaternion(cell.parentRot.x, cell.parentRot.y, cell.parentRot.z, cell.parentRot.w);
+                            tfParent.setRotation(q);
+                            Ammo.destroy(q);
                         }
 
                         // Add constraint.
@@ -696,6 +693,9 @@
                         // cell-parent cell link
                         tfParent.setIdentity();
                         tfParent.getOrigin().setValue(0, 0, cell.parentCell.sz / 2);
+                        const q = new Ammo.btQuaternion(cell.parentRot.x, cell.parentRot.y, cell.parentRot.z, cell.parentRot.w);
+                        tfParent.setRotation(q);
+                        Ammo.destroy(q);
                         constraint.setFrames(tfCell, tfParent);
                     }
                 }

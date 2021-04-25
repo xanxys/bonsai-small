@@ -11,23 +11,16 @@
         G_DX: 'x',
         G_DY: 'y',
         G_DZ: 'z',
-        DIFF: 'd', // compound: d12 (1:initial signal 2:locator)
-        REMOVER: 'r',  // compound: r[1] ([1]: signal to be removed)
+        DIFF: 'd', // replicate cell
+        REMOVER: 'r',  // compound: r[1...] ([1...]: signal to be removed)
 
-        // Positional modifiers.
-        CONICAL: 'c',
-        HALF_CONICAL: 'h',
-        FLIP: 'f',
-        TWIST: 't',
+        // Sell replication modifiers.
+        CR_Z: 't',
+        CR_X: 's',
 
         // Cell types.
         SHOOT_END: 'a',
         FLOWER: 'w',
-
-        // Compounds
-        DIFF_SHM: 'dac',
-        DIFF_SHS: 'dah',
-        DIFF_LF: 'dlf',
     };
 
     function parseIntrinsicSignal(sig) {
@@ -38,6 +31,7 @@
 
         const signalsSimple = [
             Signal.HALF, Signal.CHLOROPLAST,
+            Signal.CR_Z, Signal.CR_X,
             Signal.G_DX, Signal.G_DY, Signal.G_DZ];
 
         const signalsStandard = [
