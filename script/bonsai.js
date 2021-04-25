@@ -56,7 +56,7 @@ class GenomeTracker {
     }
 }
 
-const DEFAULT_GENOME = "a,gnh,p,p,p>dvcl,dlf,r|g,pdl,p,p,p,p,p>s,dac,ra|a,ig,p>w,rwa|>x,x|l>z|s>|a,pf,p,p>x|p>chlr";
+const DEFAULT_GENOME = "a,q,p,p,p>r|g,q,p,p,p,p,p>s,dac,ra|a,ig,p>w|>x,x|l>z|s>|a,pf,p,p>x|p>chlr";
 
 class Bonsai {
     constructor() {
@@ -329,18 +329,13 @@ class Bonsai {
                     return (this.genomeList.find(g => g === genome) !== undefined);
                 },
                 selectedPlantGenesStyled: function() {
+                    const intrinsicSigs = new Set(Object.values(Signal));
                     function convertSignals(sigs) {
                         return sigs.map(sig => {
-                            const desc = parseIntrinsicSignal(sig);
-            
-                            const classObj = {};
-                            classObj['ct-' + desc.type] = true;
-            
-                            const role = desc.long === '' ? ' ' : desc.long;
+                            const isIntrinsic = intrinsicSigs.has(sig);
                             return {
-                                seq: desc.raw,
-                                classObj: classObj,
-                                role: role,
+                                seq: sig,
+                                isIntrinsic: isIntrinsic,
                             };
                         });
                     }

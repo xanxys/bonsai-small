@@ -23,83 +23,6 @@
         FLOWER: 'w',
     };
 
-    function parseIntrinsicSignal(sig) {
-        const invTable = {};
-        for (const [name, signal] of Object.entries(Signal)) {
-            invTable[signal] = name;
-        }
-
-        const signalsSimple = [
-            Signal.HALF, Signal.CHLOROPLAST,
-            Signal.CR_Z, Signal.CR_X,
-            Signal.G_DX, Signal.G_DY, Signal.G_DZ];
-
-        const signalsStandard = [
-            Signal.SHOOT_END, Signal.FLOWER];
-
-        if (signalsSimple.includes(sig)) {
-            return {
-                long: invTable[sig],
-                raw: sig,
-                type: 'intrinsic'
-            };
-        } else if (signalsStandard.includes(sig)) {
-            return {
-                long: invTable[sig],
-                raw: sig,
-                type: 'standard'
-            };
-        } else if (sig[0] === Signal.DIFF) {
-            if (sig.length === 3) {
-                return {
-                    long: 'DIFF(' + sig[1] + ',' + sig[2] + ')',
-                    raw: sig,
-                    type: 'compound'
-                };
-            } else {
-                return {
-                    long: 'DIFF(?)',
-                    raw: sig,
-                    type: 'unknown'
-                };
-            }
-        } else if (sig[0] === Signal.INVERT) {
-            if (sig.length >= 2) {
-                return {
-                    long: '!' + sig.substr(1),
-                    raw: sig,
-                    type: 'compound'
-                };
-            } else {
-                return {
-                    long: '!',
-                    raw: sig,
-                    type: 'unknown'
-                };
-            }
-        } else if (sig[0] === Signal.REMOVER) {
-            if (sig.length >= 2) {
-                return {
-                    long: 'DEL(' + sig.substr(1) + ')',
-                    raw: sig,
-                    type: 'compound'
-                };
-            } else {
-                return {
-                    long: 'DEL',
-                    raw: sig,
-                    type: 'unknown'
-                };
-            }
-        } else {
-            return {
-                long: '',
-                raw: sig,
-                type: 'unknown'
-            };
-        }
-    }
-
     class Genome {
         constructor(genes) {
             this.genes = genes;
@@ -195,7 +118,6 @@
     }
 
     this.Genome = Genome;
-    this.parseIntrinsicSignal = parseIntrinsicSignal;
     this.Signal = Signal;
 
 })(this);

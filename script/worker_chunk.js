@@ -196,7 +196,7 @@
             this.plant.genome.genes.forEach(gene => {
                 if (this._geneExpressionProbability(gene['when']) > Math.random()) {
                     const numCodon = sum(gene['emit'].map(sig => sig.length));
-                    if (this._withdrawEnergy(numCodon * 1e-4)) {
+                    if (this._withdrawEnergy(numCodon * 1e-2)) {
                         this.signals = this.signals.concat(gene['emit'].filter(s => s !== ''));
                     }
                 }
@@ -222,7 +222,7 @@
             const numRotX = this.signals.filter(s => s === Signal.CR_X).length;
             this.signals.forEach(signal => {
                 if (signal.length === 3 && signal[0] === Signal.DIFF) {
-                    if (this._withdrawEnergy(10)) {
+                    if (this._withdrawEnergy(10 + this.plant.genome.encode().length * 1e-2)) {
                         this.addCont(numRotZ, numRotX);
                     }
                 } else if (signal === Signal.G_DX) {
