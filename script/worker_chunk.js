@@ -30,7 +30,7 @@
 
             // biophysics
             this.energy = energy;
-            const seed = new Cell(this, [Signal.SHOOT_END], seedInnodeToWorld, null, null);
+            const seed = new Cell(this, [Signal.SHOOT_END], seedInnodeToWorld, new THREE.Quaternion(), null);
             this.cells = [seed];  // flat cells in world coords
 
             // genetics
@@ -97,10 +97,10 @@
          * @param {Plant} plant 
          * @param {Array<string>} initialSignals
          * @param {THREE.Matrix4} cellToWorld 
+         * @param {THREE.Quaternion | null} parentRot (this i-node -> (parent o-node | soil) transform)
          * @param {Cell | null} parentCell 
-         * @param {THREE.Quaternion | null} parentRot (this i-node -> parent o-node transform)
          */
-        constructor(plant, initialSignals, cellToWorld, parentCell, parentRot) {
+        constructor(plant, initialSignals, cellToWorld, parentRot, parentCell) {
             // tracer
             this.age = 0;
 
@@ -331,7 +331,7 @@
             c2w.premultiply(so2s);
             c2w.premultiply(s2w);
 
-            const newCell = new Cell(this.plant, [], c2w, this, rotQ);
+            const newCell = new Cell(this.plant, [], c2w, rotQ, this);
             this.plant.cells.push(newCell);            
         }
     }
@@ -654,6 +654,9 @@
                             const cellPosLoc = parentRb.getCenterOfMassTransform().invXform(cellPosWorld);
                             tfParent.setIdentity();
                             tfParent.setOrigin(cellPosLoc);
+                            const q = new Ammo.btQuaternion(cell.parentRot.x, cell.parentRot.y, cell.parentRot.z, cell.parentRot.w);
+                            tfParent.setRotation(q);
+                            Ammo.destroy(q);
                             Ammo.destroy(cellPosWorld);
                             Ammo.destroy(cellPosLoc);
                         } else {
@@ -787,12 +790,23 @@
 
                 const i0 = collision.getBody0().getUserIndex();
                 const i1 = collision.getBody1().getUserIndex();
+
+                let [soilIx, cellIx] = [null, null];
                 if (this.soilIndices.has(i0)) {
-                    this.indexToCell.get(i1).plant.rooted = true;
-                    this.cellIndexToSoilIndex.set(i1, i0);
+                    [soilIx, cellIx] = [i0, i1];
                 } else if (this.soilIndices.has(i1)) {
-                    this.indexToCell.get(i0).plant.rooted = true;
-                    this.cellIndexToSoilIndex.set(i0, i1);
+                    [soilIx, cellIx] = [i1, i0];
+                }
+
+                if (soilIx !== null) {
+                    this.indexToCell.get(cellIx).plant.rooted = true;
+                    const seedCell = this.indexToCell.get(cellIx).plant.cells[0];
+
+                    const q = new THREE.Quaternion();
+                    seedCell.cellToWorld.decompose(new THREE.Vector3(), q, new THREE.Vector3());
+                    seedCell.parentRot = q;
+
+                    this.cellIndexToSoilIndex.set(cellIx, soilIx);
                 }
             }
         }
