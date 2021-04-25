@@ -55,13 +55,6 @@
             }
         }
 
-        // Approximates lifetime of the plant.
-        // Max growth=1, zero growth=0.
-        // return :: [0,1]
-        growthFactor() {
-            return Math.exp(-this.age / 20);
-        }
-
         serializeCells() {
             return this.cells.map(cell => {
                 return {
@@ -215,7 +208,9 @@
             const newSignals = [];
             this.signals.forEach(signal => {
                 if (signal.length === 3 && signal[0] === Signal.DIFF) {
-                    _this.addCont(signal[1], signal[2]);
+                    if (this._withdrawEnergy(10)) {
+                        _this.addCont(signal[1], signal[2]);
+                    }
                 } else if (signal === Signal.G_DX) {
                     _this.sx = Math.min(5, _this.sx + 0.1);
                 } else if (signal === Signal.G_DY) {
@@ -245,9 +240,7 @@
         _geneExpressionProbability(when) {
             let prob = 1;
             when.forEach(signal => {
-                if (signal === Signal.GROWTH) {
-                    prob *= this.plant.growthFactor();
-                } else if (signal === Signal.INVERT) {
+                if (signal === Signal.INVERT) {
                     prob = 1 - prob;
                 } else {
                     const numMatches = this.signals.filter(s => s === signal);

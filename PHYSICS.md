@@ -30,9 +30,6 @@ multiplying concentration of each signal.
 
 Some signals have special builtin meanings:
 
-* `g`: growth factor determined by plant age
-* `iα`: 1 - probability of α
-* `p`: multiply 0.5
 * `dαβ`: produce new cell containing signal α in direction β
 * `rα`: delete signal α
 * `chlr`: act as chloroplast

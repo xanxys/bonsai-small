@@ -3,9 +3,6 @@
     // protein: carrier of information and matter.
     // Codon, amino acids: Roman character
     const Signal = {
-        // Intrinsic signals.
-        GROWTH: 'g',
-
         // Transcription modifiers.
         INVERT: 'i',
 
@@ -24,8 +21,6 @@
         TWIST: 't',
 
         // Cell types.
-        LEAF: 'l',
-        SHOOT: 's',
         SHOOT_END: 'a',
         FLOWER: 'w',
 
@@ -42,13 +37,11 @@
         }
 
         const signalsSimple = [
-            Signal.GROWTH,
             Signal.HALF, Signal.CHLOROPLAST,
             Signal.G_DX, Signal.G_DY, Signal.G_DZ];
 
         const signalsStandard = [
-            Signal.LEAF,
-            Signal.SHOOT, Signal.SHOOT_END, Signal.FLOWER];
+            Signal.SHOOT_END, Signal.FLOWER];
 
         if (signalsSimple.includes(sig)) {
             return {
