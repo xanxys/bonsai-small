@@ -260,7 +260,7 @@ class Bonsai {
                 },
 
                 onClickCopy: function() {
-                    navigator.clipboard.writeText(this.currentGenome.encoded);
+                    navigator.clipboard.writeText(this.currentGenome);
                 },
                 onClickPaste: async function() {
                     const text = await navigator.clipboard.readText();
