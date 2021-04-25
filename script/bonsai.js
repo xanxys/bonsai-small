@@ -56,6 +56,7 @@ class GenomeTracker {
     }
 }
 
+const DEFAULT_GENOME = "a,g,p,p,p>s,dac,dlf,ra|a,g,p,p>s,dac,dah,ra|a,ig,p,p>w,ra|w,p,p>x,y,z|l>z|l,p,p,p,p>x,x,x,x,x,x,y|s>z|a,p,p,p>x,y|l,p,p,p>chlr";
 
 class Bonsai {
     constructor() {
@@ -175,10 +176,8 @@ class Bonsai {
                 simInfoText: '',
             },
             created: function() {
-                const defaultGenome = "a,g,p,p,p>s,dac,dlf,ra|a,g,p,p>s,dac,dah,ra|a,ig,p,p>w,ra|w,p,p>x,y,z|l>z|l,p,p,p,p>x,x,x,x,x,x,y|s>z|a,p,p,p>x,y|l,p,p,p>chlr";
-
-                this.genomeList.push(defaultGenome);
-                this.currentGenome = defaultGenome;
+                this.genomeList.push(DEFAULT_GENOME);
+                this.currentGenome = DEFAULT_GENOME;
             },
             methods: {
                 onClickToggleChart: function() {
@@ -238,7 +237,6 @@ class Bonsai {
                         ]
                     };
                 },
-
 
                 onClickInspect: function() {
                     this.cursorMode = CURSOR_MODE_INSPECT;
@@ -344,6 +342,22 @@ class Bonsai {
             const payload = ev.data.data;
 
             if (msgType === 'init-complete-event') {
+                const stressTest = false;
+                const halfN = stressTest ? 10 : 2;
+                const step = stressTest ? 3 : 5;
+                
+                for (let iy = -halfN; iy <= halfN; iy ++) {
+                    for (let ix = -halfN; ix <= halfN; ix ++) {
+                        this.chunkWorker.postMessage({
+                            type: 'add-plant-req',
+                            data: {
+                                position: {x: 30 + ix * step, y: 30 + iy * step, z: 20},
+                                encodedGenome: DEFAULT_GENOME,
+                            },
+                        });
+                    }
+                }
+                
                 this.chunkWorker.postMessage({
                     type: 'serialize-req'
                 });

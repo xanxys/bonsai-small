@@ -7,24 +7,6 @@ function startChunkWorker(Ammo) {
     setChunkAmmo(Ammo);
     const chunk = new Chunk();
 
-    // Should be moved to bonsai.js
-    let stressTest = false;
-    if (!stressTest) {
-        for (let iy = -2; iy <= 2; iy ++) {
-            for (let ix = -2; ix <= 2; ix ++) {
-                this.current_plant = chunk.addPlant(
-                    new THREE.Vector3(30 + ix * 5, 30 + iy * 5, 20));
-            }
-        }
-    } else {
-        for (let iy = -10; iy <= 10; iy ++) {
-            for (let ix = -10; ix <= 10; ix ++) {
-                this.current_plant = chunk.addPlant(
-                    new THREE.Vector3(ix * 3, iy * 3, 20));
-            }
-        }
-    }
-
     self.addEventListener('message', ev => {
         const msgType = ev.data.type;
         const payload = ev.data.data;
