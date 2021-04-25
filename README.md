@@ -3,40 +3,24 @@
 
 Try at https://xanxys.github.io/bonsai-small.
 
-## Model Overview
+## Overview
 ![Screenvideo](/summary.gif)
 
-In bonsai world, plants are composed of "cells". A plant consists of interconnected "cells", where each cell is a cuboid.
-Bonsai tries to differ from existing evolution simulator in two main points: genotype-phenotype distinction & rich environment.
+Bonsai world consits of cells and genomes that controls internal signals, growth, self-reproduction.
+Light is the sole energy for cells, and they compete for the resource in a randomly generated terrain.
 
-First, in bonsai, cell growth & division & differentiation are dictated by "genome", which means it has
-genotype-phenotype distinction, and simulates embryogenesis.
-In a sense, it can be thought of extension of L-system, dynamically controlled by environment & internal biochemstry,
-albeit simplified one.
+The project's ultimate goal is to achieve open-ended life simulation.
 
-The other point, richer environment, is pretty straightforward but somehow lacking in lots of existing systems.
-I know even two-type predator-prey ecosystem can show chaotic behavior, but they're too artificial.
-What I want to see is, different niches emerging from mutation of single genome, and eventually co-existing.
-I firmly believe complex enough physics is necessary, but I want to verify it with this simulator.
+We're trying gradual approach.
+
+1. Create an initial system with very structure/complex physics, in which plants are guaranteed to evolve with simple human-desgined genome.
+2. Repeat these until satisfied:
+    1. Replace a part of physicsl rule with genome data. Hand-design and give extra energy source.
+    2. Evolve the genome to fit the new physics by gradually reducing energy.
+3. Very simple physics & initial genome (too intricate to human-design), open-ended evolution potential.
 
 
-Currently simulated aspects are:
-
-* Rigid-body based "cell" simulation (using ammo.js)
-* Light (simplified ray tracing)
-* Fake biochemistry based on "signals"
-* Fake genetics ("promoter" - "signal generation")
-
-What I want to confirm / expect to see with this project:
-* Formation of ecological niches
-* Emergence of creative usage of physics
-
-See https://github.com/xanxys/bonsai-small/PHYSICS.md for details.
-
-## Plans
-
-* genome pool in cloud (maybe firebase)
-
+See https://github.com/xanxys/bonsai-small/PHYSICS.md for physics model details.
 
 ## Compilation
 
