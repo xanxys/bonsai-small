@@ -188,31 +188,12 @@
             this._beginUsePower();
             this._withdrawStaticEnergy();
 
-            // Unified genome.
-            function genes_calc_prob_term(signal) {
-                if (signal === Signal.HALF) {
-                    return 0.5;
-                } else if (signal === Signal.GROWTH) {
-                    return _this.plant.growthFactor();
-                } else if (signal.length >= 2 && signal[0] === Signal.INVERT) {
-                    return 1 - genes_calc_prob_term(signal.substr(1));
-                } else if (_this.signals.includes(signal)) {
-                    return 1;
-                } else {
-                    return 0.001;
-                }
-            }
-
-            function geneCalcProb(when) {
-                return product(when.map(genes_calc_prob_term));
-            }
-
             // Gene expression and transcription.
             this.plant.genome.genes.forEach(gene => {
-                if (geneCalcProb(gene['when']) > Math.random()) {
+                if (this._geneExpressionProbability(gene['when']) > Math.random()) {
                     const numCodon = sum(gene['emit'].map(sig => sig.length));
                     if (_this._withdrawEnergy(numCodon * 1e-4)) {
-                        _this.signals = _this.signals.concat(gene['emit']);
+                        _this.signals = _this.signals.concat(gene['emit'].filter(s => s !== ''));
                     }
                 }
             });
@@ -259,6 +240,21 @@
                     this.plant.unsafeChunk.addPlant(seedPosWorld, this.plant.genome.naturalClone(), seedEnergy);
                 }
             }
+        }
+
+        _geneExpressionProbability(when) {
+            let prob = 1;
+            when.forEach(signal => {
+                if (signal === Signal.GROWTH) {
+                    prob *= this.plant.growthFactor();
+                } else if (signal === Signal.INVERT) {
+                    prob = 1 - prob;
+                } else {
+                    const numMatches = this.signals.filter(s => s === signal);
+                    prob *= 0.5 + 0.5 * (1 - Math.pow(0.8, numMatches)); // 0.5, 0.6, 0.7, ...
+                }
+            });
+            return prob;
         }
 
         /**

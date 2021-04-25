@@ -7,7 +7,6 @@
         GROWTH: 'g',
 
         // Transcription modifiers.
-        HALF: 'p',
         INVERT: 'i',
 
         // Intrisinc functionals.
@@ -162,11 +161,11 @@
             gene["when"] = this._shuffle(
                 geneOld["when"],
                 sig => this._naturalCloneSignal(sig),
-                sig => this._naturalCloneSignal(sig));
+                sig => this._naturalCloneSignal(sig)).filter(s => s !== '');
             gene["emit"] = this._shuffle(
                 geneOld["emit"],
                 sig => this._naturalCloneSignal(sig),
-                sig => this._naturalCloneSignal(sig));
+                sig => this._naturalCloneSignal(sig)).filter(s => s !== '');
             return gene;
         }
 
