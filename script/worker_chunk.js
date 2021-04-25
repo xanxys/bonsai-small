@@ -30,7 +30,7 @@
 
             // biophysics
             this.energy = energy;
-            const seed = new Cell(this, [Signal.SHOOT_END], seedInnodeToWorld, new THREE.Quaternion(), null);
+            const seed = new Cell(this, new Map([[Signal.SHOOT_END, 1]]), seedInnodeToWorld, new THREE.Quaternion(), null);
             this.cells = [seed];  // flat cells in world coords
 
             // genetics
@@ -95,7 +95,7 @@
     class Cell {
         /**
          * @param {Plant} plant 
-         * @param {Array<string>} initialSignals
+         * @param {Map<string, number>} initialSignals
          * @param {THREE.Matrix4} cellToWorld 
          * @param {THREE.Quaternion | null} parentRot (this i-node -> (parent o-node | soil) transform)
          * @param {Cell | null} parentCell 
@@ -180,9 +180,7 @@
 
         _getPhotoSynthesisEfficiency() {
             // 0:0, 1:0.2, 2:0.36, 3:0.49, ...
-            const numChlr = sum(this.signals.map(sig => {
-                return (sig === Signal.CHLOROPLAST) ? 1 : 0;
-            }));
+            const numChlr = this.signals.get(Signal.CHLOROPLAST) ?? 0;
             return 1 - Math.pow(0.8, numChlr);
         }
 
@@ -197,50 +195,57 @@
                 if (this._geneExpressionProbability(gene['when']) > Math.random()) {
                     const numCodon = sum(gene['emit'].map(sig => sig.length));
                     if (this._withdrawEnergy(numCodon * 1e-2)) {
-                        this.signals = this.signals.concat(gene['emit'].filter(s => s !== ''));
+                        gene['emit'].forEach(sig => {
+                            this.signals.set(sig, (this.signals.get(sig) ?? 0) + 1);
+                        });
                     }
                 }
             });
 
             // Bio-physics.
             // TODO: define remover semantics.
-            const removers = {};
-            this.signals.forEach(signal => {
+            const removers = new Map();
+            this.signals.forEach((num, signal) => {
                 if (signal.length >= 2 && signal[0] === Signal.REMOVER) {
-                    let rm = signal.substr(1);
-                    if (removers[rm] !== undefined) {
-                        removers[rm] += 1;
-                    } else {
-                        removers[rm] = 1;
-                    }
+                    removers.set(signal.substr(1), num);
+                }
+            });
+            removers.forEach((num, sig) => {
+                if (this.signals.has(sig)) {
+                    const numMatches = Math.min(num, this.signals.get(sig));
+                    
+                    this.signals.set(sig, this.signals.get(sig) - numMatches);
+                    this.signals.set(Signal.REMOVER + sig, num - numMatches);
                 }
             });
 
-            const newSignals = [];
 
-            const numRotZ = this.signals.filter(s => s === Signal.CR_Z).length;
-            const numRotX = this.signals.filter(s => s === Signal.CR_X).length;
-            this.signals.forEach(signal => {
-                if (signal.length === 3 && signal[0] === Signal.DIFF) {
-                    if (this._withdrawEnergy(10 + this.plant.genome.encode().length * 1e-2)) {
-                        this.addCont(numRotZ, numRotX);
+            const newSignals = new Map();
+
+            const numRotZ = this.signals.get(Signal.CR_Z) ?? 0;
+            const numRotX = this.signals.get(Signal.CR_X) ?? 0;
+            this.signals.forEach((num, signal) => {
+                for (let i = 0; i < num; i++) {
+                    if (signal.length === 3 && signal[0] === Signal.DIFF) {
+                        if (this._withdrawEnergy(10 + this.plant.genome.encode().length * 1e-2)) {
+                            this.addCont(numRotZ, numRotX);
+                        }
+                    } else if (signal === Signal.G_DX) {
+                        this.sx = Math.min(5, this.sx + 0.1);
+                    } else if (signal === Signal.G_DY) {
+                        this.sy = Math.min(5, this.sy + 0.1);
+                    } else if (signal === Signal.G_DZ) {
+                        this.sz = Math.min(5, this.sz + 0.1);
+                    } else {
+                        newSignals.set(signal, (newSignals.get(signal) ?? 0) + 1);
                     }
-                } else if (signal === Signal.G_DX) {
-                    this.sx = Math.min(5, this.sx + 0.1);
-                } else if (signal === Signal.G_DY) {
-                    this.sy = Math.min(5, this.sy + 0.1);
-                } else if (signal === Signal.G_DZ) {
-                    this.sz = Math.min(5, this.sz + 0.1);
-                } else if (removers[signal] !== undefined && removers[signal] > 0) {
-                    removers[signal] -= 1;
-                } else {
-                    newSignals.push(signal);
                 }
             });
             this.signals = newSignals;
+            this.signals.delete('');
 
             // Physics
-            if (this.signals.includes(Signal.FLOWER)) {
+            if (this.signals.has(Signal.FLOWER)) {
                 // Disperse seed once in a while.
                 // Maybe dead cells with stored energy survives when fallen off.
                 if (Math.random() < 0.01) {
@@ -257,7 +262,7 @@
                 if (signal === Signal.INVERT) {
                     prob = 1 - prob;
                 } else {
-                    const numMatches = this.signals.filter(s => s === signal);
+                    const numMatches = this.signals.get(signal) ?? 0;
                     prob *= 0.5 + 0.5 * (1 - Math.pow(0.8, numMatches)); // 0.5, 0.6, 0.7, ...
                 }
             });
@@ -286,7 +291,7 @@
 
         getCellColor() {
             // Create cell object [-sx/2,sx/2] * [-sy/2,sy/2] * [0, sz]
-            let flrRatio = (this.signals.includes(Signal.FLOWER)) ? 0.5 : 1;
+            let flrRatio = (this.signals.has(Signal.FLOWER)) ? 0.5 : 1;
             let chlRatio = 1 - this._getPhotoSynthesisEfficiency();
 
             const colorDiffuse = new THREE.Color();
@@ -331,7 +336,7 @@
             c2w.premultiply(so2s);
             c2w.premultiply(s2w);
 
-            const newCell = new Cell(this.plant, [], c2w, rotQ, this);
+            const newCell = new Cell(this.plant, new Map(), c2w, rotQ, this);
             this.plant.cells.push(newCell);            
         }
     }

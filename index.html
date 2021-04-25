@@ -121,7 +121,7 @@
 				<div style="overflow-y: scroll; height: 72px">
 					<table class="signals" >
 						<tr v-for="cellStat in selectedPlant.cells">
-							<td>{{cellStat}}</td>
+							<td v-for="pair in cellStat.entries()">{{pair[0]}}:{{pair[1]}}</td>
 						</tr>
 					</table>
 				</div>

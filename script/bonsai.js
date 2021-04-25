@@ -281,7 +281,7 @@ class Bonsai {
                         deltaEnergy: stat['energy:delta'],
                         genomeSize: stat.genome.length,
                         numGenes: genome.genes.length,
-                        cells: stat['cells'].map(cellStat => JSON.stringify(cellStat, null, 0)),
+                        cells: stat['cells'],
                         genome: genome,
                     };
                 },
@@ -405,6 +405,7 @@ class Bonsai {
                 this.vm.simInfoText = JSON.stringify(payload, null, 2);
                 this.vm.notifyStepComplete();
             } else if (msgType === 'inspect-plant-resp') {
+                console.log(payload);
                 if (payload.stat !== null) {
                     this.vm.updatePlantView(payload.id, payload.stat);
                 }
