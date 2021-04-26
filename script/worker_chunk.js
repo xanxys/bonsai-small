@@ -662,7 +662,7 @@
                             // soil
                             parentRb = this.indexToRigidBody.get(this.cellIndexToSoilIndex.get(cellIndex));
                             
-                            const cellPos = new THREE.Vector3().applyMatrix4(cell.cellToWorld);
+                            const cellPos = new THREE.Vector3(0, 0, -cell.sz / 2).applyMatrix4(cell.cellToWorld);
                             const cellPosWorld = new Ammo.btVector3(cellPos.x, cellPos.y, cellPos.z);
                             const cellPosLoc = parentRb.getCenterOfMassTransform().invXform(cellPosWorld);
                             tfParent.setIdentity();
