@@ -56,8 +56,7 @@ class GenomeTracker {
     }
 }
 
-const DEFAULT_GENOME_OLD = "a,g,p,p,p>s,dac,dlf,ra|a,g,p,p>s,dac,dah,ra|a,ig,p,p>w,ra|w,p,p>x,y,z|l>z|l,p,p,p,p>x,x,x,x,x,x,y|s>z|a,p,p,p>x,y|l,p,p,p>chlr";
-const DEFAULT_GENOME = "a,g,p,p,p>s,dcl,dlf,ra|a,g,p,p>s,dac,dah,ra|a,ig,p,p>w,ra|w,p,p>x,,z|l>z|l,p,p,p,p>x,x,x,x,x,x,y|se>z|a,p,p,p>x,y|l,p,p,p>chlr";
+const DEFAULT_GENOME = "vvv>cgzs|gi>dhst|ghg>wsz";
 
 class Bonsai {
     constructor() {
@@ -165,7 +164,10 @@ class Bonsai {
                     },
                 },
                 showingEnvControl: false,
+                lightMultiplier: 4,
                 lightIntensity: 0,
+
+                multiplierReductionNextAvail: 0,
 
                 plantSelected: false,
                 selectedPlant: {storedEnergy:0, deltaEnergy:0},
@@ -206,10 +208,10 @@ class Bonsai {
                     }
                 },
                 onClickDecreaseLight: function() {
-                    app.requestSetLightIntensity(Math.max(0, this.lightIntensity - 1));
+                    app.requestSetLightMultiplier(Math.max(0, this.lightMultiplier - 1));
                 },
                 onClickIncreaseLight: function() {
-                    app.requestSetLightIntensity(Math.min(25, this.lightIntensity + 1));
+                    app.requestSetLightMultiplier(Math.min(10, this.lightMultiplier + 1));
                 },
                 onClickAbout: function() {
                     this.showingAbout = !this.showingAbout;
@@ -282,7 +284,7 @@ class Bonsai {
                         deltaEnergy: stat['energy:delta'],
                         genomeSize: stat.genome.length,
                         numGenes: genome.genes.length,
-                        cells: stat['cells'].map(cellStat => JSON.stringify(cellStat, null, 0)),
+                        cells: stat['cells'],
                         genome: genome,
                     };
                 },
@@ -330,18 +332,13 @@ class Bonsai {
                     return (this.genomeList.find(g => g === genome) !== undefined);
                 },
                 selectedPlantGenesStyled: function() {
+                    const intrinsicSigs = new Set(Object.values(Signal));
                     function convertSignals(sigs) {
                         return sigs.map(sig => {
-                            const desc = parseIntrinsicSignal(sig);
-            
-                            const classObj = {};
-                            classObj['ct-' + desc.type] = true;
-            
-                            const role = desc.long === '' ? ' ' : desc.long;
+                            const isIntrinsic = intrinsicSigs.has(sig);
                             return {
-                                seq: desc.raw,
-                                classObj: classObj,
-                                role: role,
+                                seq: sig,
+                                isIntrinsic: isIntrinsic,
                             };
                         });
                     }
@@ -407,6 +404,13 @@ class Bonsai {
                 this.genomeTracker.notifyLivePlants(payload['plants'].map(plant => {
                     return {plantId: plant.id, genome: plant.genome};
                 }));
+
+                // meta control to reduce CPU
+                if (this.vm.numCells > 10000 && this.vm.age >= this.vm.multiplierReductionNextAvail) {
+                    this.vm.onClickDecreaseLight();
+                    this.vm.multiplierReductionNextAvail = this.vm.age + 1000;
+                    console.log("Light multiplier reduced by 1 to control population: cooldown until time=", this.vm.multiplierReductionNextAvail);
+                }
             } else if (msgType === 'step-resp') {
                 this.vm.simInfoText = JSON.stringify(payload, null, 2);
                 this.vm.notifyStepComplete();
@@ -434,11 +438,11 @@ class Bonsai {
         });
     }
 
-    requestSetLightIntensity(lightIntensity) {
+    requestSetLightMultiplier(lightMultiplier) {
         this.chunkWorker.postMessage({
             type: 'set-env-req',
             data: {
-                light: lightIntensity,
+                light: lightMultiplier,
             },
         });
         this.chunkWorker.postMessage({

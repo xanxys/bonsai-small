@@ -3,116 +3,22 @@
     // protein: carrier of information and matter.
     // Codon, amino acids: Roman character
     const Signal = {
-        // Intrinsic signals.
-        GROWTH: 'g',
-
         // Transcription modifiers.
-        HALF: 'p',
         INVERT: 'i',
 
         // Intrisinc functionals.
-        CHLOROPLAST: 'chlr',
+        CHLOROPLAST: 'c',
+        FLOWER: 'w',
         G_DX: 'x',
         G_DY: 'y',
         G_DZ: 'z',
-        DIFF: 'd', // compound: d12 (1:initial signal 2:locator)
-        REMOVER: 'r',  // compound: r[1] ([1]: signal to be removed)
+        DIFF: 'd', // replicate cell
+        REMOVER: 'r',  // remove a signal
 
-        // Positional modifiers.
-        CONICAL: 'c',
-        HALF_CONICAL: 'h',
-        FLIP: 'f',
-        TWIST: 't',
-
-        // Cell types.
-        LEAF: 'l',
-        SHOOT: 's',
-        SHOOT_END: 'a',
-        FLOWER: 'w',
-
-        // Compounds
-        DIFF_SHM: 'dac',
-        DIFF_SHS: 'dah',
-        DIFF_LF: 'dlf',
+        // Sell replication modifiers.
+        CR_Z: 't',
+        CR_X: 's',
     };
-
-    function parseIntrinsicSignal(sig) {
-        const invTable = {};
-        for (const [name, signal] of Object.entries(Signal)) {
-            invTable[signal] = name;
-        }
-
-        const signalsSimple = [
-            Signal.GROWTH,
-            Signal.HALF, Signal.CHLOROPLAST,
-            Signal.G_DX, Signal.G_DY, Signal.G_DZ];
-
-        const signalsStandard = [
-            Signal.LEAF,
-            Signal.SHOOT, Signal.SHOOT_END, Signal.FLOWER];
-
-        if (signalsSimple.includes(sig)) {
-            return {
-                long: invTable[sig],
-                raw: sig,
-                type: 'intrinsic'
-            };
-        } else if (signalsStandard.includes(sig)) {
-            return {
-                long: invTable[sig],
-                raw: sig,
-                type: 'standard'
-            };
-        } else if (sig[0] === Signal.DIFF) {
-            if (sig.length === 3) {
-                return {
-                    long: 'DIFF(' + sig[1] + ',' + sig[2] + ')',
-                    raw: sig,
-                    type: 'compound'
-                };
-            } else {
-                return {
-                    long: 'DIFF(?)',
-                    raw: sig,
-                    type: 'unknown'
-                };
-            }
-        } else if (sig[0] === Signal.INVERT) {
-            if (sig.length >= 2) {
-                return {
-                    long: '!' + sig.substr(1),
-                    raw: sig,
-                    type: 'compound'
-                };
-            } else {
-                return {
-                    long: '!',
-                    raw: sig,
-                    type: 'unknown'
-                };
-            }
-        } else if (sig[0] === Signal.REMOVER) {
-            if (sig.length >= 2) {
-                return {
-                    long: 'DEL(' + sig.substr(1) + ')',
-                    raw: sig,
-                    type: 'compound'
-                };
-            } else {
-                return {
-                    long: 'DEL',
-                    raw: sig,
-                    type: 'unknown'
-                };
-            }
-        } else {
-            return {
-                long: '',
-                raw: sig,
-                type: 'unknown'
-            };
-        }
-    }
 
     class Genome {
         constructor(genes) {
@@ -120,7 +26,7 @@
         }
 
         encode() {
-            return this.genes.map(gene => gene.when.join(',') + '>' + gene.emit.join(',')).join('|');
+            return this.genes.map(gene => gene.when.join('') + '>' + gene.emit.join('')).join('|');
         }
 
         static decode(e) {
@@ -135,8 +41,8 @@
                 const geneElemList = geneEnc.split('>');
                 const [whenEnc, emitEnc] = geneElemList;
                 return {
-                    'when': whenEnc.split(','),
-                    'emit': emitEnc.split(','),
+                    'when': new Array(...whenEnc),
+                    'emit': new Array(...emitEnc),
                 };
             }));
         }
@@ -171,21 +77,12 @@
         }
 
         _naturalCloneSignal(sig) {
-            function randomSig1() {
-                let set = 'abcdefghijklmnopqrstuvwxyz';
+            const set = 'abcdefghijklmnopqrstuvwxyz';
+            if (Math.random() < 0.01) {
                 return set[Math.floor(Math.random() * set.length)];
+            } else {
+                return sig;
             }
-
-            let newSig = '';
-            for (let i = 0; i < sig.length; i++) {
-                if (Math.random() > 0.01) {
-                    newSig += sig[i];
-                }
-                if (Math.random() < 0.01) {
-                    newSig += randomSig1();
-                }
-            }
-            return newSig;
         }
 
         _shuffle(array, modifierNormal, modifierDup) {
@@ -209,7 +106,6 @@
     }
 
     this.Genome = Genome;
-    this.parseIntrinsicSignal = parseIntrinsicSignal;
     this.Signal = Signal;
 
 })(this);

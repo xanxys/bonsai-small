@@ -115,36 +115,19 @@ table.gene {
 	display: inline-block;
 }
 
-table.gene td {
-	background-color: none;
-	padding-top: 0;
-	padding-bottom: 0;
-}
-
-table.gene tr:first-child {
+table.gene tr {
 	font-family: 'B612 Mono', monospace;
 	font-weight: 700;
 	font-size: 10px;
 }
 
-table.gene tr:not(first-child) {
-	font-family: 'B612', sans-serif;
-	font-weight: 400;
-	font-size: 8px;
+table.gene td {
+	background-color: none;
+	padding-top: 0;
+	padding-bottom: 0;
+	background-color: #5A5165;
 }
 
-.ct-intrinsic {
-	background-color: #341;
-}
-
-.ct-compound {
-	background-color: #79c;
-}
-
-.ct-standard {
-	background-color: #673;
-}
-
-.ct-unknown {
-	background-color: #a33;
+table.gene td.intrinsic {
+	background-color: #5F6C22;
 }
