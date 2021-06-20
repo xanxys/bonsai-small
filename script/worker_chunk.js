@@ -47,7 +47,10 @@
             this.cells.forEach(cell => cell.step());
 
             // Consume/store in-Plant energy.
-            this.energy += this._powerForPlant() * 1;
+            this.energy += this._powerForPlant();
+
+            const maxEnergy = this.cells.length * 100;
+            this.energy = Math.min(this.energy, maxEnergy);
 
             if (this.energy <= 0) {
                 // die
@@ -542,7 +545,7 @@
          * @returns {Plant} added plant
          */
         addPlant(pos, genome, energy) {
-            const DEFAULT_SEED_ENERGY = 800;
+            const DEFAULT_SEED_ENERGY = 100;
 
             const seedPlant = new Plant(pos, this, energy ?? DEFAULT_SEED_ENERGY, genome, this.newPlantId);
             this.newPlantId += 1;
