@@ -164,8 +164,10 @@ class Bonsai {
                     },
                 },
                 showingEnvControl: false,
-                lightMultiplier: 5,
+                lightMultiplier: 4,
                 lightIntensity: 0,
+
+                multiplierReductionNextAvail: 0,
 
                 plantSelected: false,
                 selectedPlant: {storedEnergy:0, deltaEnergy:0},
@@ -209,7 +211,7 @@ class Bonsai {
                     app.requestSetLightMultiplier(Math.max(0, this.lightMultiplier - 1));
                 },
                 onClickIncreaseLight: function() {
-                    app.requestSetLightMultiplier(Math.min(25, this.lightMultiplier + 1));
+                    app.requestSetLightMultiplier(Math.min(10, this.lightMultiplier + 1));
                 },
                 onClickAbout: function() {
                     this.showingAbout = !this.showingAbout;
@@ -402,6 +404,13 @@ class Bonsai {
                 this.genomeTracker.notifyLivePlants(payload['plants'].map(plant => {
                     return {plantId: plant.id, genome: plant.genome};
                 }));
+
+                // meta control to reduce CPU
+                if (this.vm.numCells > 10000 && this.vm.age >= this.vm.multiplierReductionNextAvail) {
+                    this.vm.onClickDecreaseLight();
+                    this.vm.multiplierReductionNextAvail = this.vm.age + 1000;
+                    console.log("Light multiplier reduced by 1 to control population: cooldown until time=", this.vm.multiplierReductionNextAvail);
+                }
             } else if (msgType === 'step-resp') {
                 this.vm.simInfoText = JSON.stringify(payload, null, 2);
                 this.vm.notifyStepComplete();

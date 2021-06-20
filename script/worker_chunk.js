@@ -584,7 +584,6 @@
 
             t0 = performance.now();
             this.light.intensity = Math.round((Math.sin(this.age / 1000 * (2 * Math.PI)) * 0.5 + 1) * this.lightMultipler);
-            console.log(this.light.intensity);
             this.light.step(this.rigidWorld, this.indexToCell);
             simStats['light/ms'] = performance.now() - t0;
 
