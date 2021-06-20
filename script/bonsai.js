@@ -208,10 +208,14 @@ class Bonsai {
                     }
                 },
                 onClickDecreaseLight: function() {
-                    app.requestSetLightMultiplier(Math.max(0, this.lightMultiplier - 1));
+                    const newMultiplier = Math.max(0, this.lightMultiplier - 1);
+                    this.lightMultiplier = newMultiplier;
+                    app.requestSetLightMultiplier(newMultiplier);
                 },
                 onClickIncreaseLight: function() {
-                    app.requestSetLightMultiplier(Math.min(10, this.lightMultiplier + 1));
+                    const newMultiplier = Math.min(10, this.lightMultiplier + 1);
+                    this.lightMultiplier = newMultiplier;
+                    app.requestSetLightMultiplier(newMultiplier);
                 },
                 onClickAbout: function() {
                     this.showingAbout = !this.showingAbout;
