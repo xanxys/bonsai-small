@@ -187,6 +187,9 @@
             deltaStatic += this.photons * efficiency;
             this.photons = 0;
 
+            // -: cell primitive cost (penalize number of cells (mainly for stabilizing physics))
+            deltaStatic -= 1;
+
             // -: linear-volume consumption (stands for cell substrate maintainance)
             const volumeConsumption = 1.0;
             deltaStatic -= this.sx * this.sy * this.sz * volumeConsumption;
@@ -498,6 +501,8 @@
             this.light = new Light(this, approxChunkSize, 6);
             this.rigidWorld = this._createRigidWorld();
 
+            this.lightMultipler = 5;
+
             this.soilData = generateSoil(approxChunkSize);
             this._addSoil(this.soilData);
         }
@@ -578,6 +583,8 @@
             simStats['cell->rigid/ms'] = performance.now() - t0;
 
             t0 = performance.now();
+            this.light.intensity = Math.round((Math.sin(this.age / 1000 * (2 * Math.PI)) * 0.5 + 1) * this.lightMultipler);
+            console.log(this.light.intensity);
             this.light.step(this.rigidWorld, this.indexToCell);
             simStats['light/ms'] = performance.now() - t0;
 
@@ -857,8 +864,8 @@
             return ser;
         }
 
-        setEnvironment(lightIntensity) {
-            this.light.intensity = lightIntensity;
+        setEnvironment(lightMultipler) {
+            this.lightMultipler = lightMultipler;
         }
 
         _getStat() {

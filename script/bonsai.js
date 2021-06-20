@@ -164,6 +164,7 @@ class Bonsai {
                     },
                 },
                 showingEnvControl: false,
+                lightMultiplier: 5,
                 lightIntensity: 0,
 
                 plantSelected: false,
@@ -205,10 +206,10 @@ class Bonsai {
                     }
                 },
                 onClickDecreaseLight: function() {
-                    app.requestSetLightIntensity(Math.max(0, this.lightIntensity - 1));
+                    app.requestSetLightMultiplier(Math.max(0, this.lightMultiplier - 1));
                 },
                 onClickIncreaseLight: function() {
-                    app.requestSetLightIntensity(Math.min(25, this.lightIntensity + 1));
+                    app.requestSetLightMultiplier(Math.min(25, this.lightMultiplier + 1));
                 },
                 onClickAbout: function() {
                     this.showingAbout = !this.showingAbout;
@@ -428,11 +429,11 @@ class Bonsai {
         });
     }
 
-    requestSetLightIntensity(lightIntensity) {
+    requestSetLightMultiplier(lightMultiplier) {
         this.chunkWorker.postMessage({
             type: 'set-env-req',
             data: {
-                light: lightIntensity,
+                light: lightMultiplier,
             },
         });
         this.chunkWorker.postMessage({
