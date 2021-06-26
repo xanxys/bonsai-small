@@ -786,6 +786,9 @@
             const rb = this.indexToRigidBody.get(index);
             console.assert(rb !== undefined);
 
+            Ammo.destroy(rb.getMotionState());
+            Ammo.destroy(rb.getCollisionShape());
+
             this.rigidWorld.removeRigidBody(rb);
             this.cellToIndex.delete(cell);
             this.indexToCell.delete(index);
