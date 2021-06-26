@@ -318,7 +318,7 @@
             return {r:colorDiffuse.r, g:colorDiffuse.g, b:colorDiffuse.b};
         }
 
-        givePhotons(n) {
+        giveLight(n) {
             this.photons += n;
         }
 
@@ -393,7 +393,7 @@
                         const uIndex = cb.m_collisionObject.getUserIndex();
                         const cell = indexToCell.get(uIndex);
                         if (cell !== undefined) {
-                            cell.givePhotons(this.intensity);
+                            cell.giveLight(this.intensity);
                         } else {
                             // hit soil
                         }
@@ -590,7 +590,7 @@
             simStats['cell->rigid/ms'] = performance.now() - t0;
 
             t0 = performance.now();
-            this.light.intensity = Math.round((Math.sin(this.age / 1000 * (2 * Math.PI)) * 0.5 + 1) * this.lightMultipler);
+            this.light.intensity = (Math.sin(this.age / 1000 * (2 * Math.PI)) * 0.5 + 1) * this.lightMultipler;
             this.light.step(this.rigidWorld, this.indexToCell);
             simStats['light/ms'] = performance.now() - t0;
 
