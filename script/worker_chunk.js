@@ -47,7 +47,10 @@
             this.cells.forEach(cell => cell.step());
 
             // Consume/store in-Plant energy.
-            this.energy += this._powerForPlant() * 1;
+            this.energy += this._powerForPlant();
+
+            const maxEnergy = this.cells.length * 100;
+            this.energy = Math.min(this.energy, maxEnergy);
 
             if (this.energy <= 0) {
                 // die
@@ -276,9 +279,13 @@
             const unusedScale = new THREE.Vector3();
             this.cellToWorld.decompose(trans, quat, unusedScale);
 
+            const t = new Ammo.btVector3(trans.x, trans.y, trans.z);
+            const q = new Ammo.btQuaternion(quat.x, quat.y, quat.z, quat.w);
             tf.setIdentity();
-            tf.setOrigin(new Ammo.btVector3(trans.x, trans.y, trans.z));
-            tf.setRotation(new Ammo.btQuaternion(quat.x, quat.y, quat.z, quat.w));
+            tf.setOrigin(t);
+            tf.setRotation(q);
+            Ammo.destroy(t);
+            Ammo.destroy(q);
         }
 
         setBtTransform(tf) {
@@ -542,7 +549,7 @@
          * @returns {Plant} added plant
          */
         addPlant(pos, genome, energy) {
-            const DEFAULT_SEED_ENERGY = 800;
+            const DEFAULT_SEED_ENERGY = 100;
 
             const seedPlant = new Plant(pos, this, energy ?? DEFAULT_SEED_ENERGY, genome, this.newPlantId);
             this.newPlantId += 1;
@@ -690,10 +697,14 @@
 
                         // Add constraint.
                         const constraint = new Ammo.btGeneric6DofSpringConstraint(rb, parentRb, tfCell, tfParent, true);
-                        constraint.setAngularLowerLimit(new Ammo.btVector3(0.01, 0.01, 0.01));
-                        constraint.setAngularUpperLimit(new Ammo.btVector3(-0.01, -0.01, -0.01));
-                        constraint.setLinearLowerLimit(new Ammo.btVector3(0.01, 0.01, 0.01));
-                        constraint.setLinearUpperLimit(new Ammo.btVector3(-0.01, -0.01, -0.01));
+                        const ctLower = new Ammo.btVector3(0.01, 0.01, 0.01);
+                        const ctUpper = new Ammo.btVector3(-0.01, -0.01, -0.01);
+                        constraint.setAngularLowerLimit(ctLower);
+                        constraint.setAngularUpperLimit(ctUpper);
+                        constraint.setLinearLowerLimit(ctLower);
+                        constraint.setLinearUpperLimit(ctUpper);
+                        Ammo.destroy(ctLower);
+                        Ammo.destroy(ctUpper);
                         [0, 1, 2, 3, 4, 5].forEach(ix => {
                             constraint.enableSpring(ix, true);
                             constraint.setStiffness(ix, 100);
@@ -775,6 +786,9 @@
             const rb = this.indexToRigidBody.get(index);
             console.assert(rb !== undefined);
 
+            Ammo.destroy(rb.getMotionState());
+            Ammo.destroy(rb.getCollisionShape());
+
             this.rigidWorld.removeRigidBody(rb);
             this.cellToIndex.delete(cell);
             this.indexToCell.delete(index);
@@ -801,6 +815,8 @@
 
             const dispatcher = this.rigidWorld.getDispatcher();
             for (let i = 0; i < dispatcher.getNumManifolds(); i++) {
+                // For some reason, btPersistentManifold leaks. getManifoldByIndexInternal just returns pointer to allocated element,
+                // so it might be internal bullet physics bug.
                 const collision = dispatcher.getManifoldByIndexInternal(i);
                 if (collision.getNumContacts() === 0) {
                     // contact may be 0 (i.e. colliding in broadphase, but not in narrowphase)

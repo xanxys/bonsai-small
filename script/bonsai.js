@@ -186,7 +186,7 @@ class Bonsai {
             },
             watch: {
                 lightIntensity: function(newV, oldV) {
-                    app.sunlight.intensity = 0.7 * (newV / 5);
+                    app.sunlight.intensity = 0.18 * newV;
                     app.amblight.intensity = (newV === 0) ? 0.6 : 0.2;
                 }
             },
