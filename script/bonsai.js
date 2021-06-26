@@ -207,6 +207,10 @@ class Bonsai {
                         this.showingEnvControl = true;
                     }
                 },
+                multiplyLight: function(k) {
+                    this.lightMultiplier *= k;
+                    app.requestSetLightMultiplier(this.lightMultiplier);
+                },
                 onClickDecreaseLight: function() {
                     const newMultiplier = Math.max(0, this.lightMultiplier - 1);
                     this.lightMultiplier = newMultiplier;
@@ -411,7 +415,7 @@ class Bonsai {
 
                 // meta control to reduce CPU
                 if (this.vm.numCells > 10000 && this.vm.age >= this.vm.multiplierReductionNextAvail) {
-                    this.vm.onClickDecreaseLight();
+                    this.vm.multiplyLight(0.9);
                     this.vm.multiplierReductionNextAvail = this.vm.age + 1000;
                     console.log("Light multiplier reduced by 1 to control population: cooldown until time=", this.vm.multiplierReductionNextAvail);
                 }
