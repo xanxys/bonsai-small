@@ -279,9 +279,13 @@
             const unusedScale = new THREE.Vector3();
             this.cellToWorld.decompose(trans, quat, unusedScale);
 
+            const t = new Ammo.btVector3(trans.x, trans.y, trans.z);
+            const q = new Ammo.btQuaternion(quat.x, quat.y, quat.z, quat.w);
             tf.setIdentity();
-            tf.setOrigin(new Ammo.btVector3(trans.x, trans.y, trans.z));
-            tf.setRotation(new Ammo.btQuaternion(quat.x, quat.y, quat.z, quat.w));
+            tf.setOrigin(t);
+            tf.setRotation(q);
+            Ammo.destroy(t);
+            Ammo.destroy(q);
         }
 
         setBtTransform(tf) {
@@ -693,10 +697,14 @@
 
                         // Add constraint.
                         const constraint = new Ammo.btGeneric6DofSpringConstraint(rb, parentRb, tfCell, tfParent, true);
-                        constraint.setAngularLowerLimit(new Ammo.btVector3(0.01, 0.01, 0.01));
-                        constraint.setAngularUpperLimit(new Ammo.btVector3(-0.01, -0.01, -0.01));
-                        constraint.setLinearLowerLimit(new Ammo.btVector3(0.01, 0.01, 0.01));
-                        constraint.setLinearUpperLimit(new Ammo.btVector3(-0.01, -0.01, -0.01));
+                        const ctLower = new Ammo.btVector3(0.01, 0.01, 0.01);
+                        const ctUpper = new Ammo.btVector3(-0.01, -0.01, -0.01);
+                        constraint.setAngularLowerLimit(ctLower);
+                        constraint.setAngularUpperLimit(ctUpper);
+                        constraint.setLinearLowerLimit(ctLower);
+                        constraint.setLinearUpperLimit(ctUpper);
+                        Ammo.destroy(ctLower);
+                        Ammo.destroy(ctUpper);
                         [0, 1, 2, 3, 4, 5].forEach(ix => {
                             constraint.enableSpring(ix, true);
                             constraint.setStiffness(ix, 100);
@@ -804,6 +812,8 @@
 
             const dispatcher = this.rigidWorld.getDispatcher();
             for (let i = 0; i < dispatcher.getNumManifolds(); i++) {
+                // For some reason, btPersistentManifold leaks. getManifoldByIndexInternal just returns pointer to allocated element,
+                // so it might be internal bullet physics bug.
                 const collision = dispatcher.getManifoldByIndexInternal(i);
                 if (collision.getNumContacts() === 0) {
                     // contact may be 0 (i.e. colliding in broadphase, but not in narrowphase)
