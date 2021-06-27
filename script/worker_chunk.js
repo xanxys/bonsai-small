@@ -29,9 +29,6 @@
             this.age = 0;
             this.id = plantId;
 
-            // common physics
-            this.rooted = false;
-
             // physics
             const seedInnodeToWorld = new THREE.Matrix4().compose(
                 position,
@@ -42,13 +39,13 @@
             this.genome = genome; // DEPRECATED
 
             // biophysics
-            this.energy = energy;
             const seed = new Cell(this, new Map(), seedInnodeToWorld, new THREE.Quaternion(), null);
+            seed.energy = energy;
             this.cells = [seed];  // flat cells in world coords
         }
 
         step() {
-            if (!this.rooted) {
+            if (!this.cells[0].rooted) {
                 return;
             }
 
@@ -57,35 +54,32 @@
             this.cells.forEach(cell => cell.step());
 
             // Consume/store in-Plant energy.
-            this.energy += this._powerForPlant();
+            const root = this.cells[0].getRootCell();
+            root.energy += sum(this.cells.map(cell => cell.powerForPlant()));
 
             const maxEnergy = this.cells.length * 100;
-            this.energy = Math.min(this.energy, maxEnergy);
+            root.energy = Math.min(root.energy, maxEnergy);
 
-            if (this.energy <= 0) {
+            if (root.energy <= 0) {
                 // die
                 this.unsafeChunk.removePlantById(this.id);
             }
         }
 
-        serializeCells() {
-            return serializeCells(this.cells);
+        static getStatForCells(cells) {
+            const root = cells[0].getRootCell();
+            const stat = {};
+            stat["#cell"] = cells.length;
+            stat['cells'] = cells.map(cell => cell.signals);
+            stat['age'] = root.age;
+            stat['energy:stored'] = root.energy;
+            stat['energy:delta'] = sum(cells.map(cell => cell.powerForPlant()));
+            stat['genome'] = root.encode();
+            return stat; 
         }
 
         getStat() {
-            const statCells = this.cells.map(cell => cell.signals);
-            const stat = {};
-            stat["#cell"] = statCells.length;
-            stat['cells'] = statCells;
-            stat['age'] = this.age;
-            stat['energy:stored'] = this.energy;
-            stat['energy:delta'] = this._powerForPlant();
-            stat['genome'] = this.genome.encode();
-            return stat;
-        }
-
-        _powerForPlant() {
-            return sum(this.cells.map(cell => cell.powerForPlant()));
+            return Plant.getStatForCells(this.cells);
         }
     }
 
@@ -140,6 +134,7 @@
 
             // in-sim (light)
             this.photons = 0;
+            this.energy = 0; // root only
 
             // in-sim (phys + bio)
             this.sx = INITIAL_CELL_SIZE;
@@ -148,6 +143,7 @@
             this.cellToWorld = cellToWorld;
 
             // in-sim (fixed phys)
+            this.rooted = false;
             this.parentCell = parentCell;
             this.parentRot = parentRot;
 
@@ -184,8 +180,9 @@
 
         // return :: bool
         _withdrawEnergy(amount) {
-            if (this.plant.energy > amount) {
-                this.plant.energy -= amount;
+            const root = this.getRootCell();
+            if (root.energy > amount) {
+                root.energy -= amount;
                 this.power -= amount;
 
                 return true;
@@ -194,14 +191,18 @@
             }
         }
 
-        _withdrawVariableEnergy(max_amount) {
-            let amount = Math.min(Math.max(0, this.plant.energy), max_amount);
-            this.plant.energy -= amount;
+        _withdrawVariableEnergy(maxAmount) {
+            const root = this.getRootCell();
+
+            let amount = Math.min(Math.max(0, root.energy), maxAmount);
+            root.energy -= amount;
             this.power -= amount;
             return amount;
         }
 
         _withdrawStaticEnergy() {
+            const root = this.getRootCell();
+
             let deltaStatic = 0;
 
             // +: photo synthesis
@@ -216,11 +217,11 @@
             const volumeConsumption = 1.0;
             deltaStatic -= this.sx * this.sy * this.sz * volumeConsumption;
 
-            if (this.plant.energy < deltaStatic) {
-                this.plant.energy = -1000;  // set death flag (TODO: implicit value encoding is bad idea)
+            if (root.energy < deltaStatic) {
+                root.energy = -1000;  // set death flag (TODO: implicit value encoding is bad idea)
             } else {
                 this.power += deltaStatic;
-                this.plant.energy += deltaStatic;
+                root.energy += deltaStatic;
             }
         };
 
@@ -322,6 +323,7 @@
         }
 
         getCellColor() {
+            const root = this.getRootCell();
             // Create cell object [-sx/2,sx/2] * [-sy/2,sy/2] * [0, sz]
             let flrRatio = (this.signals.has(Signal.FLOWER)) ? 0.5 : 1;
             let chlRatio = 1 - this._getPhotoSynthesisEfficiency();
@@ -335,8 +337,8 @@
             if (this.photons === 0) {
                 colorDiffuse.offsetHSL(0, 0, -0.4);
             }
-            if (this.plant.energy < 1e-4) {
-                let t = 1 - this.plant.energy * 1e4;
+            if (root.energy < 1e-4) {
+                let t = 1 - root.energy * 1e4;
                 colorDiffuse.offsetHSL(0, -t, 0);
             }
             return {r:colorDiffuse.r, g:colorDiffuse.g, b:colorDiffuse.b};
@@ -649,42 +651,44 @@
             // NOTE: all new Ammo.XXXX() calls must be acoompanied by Ammo.destroy(), otherwise memory will leak.
 
             // Add/Update cells.
-            const cellBoxSize = new Ammo.btVector3(0.5, 0.5, 0.5);
             const liveCells = new Set();
             for (const plant of this.plants) {
                 for (const cell of plant.cells) {
-                    const cellIndex = this.cellToIndex.get(cell);
-                    const rb = cellIndex !== undefined ? this.indexToRigidBody.get(cellIndex) : undefined;
-
-                    const localScaling = new Ammo.btVector3(cell.sx, cell.sy, cell.sz);
-                    const localInertia = new Ammo.btVector3(0, 0, 0);
-                    if (rb === undefined) {
-                        // Add cell.
-                        const cellShape = new Ammo.btBoxShape(cellBoxSize); // (1cm)^3 cube
-                        cellShape.setLocalScaling(localScaling);
-                        cellShape.calculateLocalInertia(cell.getMass(), localInertia);
-
-                        const tf = new Ammo.btTransform();
-                        cell.computeBtTransform(tf);
-                        const motionState = new Ammo.btDefaultMotionState(tf);
-                        Ammo.destroy(tf);
-                        const rbInfo = new Ammo.btRigidBodyConstructionInfo(cell.getMass(), motionState, cellShape, localInertia);
-                        const rb = new Ammo.btRigidBody(rbInfo);
-                        rb.setFriction(0.8);
-                        this.addCellRigidBody(rb, cell);
-                        Ammo.destroy(rbInfo);
-                    } else {
-                        // Update cell size.
-                        rb.getCollisionShape().setLocalScaling(localScaling);
-                        rb.getCollisionShape().calculateLocalInertia(cell.getMass(), localInertia);
-                        rb.setMassProps(cell.getMass(), localInertia);
-                        rb.updateInertiaTensor();    
-                    }
-                    Ammo.destroy(localScaling);
-                    Ammo.destroy(localInertia);
-
                     liveCells.add(cell);
                 }
+            }
+
+            const cellBoxSize = new Ammo.btVector3(0.5, 0.5, 0.5);
+            for (const cell of liveCells) {
+                const cellIndex = this.cellToIndex.get(cell);
+                const rb = cellIndex !== undefined ? this.indexToRigidBody.get(cellIndex) : undefined;
+
+                const localScaling = new Ammo.btVector3(cell.sx, cell.sy, cell.sz);
+                const localInertia = new Ammo.btVector3(0, 0, 0);
+                if (rb === undefined) {
+                    // Add cell.
+                    const cellShape = new Ammo.btBoxShape(cellBoxSize); // (1cm)^3 cube
+                    cellShape.setLocalScaling(localScaling);
+                    cellShape.calculateLocalInertia(cell.getMass(), localInertia);
+
+                    const tf = new Ammo.btTransform();
+                    cell.computeBtTransform(tf);
+                    const motionState = new Ammo.btDefaultMotionState(tf);
+                    Ammo.destroy(tf);
+                    const rbInfo = new Ammo.btRigidBodyConstructionInfo(cell.getMass(), motionState, cellShape, localInertia);
+                    const rb = new Ammo.btRigidBody(rbInfo);
+                    rb.setFriction(0.8);
+                    this.addCellRigidBody(rb, cell);
+                    Ammo.destroy(rbInfo);
+                } else {
+                    // Update cell size.
+                    rb.getCollisionShape().setLocalScaling(localScaling);
+                    rb.getCollisionShape().calculateLocalInertia(cell.getMass(), localInertia);
+                    rb.setMassProps(cell.getMass(), localInertia);
+                    rb.updateInertiaTensor();    
+                }
+                Ammo.destroy(localScaling);
+                Ammo.destroy(localInertia);
             }
             Ammo.destroy(cellBoxSize);
 
@@ -699,7 +703,7 @@
                 tfCell.getOrigin().setValue(0, 0, -cell.sz / 2); // innode
 
                 if (constraint === undefined) {
-                    if (cell.plant.rooted) {
+                    if (cell.rooted) {
                         const rb = this.indexToRigidBody.get(cellIndex);
 
                         let parentRb = null;
@@ -882,12 +886,12 @@
                 }
 
                 if (soilIx !== null) {
-                    this.indexToCell.get(cellIx).plant.rooted = true;
-                    const seedCell = this.indexToCell.get(cellIx).plant.cells[0];
+                    const seedCell = this.indexToCell.get(cellIx);
 
                     const q = new THREE.Quaternion();
                     seedCell.cellToWorld.decompose(new THREE.Vector3(), q, new THREE.Vector3());
                     seedCell.parentRot = q;
+                    seedCell.rooted = true;
 
                     this.cellIndexToSoilIndex.set(cellIx, soilIx);
                 }
@@ -945,16 +949,25 @@
         }
 
         _getStat() {
-            const storedEnergy = sum(this.plants.map(plant => {
-                return plant.energy;
-            }));
-            const numCells = sum(this.plants.map(plant => plant.cells.length));
+            let numPlants = 0;
+            let numCells = 0;
+            let storedEnergy = 0;
+
+            for (let plant of this.plants) {
+                for (let cell of plant.cells) {
+                    numCells++;
+                    if (cell.parentCell === null) {
+                        numPlants++;
+                    }
+                    storedEnergy += cell.energy;
+                }
+            }
 
             return {
                 'age': this.age,
-                '#plant': this.plants.length,
+                '#plant': numPlants,
                 '#cell': numCells,
-                'energy:stored': storedEnergy
+                'energy:stored': storedEnergy,
             };
         }
 
