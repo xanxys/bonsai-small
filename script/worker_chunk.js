@@ -1,4 +1,4 @@
-(function () {
+(function() {
     let Ammo = null;
 
     function serializeCells(cells) {
@@ -11,75 +11,42 @@
         });
     }
 
-    // Collections of cells that forms a "single" plant.
-    // This is not biologically accurate depiction of plants,
-    // (e.g. vegetative growth, physics)
-    // Most plants seems to have some kind of information sharing system within them
-    // via transportation of regulation growth factors.
-    //
-    // 100% efficiency, 0-latency energy storage and transportation within Plant.
-    // (n.b. energy = power * time)
-    //
-    // position :: THREE.Vector3<World>
+    function getPlantStatFromRootCell(root) {
+        const cells = root.allCells;
+
+        const stat = {};
+        stat["#cell"] = cells.length;
+        stat['cells'] = cells.map(cell => cell.signals);
+        stat['age'] = root.age;
+        stat['energy:stored'] = root.energy;
+        stat['energy:delta'] = sum(cells.map(cell => cell.powerForPlant()));
+        stat['genome'] = root.genome.encode();
+        return stat; 
+    }
+
+    function stepPlantCells(root) {
+        if (!root.rooted) {
+            return;
+        }
+
+        // Step cells (w/o collecting/stepping separation, infinite growth will occur)
+        root.allCells.forEach(cell => cell.step());
+
+        // Consume/store in-Plant energy.
+        root.energy += sum(root.allCells.map(cell => cell.powerForPlant()));
+
+        const maxEnergy = root.allCells.length * 100;
+        root.energy = Math.min(root.energy, maxEnergy);
+
+        if (root.energy <= 0) {
+            // die
+            root.unsafeChunk.removePlantById(root.id);
+        }
+    }
+
     class Plant {
-        constructor(position, unsafeChunk, energy, genome, plantId) {
-            this.unsafeChunk = unsafeChunk;
-
-            // tracer
-            this.age = 0;
-            this.id = plantId;
-
-            // physics
-            const seedInnodeToWorld = new THREE.Matrix4().compose(
-                position,
-                new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.random() * 2 * Math.PI),
-                new THREE.Vector3(1, 1, 1));
-
-            // genetics
-            this.genome = genome; // DEPRECATED
-
-            // biophysics
-            const seed = new Cell(this, new Map(), seedInnodeToWorld, new THREE.Quaternion(), null);
-            seed.energy = energy;
-            this.cells = [seed];  // flat cells in world coords
-        }
-
-        step() {
-            if (!this.cells[0].rooted) {
-                return;
-            }
-
-            // Step cells (w/o collecting/stepping separation, infinite growth will occur)
-            this.age += 1;
-            this.cells.forEach(cell => cell.step());
-
-            // Consume/store in-Plant energy.
-            const root = this.cells[0].getRootCell();
-            root.energy += sum(this.cells.map(cell => cell.powerForPlant()));
-
-            const maxEnergy = this.cells.length * 100;
-            root.energy = Math.min(root.energy, maxEnergy);
-
-            if (root.energy <= 0) {
-                // die
-                this.unsafeChunk.removePlantById(this.id);
-            }
-        }
-
-        static getStatForCells(cells) {
-            const root = cells[0].getRootCell();
-            const stat = {};
-            stat["#cell"] = cells.length;
-            stat['cells'] = cells.map(cell => cell.signals);
-            stat['age'] = root.age;
-            stat['energy:stored'] = root.energy;
-            stat['energy:delta'] = sum(cells.map(cell => cell.powerForPlant()));
-            stat['genome'] = root.encode();
-            return stat; 
-        }
-
-        getStat() {
-            return Plant.getStatForCells(this.cells);
+        constructor(seedCell) {
+            this.rootCell = seedCell;
         }
     }
 
@@ -124,8 +91,8 @@
          * @param {THREE.Quaternion | null} parentRot (this i-node -> (parent o-node | soil) transform)
          * @param {Cell | null} parentCell 
          */
-        constructor(plant, initialSignals, cellToWorld, parentRot, parentCell) {
-            this.unsafeChunk = plant.unsafeChunk;
+        constructor(plant, unsafeChunk, genome, initialSignals, cellToWorld, parentRot, parentCell) {
+            this.unsafeChunk = unsafeChunk;
 
             // tracer
             this.age = 0;
@@ -135,6 +102,8 @@
             // in-sim (light)
             this.photons = 0;
             this.energy = 0; // root only
+
+            this.allCells = []; // root only
 
             // in-sim (phys + bio)
             this.sx = INITIAL_CELL_SIZE;
@@ -148,11 +117,11 @@
             this.parentRot = parentRot;
 
             // in-sim (bio)
-            this.plant = plant;
+            this.genome = genome;
+            this.plant = plant; // DEPRECATED
             this.power = 0;
 
             // in-sim (genetics)
-            this.genome = plant.genome;
             this.signals = initialSignals;
         }
 
@@ -380,8 +349,8 @@
             c2w.premultiply(so2s);
             c2w.premultiply(s2w);
 
-            const newCell = new Cell(this.plant, childSigs, c2w, rotQ, this);
-            this.plant.cells.push(newCell);            
+            const newCell = new Cell(this.plant, this.unsafeChunk, this.genome, childSigs, c2w, rotQ, this);
+            this.getRootCell().allCells.push(newCell);
         }
     }
 
@@ -515,7 +484,6 @@
 
             // tracer
             this.age = 0;
-            this.newPlantId = 0;
 
             // Entities.
             this.plants = [];  // w/ internal "bio" aspect
@@ -587,8 +555,16 @@
         addPlant(pos, genome, energy) {
             const DEFAULT_SEED_ENERGY = 100;
 
-            const seedPlant = new Plant(pos, this, energy ?? DEFAULT_SEED_ENERGY, genome, this.newPlantId);
-            this.newPlantId += 1;
+            const seedInnodeToWorld = new THREE.Matrix4().compose(
+                pos,
+                new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.random() * 2 * Math.PI),
+                new THREE.Vector3(1, 1, 1));
+            const seedCell = new Cell(null, this, genome, new Map(), seedInnodeToWorld, new THREE.Quaternion(), null);
+            seedCell.energy = energy ?? DEFAULT_SEED_ENERGY;
+            seedCell.allCells = [seedCell];
+
+            const seedPlant = new Plant(seedCell);
+            seedCell.plant = seedPlant;
             this.plants.push(seedPlant);
             return seedPlant;
         }
@@ -601,8 +577,8 @@
         getPlantStat(plantId) {
             let stat = null;
             this.plants.forEach(plant => {
-                if (plant.id === plantId) {
-                    stat = plant.getStat();
+                if (plant.rootCell.id === plantId) {
+                    stat = getPlantStatFromRootCell(plant.rootCell);
                 }
             });
             return stat;
@@ -618,7 +594,7 @@
             const simStats = {};
 
             t0 = performance.now();
-            this.plants.forEach(plant => plant.step());
+            this.plants.forEach(plant => stepPlantCells(plant.rootCell));
             simStats['bio/ms'] = performance.now() - t0;
 
             t0 = performance.now();
@@ -653,7 +629,7 @@
             // Add/Update cells.
             const liveCells = new Set();
             for (const plant of this.plants) {
-                for (const cell of plant.cells) {
+                for (const cell of plant.rootCell.allCells) {
                     liveCells.add(cell);
                 }
             }
@@ -954,7 +930,7 @@
             let storedEnergy = 0;
 
             for (let plant of this.plants) {
-                for (let cell of plant.cells) {
+                for (let cell of plant.rootCell.allCells) {
                     numCells++;
                     if (cell.parentCell === null) {
                         numPlants++;
@@ -976,7 +952,7 @@
          */
         removePlantById(plantId) {
             this.plants = this.plants.filter(plant => {
-                return (plant.id !== plantId);
+                return (plant.rootCell.id !== plantId);
             });
         }
     }
