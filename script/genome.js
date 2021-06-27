@@ -3,21 +3,32 @@
     // protein: carrier of information and matter.
     // Codon, amino acids: Roman character
     const Signal = {
+        // b + photon -(c)-> a
+        M_ACTIVE: 'a', // active material, red
+        M_BASE: 'b', // base material (water), blue
+        CHLOROPLAST: 'c', // photon receiver, green
+
         // Transcription modifiers.
         INVERT: 'i',
 
         // Intrisinc functionals.
-        CHLOROPLAST: 'c',
         FLOWER: 'w',
-        G_DX: 'x',
-        G_DY: 'y',
-        G_DZ: 'z',
+        
         DIFF: 'd', // replicate cell
         REMOVER: 'r',  // remove a signal
 
+        // transporters
+        TR_A_UP: 'f',
+        TR_A_DOWN: 'g',
+        TR_B_DOWN: 'h',
+
         // Sell replication modifiers.
-        CR_Z: 't',
         CR_X: 's',
+        CR_Z: 't',
+
+        G_DX: 'x',
+        G_DY: 'y',
+        G_DZ: 'z',
     };
 
     class Genome {

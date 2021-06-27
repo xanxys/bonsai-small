@@ -1,6 +1,16 @@
 (function () {
     let Ammo = null;
 
+    function serializeCells(cells) {
+        return cells.map(cell => {
+            return {
+                'mat': Array.from(cell.cellToWorld.elements),
+                'size': [cell.sx, cell.sy, cell.sz],
+                'col': cell.getCellColor(),
+            };
+        });
+    }
+
     // Collections of cells that forms a "single" plant.
     // This is not biologically accurate depiction of plants,
     // (e.g. vegetative growth, physics)
@@ -28,13 +38,13 @@
                 new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.random() * 2 * Math.PI),
                 new THREE.Vector3(1, 1, 1));
 
+            // genetics
+            this.genome = genome; // DEPRECATED
+
             // biophysics
             this.energy = energy;
             const seed = new Cell(this, new Map(), seedInnodeToWorld, new THREE.Quaternion(), null);
             this.cells = [seed];  // flat cells in world coords
-
-            // genetics
-            this.genome = genome;
         }
 
         step() {
@@ -59,13 +69,7 @@
         }
 
         serializeCells() {
-            return this.cells.map(cell => {
-                return {
-                    'mat': Array.from(cell.cellToWorld.elements),
-                    'size': [cell.sx, cell.sy, cell.sz],
-                    'col': cell.getCellColor(),
-                };
-            });
+            return serializeCells(this.cells);
         }
 
         getStat() {
@@ -117,6 +121,8 @@
     // I-node (in-node): where this cell connects with the parent cell or soil. (0, 0, -sz/2)
     // O-node (out-node): where this cell connects with a children. (0, 0, sz/2)
     class Cell {
+        static newId = 1;
+
         /**
          * @param {Plant} plant 
          * @param {Map<string, number>} initialSignals
@@ -125,8 +131,12 @@
          * @param {Cell | null} parentCell 
          */
         constructor(plant, initialSignals, cellToWorld, parentRot, parentCell) {
+            this.unsafeChunk = plant.unsafeChunk;
+
             // tracer
             this.age = 0;
+            this.id = Cell.newId;
+            Cell.newId++;
 
             // in-sim (light)
             this.photons = 0;
@@ -146,7 +156,16 @@
             this.power = 0;
 
             // in-sim (genetics)
+            this.genome = plant.genome;
             this.signals = initialSignals;
+        }
+
+        getRootCell() {
+            if (this.parentCell === null) {
+                return this;
+            } else {
+                return this.parentCell.getRootCell();
+            }
         }
 
         getMass() {
@@ -218,7 +237,7 @@
             this._withdrawStaticEnergy();
 
             // Gene expression and transcription.
-            this.plant.genome.genes.forEach(gene => {
+            this.genome.genes.forEach(gene => {
                 if (this._geneExpressionProbability(gene['when']) > Math.random()) {
                     const numCodon = sum(gene['emit'].map(sig => sig.length));
                     if (this._withdrawEnergy(numCodon * 1e-2)) {
@@ -255,8 +274,13 @@
                 if (Math.random() < 0.01) {
                     const seedEnergy = this._withdrawVariableEnergy(80);
                     const seedPosWorld = new THREE.Vector3().applyMatrix4(this.cellToWorld);
-                    this.plant.unsafeChunk.addPlant(seedPosWorld, this.plant.genome.naturalClone(), seedEnergy);
+                    this.unsafeChunk.addPlant(seedPosWorld, this.genome.naturalClone(), seedEnergy);
                 }
+            }
+
+            // apoptosis
+            if ((this.signals.get(Signal.TR_A_UP) ?? 0) > 0) {
+                console.log('apoptosis initiated');
             }
         }
 
@@ -887,13 +911,26 @@
 
         serialize() {
             const ser = {};
-            ser['plants'] = this.plants.map(plant => {
-                return {
-                    'id': plant.id,
-                    'genome': plant.genome.encode(),
-                    'cells': plant.serializeCells(),
-                };
-            });
+
+            const plants = new Map();
+            for (const [c, _] of this.cellToIndex) {
+                const rc = c.getRootCell();
+                if (plants.has(rc)) {
+                    plants.get(rc.id).push(c);
+                } else {
+                    plants.set(c.id, [c]);
+                }
+            }
+            const plantsArr = [];
+            for (const [plantId, cells] of plants) {
+                plantsArr.push({
+                    'id': plantId,
+                    'genome': cells[0].genome.encode(),
+                    'cells': serializeCells(cells),
+                });
+            }
+            ser['plants'] = plantsArr;
+
             ser['soil'] = {
                 'blocks': this.soilData,
             };
