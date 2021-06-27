@@ -18,22 +18,18 @@
         stat["#cell"] = cells.length;
         stat['cells'] = cells.map(cell => cell.signals);
         stat['age'] = root.age;
-        stat['energy:stored'] = root.energy;
-        stat['energy:delta'] = root.energy - root.energyPrev;
+        stat['energy:stored'] = sum(cells.map(cell => cell.energy));
+        stat['energy:delta'] = sum(cells.map(cell => cell.energy - cell.energyPrev));
         stat['genome'] = root.genome.encode();
         return stat; 
     }
 
     function stepPlantCells(root) {
-        root.energyPrev = root.energy;
-
         // Step cells (w/o collecting/stepping separation, infinite growth will occur)
         root.allCells.forEach(cell => cell.step());
 
-        const maxEnergy = root.allCells.length * 100;
-        root.energy = Math.min(root.energy, maxEnergy);
-
-        if (root.energy <= 0) {
+        const totalEnergy = sum(root.allCells.map(cell => cell.energy));
+        if (totalEnergy <= 0) {
             // die
             root.unsafeChunk.removePlantById(root.id);
         }
@@ -91,8 +87,8 @@
 
             // in-sim (light)
             this.photons = 0;
-            this.energy = 0; // root only
-            this.energyPrev = 0; // root only
+            this.energy = 0;
+            this.energyPrev = 0;
 
             this.allCells = []; // root only
 
@@ -128,9 +124,8 @@
 
         // return :: bool
         _withdrawEnergy(amount) {
-            const root = this.getRootCell();
-            if (root.energy > amount) {
-                root.energy -= amount;
+            if (this.energy > amount) {
+                this.energy -= amount;
                 return true;
             } else {
                 return false;
@@ -138,16 +133,12 @@
         }
 
         _withdrawVariableEnergy(maxAmount) {
-            const root = this.getRootCell();
-
-            let amount = Math.min(Math.max(0, root.energy), maxAmount);
-            root.energy -= amount;
+            let amount = Math.min(Math.max(0, this.energy), maxAmount);
+            this.energy -= amount;
             return amount;
         }
 
         _withdrawStaticEnergy() {
-            const root = this.getRootCell();
-
             let deltaStatic = 0;
 
             // +: photo synthesis
@@ -162,11 +153,7 @@
             const volumeConsumption = 1.0;
             deltaStatic -= this.sx * this.sy * this.sz * volumeConsumption;
 
-            if (root.energy < deltaStatic) {
-                root.energy = -1000;  // set death flag (TODO: implicit value encoding is bad idea)
-            } else {
-                root.energy += deltaStatic;
-            }
+            this.energy = Math.min(this.energy + deltaStatic, 100); // cap max energy per cell
         };
 
         _getPhotoSynthesisEfficiency() {
@@ -177,7 +164,11 @@
 
         // return :: ()
         step() {
+            // update tracer
+            this.energyPrev = this.energy;
             this.age += 1;
+
+            // actual sim
             this._withdrawStaticEnergy();
 
             // Gene expression and transcription.
@@ -266,7 +257,6 @@
         }
 
         getCellColor() {
-            const root = this.getRootCell();
             // Create cell object [-sx/2,sx/2] * [-sy/2,sy/2] * [0, sz]
             let flrRatio = (this.signals.has(Signal.FLOWER)) ? 0.5 : 1;
             let chlRatio = 1 - this._getPhotoSynthesisEfficiency();
@@ -280,8 +270,8 @@
             if (this.photons === 0) {
                 colorDiffuse.offsetHSL(0, 0, -0.4);
             }
-            if (root.energy < 1e-4) {
-                let t = 1 - root.energy * 1e4;
+            if (this.energy < 1e-4) {
+                let t = 1 - this.energy * 1e4;
                 colorDiffuse.offsetHSL(0, -t, 0);
             }
             return {r:colorDiffuse.r, g:colorDiffuse.g, b:colorDiffuse.b};
