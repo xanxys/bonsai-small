@@ -217,8 +217,8 @@
 
             // cap signals
             for (const [sig, n] of this.signals) {
-                if (n > 100) {
-                    this.signals.set(sig, 100);
+                if (n > 500) {
+                    this.signals.set(sig, 500);
                 }
             }
         }
@@ -517,13 +517,13 @@
          * @returns {Cell} added cell
          */
         addPlant(pos, genome, energy) {
-            const DEFAULT_SEED_ENERGY = 100;
+            const DEFAULT_SEED_ENERGY = 500;
 
             const seedInnodeToWorld = new THREE.Matrix4().compose(
                 pos,
                 new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.random() * 2 * Math.PI),
                 new THREE.Vector3(1, 1, 1));
-            const seedCell = new Cell(this, genome, new Map([[Signal.M_ACTIVE, DEFAULT_SEED_ENERGY]]), seedInnodeToWorld, new THREE.Quaternion(), null);
+            const seedCell = new Cell(this, genome, new Map([[Signal.M_ACTIVE, energy ?? DEFAULT_SEED_ENERGY]]), seedInnodeToWorld, new THREE.Quaternion(), null);
             this.liveCells.add(seedCell);
             return seedCell;
         }
@@ -561,15 +561,21 @@
             for (const cell of this.liveCells) {
                 cell.step();
             }
-            const totalEnergyPerPlant = new Map();
+
+            const dyingCells = new Set();
             for (const cell of this.liveCells) {
-                const rootId = cell.getRootCell().id;
-                totalEnergyPerPlant.set(rootId, (totalEnergyPerPlant.get(rootId) ?? 0) + cell.getNumAct);
-            }
-            for (const [id, totalEnergy] of totalEnergyPerPlant) {
-                if (totalEnergy <= 0) {
-                    this.removePlantById(id);
+                if (cell.getNumAct() === 0) {
+                    dyingCells.add(cell);
                 }
+            }
+            for (const cell of this.liveCells) {
+                if (cell.parentCell !== null && dyingCells.has(cell.parentCell)) {
+                    cell.parentCell = null;
+                    cell.parentRot.identity();
+                }
+            }
+            for (const cell of dyingCells) {
+                this.liveCells.delete(cell);
             }
             
             simStats['bio/ms'] = performance.now() - t0;
