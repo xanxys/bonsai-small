@@ -18,8 +18,8 @@
         stat["#cell"] = cells.length;
         stat['cells'] = cells.map(cell => cell.signals);
         stat['age'] = root.age;
-        stat['energy:stored'] = sum(cells.map(cell => cell.energy));
-        stat['energy:delta'] = sum(cells.map(cell => cell.energy - cell.energyPrev));
+        stat['energy:stored'] = sum(cells.map(cell => cell.getNumAct()));
+        stat['energy:delta'] = sum(cells.map(cell => cell.getNumAct() - cell.prevNumAct));
         stat['genome'] = root.genome.encode();
         return stat; 
     }
@@ -76,8 +76,6 @@
 
             // in-sim (light)
             this.photons = 0;
-            this.energy = 0;
-            this.energyPrev = 0;
 
             // in-sim (phys + bio)
             this.sx = INITIAL_CELL_SIZE;
@@ -113,10 +111,14 @@
             return 1e-3 * this.sx * this.sy * this.sz;  // kg
         }
 
+        getNumAct() {
+            return this.signals.get(Signal.M_ACTIVE) ?? 0;
+        }
+
         // return :: bool
         _withdrawEnergy(amount) {
-            if (this.energy > amount) {
-                this.energy -= amount;
+            if (this.getNumAct() >= amount) {
+                applyDelta(this.signals, Signal.M_ACTIVE, -amount);
                 return true;
             } else {
                 return false;
@@ -124,8 +126,8 @@
         }
 
         _withdrawVariableEnergy(maxAmount) {
-            let amount = Math.min(Math.max(0, this.energy), maxAmount);
-            this.energy -= amount;
+            let amount = Math.min(Math.max(0, this.getNumAct()), maxAmount);
+            applyDelta(this.signals, Signal.M_ACTIVE, -amount);
             return amount;
         }
 
@@ -144,7 +146,7 @@
             const volumeConsumption = 1.0;
             deltaStatic -= this.sx * this.sy * this.sz * volumeConsumption;
 
-            this.energy = Math.min(this.energy + deltaStatic, 100); // cap max energy per cell
+            applyDelta(this.signals, Signal.M_ACTIVE, Math.round(deltaStatic));
         };
 
         _getPhotoSynthesisEfficiency() {
@@ -156,21 +158,25 @@
         // return :: ()
         step() {
             // update tracer
-            this.energyPrev = this.energy;
+            this.prevNumAct = this.getNumAct();
             this.age += 1;
 
             // actual sim
             this._withdrawStaticEnergy();
 
             // Gene expression and transcription.
-            this.genome.genes.forEach(gene => {
+            for (const gene of this.genome.genes) {
                 if (this._geneExpressionProbability(gene['when']) > Math.random()) {
-                    const numCodon = sum(gene['emit'].map(sig => sig.length));
-                    if (this._withdrawEnergy(numCodon * 1e-2)) {
-                        gene['emit'].forEach(sig => applyDelta(this.signals, sig, 1));
-                    }
+                    let numAct = this.signals.get(Signal.M_ACTIVE) ?? 0;
+                    gene['emit'].forEach(sig => {
+                        if (numAct > 0) {
+                            applyDelta(this.signals, sig, 1);
+                            numAct--;
+                        }
+                    });
+                    this.signals.set(Signal.M_ACTIVE, numAct);
                 }
-            });
+            }
 
             // Bio-physics.
             while (this.signals.get(Signal.REMOVER) ?? 0 > 0) {
@@ -207,6 +213,13 @@
             // apoptosis
             if ((this.signals.get(Signal.TR_A_UP) ?? 0) > 0) {
                 console.log('apoptosis initiated');
+            }
+
+            // cap signals
+            for (const [sig, n] of this.signals) {
+                if (n > 100) {
+                    this.signals.set(sig, 100);
+                }
             }
         }
 
@@ -260,10 +273,6 @@
 
             if (this.photons === 0) {
                 colorDiffuse.offsetHSL(0, 0, -0.4);
-            }
-            if (this.energy < 1e-4) {
-                let t = 1 - this.energy * 1e4;
-                colorDiffuse.offsetHSL(0, -t, 0);
             }
             return {r:colorDiffuse.r, g:colorDiffuse.g, b:colorDiffuse.b};
         }
@@ -514,8 +523,7 @@
                 pos,
                 new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.random() * 2 * Math.PI),
                 new THREE.Vector3(1, 1, 1));
-            const seedCell = new Cell(this, genome, new Map(), seedInnodeToWorld, new THREE.Quaternion(), null);
-            seedCell.energy = energy ?? DEFAULT_SEED_ENERGY;
+            const seedCell = new Cell(this, genome, new Map([[Signal.M_ACTIVE, DEFAULT_SEED_ENERGY]]), seedInnodeToWorld, new THREE.Quaternion(), null);
             this.liveCells.add(seedCell);
             return seedCell;
         }
@@ -556,7 +564,7 @@
             const totalEnergyPerPlant = new Map();
             for (const cell of this.liveCells) {
                 const rootId = cell.getRootCell().id;
-                totalEnergyPerPlant.set(rootId, (totalEnergyPerPlant.get(rootId) ?? 0) + cell.energy);
+                totalEnergyPerPlant.set(rootId, (totalEnergyPerPlant.get(rootId) ?? 0) + cell.getNumAct);
             }
             for (const [id, totalEnergy] of totalEnergyPerPlant) {
                 if (totalEnergy <= 0) {
@@ -904,7 +912,7 @@
                 if (cell.parentCell === null) {
                     numPlants++;
                 }
-                storedEnergy += cell.energy;
+                storedEnergy += cell.getNumAct();
             }
 
             return {
