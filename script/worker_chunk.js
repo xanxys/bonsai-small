@@ -150,9 +150,8 @@
         };
 
         _getPhotoSynthesisEfficiency() {
-            // 0:0, 1:0.2, 2:0.36, 3:0.49, ...
             const numChlr = this.signals.get(Signal.CHLOROPLAST) ?? 0;
-            return 1 - Math.pow(0.8, numChlr);
+            return numChlr / 500.0;
         }
 
         // return :: ()
@@ -272,19 +271,15 @@
 
         getCellColor() {
             // Create cell object [-sx/2,sx/2] * [-sy/2,sy/2] * [0, sz]
-            let flrRatio = (this.signals.has(Signal.FLOWER)) ? 0.5 : 1;
-            let chlRatio = 1 - this._getPhotoSynthesisEfficiency();
+            const ratioA = (this.signals.get(Signal.M_ACTIVE) ?? 0) / 500.0; // magenta (absortbs green)
+            const ratioB = (this.signals.get(Signal.M_BASE) ?? 0) / 500.0; // cyan (absorbs red)
+            const ratioC = (this.signals.get(Signal.CHLOROPLAST) ?? 0) / 500.0; // green (absorbs red, blue)
 
-            const colorDiffuse = new THREE.Color();
-            colorDiffuse.setRGB(
-                chlRatio,
-                flrRatio,
-                flrRatio * chlRatio);
-
-            if (this.photons === 0) {
-                colorDiffuse.offsetHSL(0, 0, -0.4);
-            }
-            return {r:colorDiffuse.r, g:colorDiffuse.g, b:colorDiffuse.b};
+            const col = new THREE.Color(1, 1, 1);
+            col.multiply(new THREE.Color(1, 1 - ratioA * 0.5, 1));
+            col.multiply(new THREE.Color(1 - ratioB * 0.5, 1, 1));
+            col.multiply(new THREE.Color(1 - ratioC, 1, 1 - ratioC));
+            return {r:col.r, g:col.g, b:col.b};
         }
 
         giveLight(n) {
