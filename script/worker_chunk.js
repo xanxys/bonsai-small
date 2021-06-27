@@ -19,21 +19,16 @@
         stat['cells'] = cells.map(cell => cell.signals);
         stat['age'] = root.age;
         stat['energy:stored'] = root.energy;
-        stat['energy:delta'] = sum(cells.map(cell => cell.powerForPlant()));
+        stat['energy:delta'] = root.energy - root.energyPrev;
         stat['genome'] = root.genome.encode();
         return stat; 
     }
 
     function stepPlantCells(root) {
-        if (!root.rooted) {
-            return;
-        }
+        root.energyPrev = root.energy;
 
         // Step cells (w/o collecting/stepping separation, infinite growth will occur)
         root.allCells.forEach(cell => cell.step());
-
-        // Consume/store in-Plant energy.
-        root.energy += sum(root.allCells.map(cell => cell.powerForPlant()));
 
         const maxEnergy = root.allCells.length * 100;
         root.energy = Math.min(root.energy, maxEnergy);
@@ -97,6 +92,7 @@
             // in-sim (light)
             this.photons = 0;
             this.energy = 0; // root only
+            this.energyPrev = 0; // root only
 
             this.allCells = []; // root only
 
@@ -113,7 +109,6 @@
 
             // in-sim (bio)
             this.genome = genome;
-            this.power = 0;
 
             // in-sim (genetics)
             this.signals = initialSignals;
@@ -131,23 +126,11 @@
             return 1e-3 * this.sx * this.sy * this.sz;  // kg
         }
 
-        // Return net usable power for Plant.
-        // return :: float<Energy>
-        powerForPlant() {
-            return this.power;
-        }
-
-        _beginUsePower() {
-            this.power = 0;
-        }
-
         // return :: bool
         _withdrawEnergy(amount) {
             const root = this.getRootCell();
             if (root.energy > amount) {
                 root.energy -= amount;
-                this.power -= amount;
-
                 return true;
             } else {
                 return false;
@@ -159,7 +142,6 @@
 
             let amount = Math.min(Math.max(0, root.energy), maxAmount);
             root.energy -= amount;
-            this.power -= amount;
             return amount;
         }
 
@@ -183,7 +165,6 @@
             if (root.energy < deltaStatic) {
                 root.energy = -1000;  // set death flag (TODO: implicit value encoding is bad idea)
             } else {
-                this.power += deltaStatic;
                 root.energy += deltaStatic;
             }
         };
@@ -197,7 +178,6 @@
         // return :: ()
         step() {
             this.age += 1;
-            this._beginUsePower();
             this._withdrawStaticEnergy();
 
             // Gene expression and transcription.
