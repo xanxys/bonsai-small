@@ -527,19 +527,29 @@
         }
 
         _addSoil(soil) {
+            const inertia = new Ammo.btVector3(0, 0, 0);
             soil.forEach(block => {
-                const shape = new Ammo.btBoxShape(new Ammo.btVector3(block.s.x / 2, block.s.y / 2, block.s.z / 2));
+                const size = new Ammo.btVector3(block.s.x / 2, block.s.y / 2, block.s.z / 2);
+                const shape = new Ammo.btBoxShape(size);
+                Ammo.destroy(size);
+
                 const trans = new Ammo.btTransform();
                 trans.setIdentity();
                 trans.getOrigin().setValue(block.t.x, block.t.y, block.t.z);
-                trans.setRotation(new Ammo.btQuaternion(block.r.x, block.r.y, block.r.z, block.r.w));
+                const q = new Ammo.btQuaternion(block.r.x, block.r.y, block.r.z, block.r.w);
+                trans.setRotation(q);
+                Ammo.destroy(q);
     
                 const motion = new Ammo.btDefaultMotionState(trans);
-                const rbInfo = new Ammo.btRigidBodyConstructionInfo(0, motion, shape, new Ammo.btVector3(0, 0, 0)); // static (mass,intertia=0)
+                const rbInfo = new Ammo.btRigidBodyConstructionInfo(0, motion, shape, inertia); // static (mass,intertia=0)
                 const rb = new Ammo.btRigidBody(rbInfo);
+
+                Ammo.destroy(trans);
+                Ammo.destroy(rbInfo);
     
                 this.addSoilRigidBody(rb);
             });
+            Ammo.destroy(inertia);
         }
 
         /**
@@ -638,8 +648,6 @@
                         const rb = new Ammo.btRigidBody(rbInfo);
                         rb.setFriction(0.8);
                         this.addCellRigidBody(rb, cell);
-
-                        //Ammo.destroy(motionState); // this will lead to a crash
                         Ammo.destroy(rbInfo);
                     } else {
                         // Update cell size.
@@ -677,7 +685,10 @@
                             
                             const cellPos = new THREE.Vector3(0, 0, -cell.sz / 2).applyMatrix4(cell.cellToWorld);
                             const cellPosWorld = new Ammo.btVector3(cellPos.x, cellPos.y, cellPos.z);
-                            const cellPosLoc = parentRb.getCenterOfMassTransform().invXform(cellPosWorld);
+                            const centerOfMassTf = parentRb.getCenterOfMassTransform();
+                            const cellPosLoc = centerOfMassTf.invXform(cellPosWorld);
+                            Ammo.destroy(centerOfMassTf);
+
                             tfParent.setIdentity();
                             tfParent.setOrigin(cellPosLoc);
                             const q = new Ammo.btQuaternion(cell.parentRot.x, cell.parentRot.y, cell.parentRot.z, cell.parentRot.w);
@@ -721,7 +732,9 @@
 
                     if (cell.parentCell === null) {
                         // cell-soil link
-                        constraint.setFrames(tfCell, constraint.getFrameOffsetB());
+                        const fb = constraint.getFrameOffsetB();
+                        constraint.setFrames(tfCell, fb);
+                        Ammo.destroy(fb);
                     } else {
                         // cell-parent cell link
                         tfParent.setIdentity();
@@ -786,8 +799,16 @@
             const rb = this.indexToRigidBody.get(index);
             console.assert(rb !== undefined);
 
-            Ammo.destroy(rb.getMotionState());
-            Ammo.destroy(rb.getCollisionShape());
+            // HACK: with current ammo.js, superclasses can't be removed from internal cache
+            // https://github.com/kripken/ammo.js/issues/284
+            // (sy == __cache__, qy = ptr)
+            const ms = rb.getMotionState();
+            Ammo.destroy(ms);
+            delete Ammo.btDefaultMotionState.sy[ms.qy];
+
+            const cs = rb.getCollisionShape();
+            Ammo.destroy(cs);
+            delete Ammo.btBoxShape.sy[cs.qy];
 
             this.rigidWorld.removeRigidBody(rb);
             this.cellToIndex.delete(cell);
@@ -795,6 +816,7 @@
             this.indexToRigidBody.delete(index);
             this.cellIndexToSoilIndex.delete(index);
             Ammo.destroy(rb);
+            delete Ammo.btCollisionObject.sy[rb.qy];
         }
 
         removeConstraint(cellIndex) {
@@ -810,21 +832,23 @@
         _syncRigidToCells() {
             for (const [cell, index] of this.cellToIndex) {
                 const rb = this.indexToRigidBody.get(index);
-                cell.setBtTransform(rb.getCenterOfMassTransform());
+                const tf = rb.getCenterOfMassTransform();
+                cell.setBtTransform(tf);
+                Ammo.destroy(tf);
             }
 
             const dispatcher = this.rigidWorld.getDispatcher();
             for (let i = 0; i < dispatcher.getNumManifolds(); i++) {
-                // For some reason, btPersistentManifold leaks. getManifoldByIndexInternal just returns pointer to allocated element,
-                // so it might be internal bullet physics bug.
                 const collision = dispatcher.getManifoldByIndexInternal(i);
                 if (collision.getNumContacts() === 0) {
                     // contact may be 0 (i.e. colliding in broadphase, but not in narrowphase)
+                    delete Ammo.btPersistentManifold.sy[collision.qy]; // HACK: https://github.com/kripken/ammo.js/issues/284
                     continue;
                 }
 
                 const i0 = collision.getBody0().getUserIndex();
                 const i1 = collision.getBody1().getUserIndex();
+                delete Ammo.btPersistentManifold.sy[collision.qy]; // HACK: https://github.com/kripken/ammo.js/issues/284
 
                 let [soilIx, cellIx] = [null, null];
                 if (this.soilIndices.has(i0)) {
