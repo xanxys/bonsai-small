@@ -167,7 +167,7 @@ class Bonsai {
                 lightMultiplier: 4,
                 lightIntensity: 0,
 
-                multiplierReductionNextAvail: 0,
+                multiplierReductionNextAvail: 1000,
 
                 plantSelected: false,
                 selectedPlant: {storedEnergy:0, deltaEnergy:0},
@@ -413,11 +413,16 @@ class Bonsai {
                     return {plantId: plant.id, genome: plant.genome};
                 }));
 
-                // meta control to reduce CPU
-                if (this.vm.numCells > 10000 && this.vm.age >= this.vm.multiplierReductionNextAvail) {
-                    this.vm.multiplyLight(0.9);
-                    this.vm.multiplierReductionNextAvail = this.vm.age + 1000;
-                    console.log("Light multiplier reduced by 1 to control population: cooldown until time=", this.vm.multiplierReductionNextAvail);
+                if (this.vm.age >= this.vm.multiplierReductionNextAvail) {
+                    if (this.vm.numCells > 10000) {
+                        this.vm.multiplyLight(0.9);
+                        this.vm.multiplierReductionNextAvail = this.vm.age + 1000;
+                        console.log("Light multiplier x0.9 to control population: cooldown until time=", this.vm.multiplierReductionNextAvail);
+                    } else if (this.vm.numCells < 1000) {
+                        this.vm.multiplyLight(1.1);
+                        this.vm.multiplierReductionNextAvail = this.vm.age + 1000;
+                        console.log("Light multiplier x1.1 to control population: cooldown until time=", this.vm.multiplierReductionNextAvail);
+                    }
                 }
             } else if (msgType === 'step-resp') {
                 this.vm.simInfoText = JSON.stringify(payload, null, 2);
