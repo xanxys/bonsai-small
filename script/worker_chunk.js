@@ -24,17 +24,6 @@
         return stat; 
     }
 
-    function stepPlantCells(root) {
-        // Step cells (w/o collecting/stepping separation, infinite growth will occur)
-        root.allCells.forEach(cell => cell.step());
-
-        const totalEnergy = sum(root.allCells.map(cell => cell.energy));
-        if (totalEnergy <= 0) {
-            // die
-            root.unsafeChunk.removePlantById(root.id);
-        }
-    }
-
     function removeRandom(signals) {
         let ixToRemove = Math.floor(Math.random() * sum(signals.values()));
         let sigToRemove = null;
@@ -99,6 +88,10 @@
             this.cellToWorld = cellToWorld;
 
             // in-sim (fixed phys)
+            // cell state is one of:
+            // 1. free (!rooted && parentCell === null)
+            // 2. rooted (rooted && parentCell === null)
+            // 3. connected (!rooted && parentCell !== null)
             this.rooted = false;
             this.parentCell = parentCell;
             this.parentRot = parentRot;
@@ -315,6 +308,7 @@
 
             const newCell = new Cell(this.unsafeChunk, this.genome, childSigs, c2w, rotQ, this);
             this.getRootCell().allCells.push(newCell);
+            this.unsafeChunk.liveCells.add(newCell);
         }
     }
 
@@ -450,7 +444,7 @@
             this.age = 0;
 
             // Entities.
-            this.rootCells = [];  // w/ internal "bio" aspect
+            this.liveCells = new Set(); // w/ internal "bio" aspect
 
             // chunk <-> ammo object mappings
             this.userIndex = 1;
@@ -526,7 +520,7 @@
             const seedCell = new Cell(this, genome, new Map(), seedInnodeToWorld, new THREE.Quaternion(), null);
             seedCell.energy = energy ?? DEFAULT_SEED_ENERGY;
             seedCell.allCells = [seedCell];
-            this.rootCells.push(seedCell);
+            this.liveCells.add(seedCell);
             return seedCell;
         }
 
@@ -536,13 +530,12 @@
          * @returns {Object | null}
          */
         getPlantStat(plantId) {
-            let stat = null;
-            this.rootCells.forEach(root => {
-                if (root.id === plantId) {
-                    stat = getPlantStatFromRootCell(root);
+            for (const cell of this.liveCells) {
+                if (cell.id === plantId) {
+                    return getPlantStatFromRootCell(cell);
                 }
-            });
-            return stat;
+            }
+            return null;
         }
 
         /**
@@ -555,7 +548,21 @@
             const simStats = {};
 
             t0 = performance.now();
-            this.rootCells.forEach(root => stepPlantCells(root));
+
+            for (const cell of this.liveCells) {
+                cell.step();
+            }
+            const deadRootIds = new Set();
+            for (const cell of this.liveCells) {
+                if (cell.parentCell !== null) {
+                    continue;
+                }
+                const totalEnergy = sum(cell.allCells.map(c => c.energy));
+                if (totalEnergy <= 0) {
+                    deadRootIds.add(cell.id);
+                }
+            }
+            deadRootIds.forEach(id => this.removePlantById(id));
             simStats['bio/ms'] = performance.now() - t0;
 
             t0 = performance.now();
@@ -588,15 +595,8 @@
             // NOTE: all new Ammo.XXXX() calls must be acoompanied by Ammo.destroy(), otherwise memory will leak.
 
             // Add/Update cells.
-            const liveCells = new Set();
-            for (const root of this.rootCells) {
-                for (const cell of root.allCells) {
-                    liveCells.add(cell);
-                }
-            }
-
             const cellBoxSize = new Ammo.btVector3(0.5, 0.5, 0.5);
-            for (const cell of liveCells) {
+            for (const cell of this.liveCells) {
                 const cellIndex = this.cellToIndex.get(cell);
                 const rb = cellIndex !== undefined ? this.indexToRigidBody.get(cellIndex) : undefined;
 
@@ -632,7 +632,7 @@
             // Add/Update constraints. (assumes each cell has exactly 1 constraint)
             const tfCell = new Ammo.btTransform();
             const tfParent = new Ammo.btTransform();
-            for (const cell of liveCells) {
+            for (const cell of this.liveCells) {
                 const cellIndex = this.cellToIndex.get(cell);
                 const constraint = this.indexToConstraint.get(cellIndex);
 
@@ -716,7 +716,7 @@
 
             // Remove cells & constraints.
             for (const cell of this.cellToIndex.keys()) {
-                if (!liveCells.has(cell)) {
+                if (!this.liveCells.has(cell)) {
                     const cellIndex = this.cellToIndex.get(cell);
                     this.removeConstraint(cellIndex);
                     this.removeCellAsRigidBody(cell);
@@ -847,7 +847,13 @@
                     rootsToDestroy.add(cell.getRootCell());
                 }               
             }
-            this.rootCells = this.rootCells.filter(root => !rootsToDestroy.has(root));
+            this._removeRootCells(rootsToDestroy);
+        }
+
+        _removeRootCells(rootsToDestroy) {
+            for (const root of rootsToDestroy) {
+                root.allCells.forEach(c => this.liveCells.delete(c));
+            }
         }
 
         serialize() {
@@ -890,14 +896,12 @@
             let numCells = 0;
             let storedEnergy = 0;
 
-            for (let root of this.rootCells) {
-                for (let cell of root.allCells) {
-                    numCells++;
-                    if (cell.parentCell === null) {
-                        numPlants++;
-                    }
-                    storedEnergy += cell.energy;
+            for (const cell of this.liveCells) {
+                numCells++;
+                if (cell.parentCell === null) {
+                    numPlants++;
                 }
+                storedEnergy += cell.energy;
             }
 
             return {
@@ -912,9 +916,13 @@
          * @param {number} plantId 
          */
         removePlantById(plantId) {
-            this.rootCells = this.rootCells.filter(root => {
-                return (root.id !== plantId);
-            });
+            const roots = new Set();
+            for (const cell of this.liveCells) {
+                if (cell.id === plantId) {
+                    roots.add(cell);
+                }
+            }
+            this._removeRootCells(roots);
         }
     }
 
