@@ -79,13 +79,14 @@
         static newId = 1;
 
         /**
-         * @param {Plant} plant 
+         * @param {Chunk} unsafeChunk
+         * @param {Genome} genome
          * @param {Map<string, number>} initialSignals
          * @param {THREE.Matrix4} cellToWorld 
          * @param {THREE.Quaternion | null} parentRot (this i-node -> (parent o-node | soil) transform)
          * @param {Cell | null} parentCell 
          */
-        constructor(plant, unsafeChunk, genome, initialSignals, cellToWorld, parentRot, parentCell) {
+        constructor(unsafeChunk, genome, initialSignals, cellToWorld, parentRot, parentCell) {
             this.unsafeChunk = unsafeChunk;
 
             // tracer
@@ -112,7 +113,6 @@
 
             // in-sim (bio)
             this.genome = genome;
-            this.plant = plant; // DEPRECATED
             this.power = 0;
 
             // in-sim (genetics)
@@ -343,7 +343,7 @@
             c2w.premultiply(so2s);
             c2w.premultiply(s2w);
 
-            const newCell = new Cell(this.plant, this.unsafeChunk, this.genome, childSigs, c2w, rotQ, this);
+            const newCell = new Cell(this.unsafeChunk, this.genome, childSigs, c2w, rotQ, this);
             this.getRootCell().allCells.push(newCell);
         }
     }
@@ -553,7 +553,7 @@
                 pos,
                 new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.random() * 2 * Math.PI),
                 new THREE.Vector3(1, 1, 1));
-            const seedCell = new Cell(null, this, genome, new Map(), seedInnodeToWorld, new THREE.Quaternion(), null);
+            const seedCell = new Cell(this, genome, new Map(), seedInnodeToWorld, new THREE.Quaternion(), null);
             seedCell.energy = energy ?? DEFAULT_SEED_ENERGY;
             seedCell.allCells = [seedCell];
             this.rootCells.push(seedCell);
