@@ -216,7 +216,7 @@
                 // Disperse seed once in a while.
                 // Maybe dead cells with stored energy survives when fallen off.
                 if (Math.random() < 0.01) {
-                    const seedEnergy = this._withdrawVariableEnergy(80);
+                    const seedEnergy = this._withdrawVariableEnergy(250);
                     const seedPosWorld = new THREE.Vector3().applyMatrix4(this.cellToWorld);
                     this.unsafeChunk.addPlant(seedPosWorld, this.genome.naturalClone(), seedEnergy);
                 }
@@ -305,7 +305,7 @@
         }
 
         giveLight(n) {
-            this.photons += n;
+            this.photons += n * 5;
         }
 
         /**

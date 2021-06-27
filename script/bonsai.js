@@ -56,7 +56,7 @@ class GenomeTracker {
     }
 }
 
-const DEFAULT_GENOME = ">cccxz|c>dwdd|a>cx|a>cx";
+const DEFAULT_GENOME = ">ccchhhxz|c>dwdd|a>cx|a>cx";
 
 class Bonsai {
     constructor() {
@@ -435,6 +435,8 @@ class Bonsai {
                 console.warn('unknown message type', msgType);
             }
         }, false);
+
+        this.requestSetLightMultiplier(this.vm.lightMultiplier);
     }
 
     /* chunk worker interface */

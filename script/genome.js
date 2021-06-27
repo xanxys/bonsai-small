@@ -66,7 +66,8 @@
             const genes = this._shuffle(
                 this.genes,
                 gene => this._naturalCloneGene(gene),
-                gene => this._naturalCloneGene(gene));
+                gene => this._naturalCloneGene(gene),
+                () => this._randomGene());
             return new Genome(genes);
         }
 
@@ -79,24 +80,37 @@
             gene["when"] = this._shuffle(
                 geneOld["when"],
                 sig => this._naturalCloneSignal(sig),
-                sig => this._naturalCloneSignal(sig));
+                sig => this._naturalCloneSignal(sig),
+                () => this._randomSig());
             gene["emit"] = this._shuffle(
                 geneOld["emit"],
                 sig => this._naturalCloneSignal(sig),
-                sig => this._naturalCloneSignal(sig));
+                sig => this._naturalCloneSignal(sig),
+                () => this._randomSig());
             return gene;
         }
 
         _naturalCloneSignal(sig) {
-            const set = 'abcdefghijklmnopqrstuvwxyz';
             if (Math.random() < 0.01) {
-                return set[Math.floor(Math.random() * set.length)];
+                return this._randomSig();
             } else {
                 return sig;
             }
         }
 
-        _shuffle(array, modifierNormal, modifierDup) {
+        _randomGene() {
+            return {
+                'when': [],
+                'emit': [this._randomSig()],
+            };
+        }
+
+        _randomSig() {
+            const set = 'abcdefghijklmnopqrstuvwxyz';
+            return set[Math.floor(Math.random() * set.length)];
+        }
+
+        _shuffle(array, modifierNormal, modifierDup, modifierGen) {
             const result = [];
 
             // 1st pass: Copy with occasional misses.
@@ -112,6 +126,12 @@
                     result.push(modifierDup(elem));
                 }
             });
+
+            // 3rd pass: Occasional insertions.
+            if (Math.random() > 0.01) {
+                result.push(modifierGen());
+            }
+
             return result;
         }
     }
