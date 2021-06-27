@@ -115,6 +115,10 @@
             return this.signals.get(Signal.M_ACTIVE) ?? 0;
         }
 
+        getNumBase() {
+            return this.signals.get(Signal.M_BASE) ?? 0;
+        }
+
         // return :: bool
         _withdrawEnergy(amount) {
             if (this.getNumAct() >= amount) {
@@ -133,11 +137,6 @@
 
         _withdrawStaticEnergy() {
             let deltaStatic = 0;
-
-            // +: photo synthesis
-            const efficiency = this._getPhotoSynthesisEfficiency();
-            deltaStatic += this.photons * efficiency;
-            this.photons = 0;
 
             // -: cell primitive cost (penalize number of cells (mainly for stabilizing physics))
             deltaStatic -= 1;
@@ -165,11 +164,23 @@
             // actual sim
             this._withdrawStaticEnergy();
 
+            // photo synthesis
+            let numConversion = Math.floor(this.photons * this._getPhotoSynthesisEfficiency());
+            this.photons = 0;
+            numConversion = Math.min(numConversion, this.getNumBase(), MAX_CONC - this.getNumAct());
+            applyDelta(this.signals, Signal.M_BASE, -numConversion);
+            applyDelta(this.signals, Signal.M_ACTIVE, numConversion);
+
             // Gene expression and transcription.
             for (const gene of this.genome.genes) {
                 if (this._geneExpressionProbability(gene['when']) > Math.random()) {
                     let numAct = this.signals.get(Signal.M_ACTIVE) ?? 0;
                     gene['emit'].forEach(sig => {
+                        // some signals cannot be produced directly.
+                        if (sig === Signal.M_ACTIVE || sig === Signal.M_BASE) {
+                            return;
+                        }
+
                         if (numAct > 0) {
                             applyDelta(this.signals, sig, 1);
                             numAct--;
@@ -224,6 +235,17 @@
                 applyDelta(this.signals, Signal.M_ACTIVE, x);
                 applyDelta(this.parentCell.signals, Signal.M_ACTIVE, -x);
             }
+            const numTrBDown = (this.signals.get(Signal.TR_B_DOWN) ?? 0);
+            if (numTrBDown > 0) {
+                if (this.rooted) {
+                    const x = Math.min(MAX_CONC - this.getNumBase(), numTrBDown);
+                    applyDelta(this.signals, Signal.M_BASE, x);
+                } else if (this.parentCell !== null) {
+                    const x = Math.min(this.parentCell.getNumBase(), MAX_CONC - this.getNumBase(), numTrBDown);
+                    applyDelta(this.signals, Signal.M_BASE, x);
+                    applyDelta(this.parentCell.signals, Signal.M_BASE, -x);
+                }
+            }
 
             // cap signals
             for (const [sig, n] of this.signals) {
@@ -276,8 +298,8 @@
             const ratioC = (this.signals.get(Signal.CHLOROPLAST) ?? 0) / 500.0; // green (absorbs red, blue)
 
             const col = new THREE.Color(1, 1, 1);
-            col.multiply(new THREE.Color(1, 1 - ratioA * 0.5, 1));
-            col.multiply(new THREE.Color(1 - ratioB * 0.5, 1, 1));
+            col.multiply(new THREE.Color(1, 1 - ratioA * 0.3, 1));
+            col.multiply(new THREE.Color(1 - ratioB * 0.2, 1, 1));
             col.multiply(new THREE.Color(1 - ratioC, 1, 1 - ratioC));
             return {r:col.r, g:col.g, b:col.b};
         }
