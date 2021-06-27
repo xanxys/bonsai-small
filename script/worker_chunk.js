@@ -928,16 +928,6 @@
         return r;
     }
 
-    // xs :: [num]
-    // return :: num
-    function product(xs) {
-        let r = 1;
-        for (const x of xs) {
-            r *= x;
-        }
-        return r;
-    }
-
     this.setChunkAmmo = (ammo) => Ammo = ammo;
     this.Chunk = Chunk;
 
