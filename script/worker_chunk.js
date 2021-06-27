@@ -157,6 +157,8 @@
 
         // return :: ()
         step() {
+            const MAX_CONC = 500;
+
             // update tracer
             this.prevNumAct = this.getNumAct();
             this.age += 1;
@@ -210,15 +212,24 @@
                 }
             }
 
-            // apoptosis
-            if ((this.signals.get(Signal.TR_A_UP) ?? 0) > 0) {
-                console.log('apoptosis initiated');
+            // signal transporter
+            const numTrAUp = (this.signals.get(Signal.TR_A_UP) ?? 0);
+            if (numTrAUp > 0 && this.parentCell !== null) {
+                const x = Math.min(MAX_CONC - this.parentCell.getNumAct(), this.getNumAct(), numTrAUp);
+                applyDelta(this.signals, Signal.M_ACTIVE, -x);
+                applyDelta(this.parentCell.signals, Signal.M_ACTIVE, x);
+            }
+            const numTrADown = (this.signals.get(Signal.TR_A_DOWN) ?? 0);
+            if (numTrADown > 0 && this.parentCell !== null) {
+                const x = Math.min(this.parentCell.getNumAct(), MAX_CONC - this.getNumAct(), numTrADown);
+                applyDelta(this.signals, Signal.M_ACTIVE, x);
+                applyDelta(this.parentCell.signals, Signal.M_ACTIVE, -x);
             }
 
             // cap signals
             for (const [sig, n] of this.signals) {
-                if (n > 500) {
-                    this.signals.set(sig, 500);
+                if (n > MAX_CONC) {
+                    this.signals.set(sig, MAX_CONC);
                 }
             }
         }
@@ -229,8 +240,7 @@
                 if (signal === Signal.INVERT) {
                     prob = 1 - prob;
                 } else {
-                    const numMatches = this.signals.get(signal) ?? 0;
-                    prob *= 0.5 + 0.5 * (1 - Math.pow(0.8, numMatches)); // 0.5, 0.6, 0.7, ...
+                    prob *= (this.signals.get(signal) ?? 0) / 500.0;
                 }
             });
             return prob;
@@ -287,12 +297,9 @@
         addCont(numRotZ, numRotX) {
             const childSigs = new Map();
             for (const [sig, n] of this.signals) {
-                childSigs.set(sig, 1);
-                if (n > 2) {
-                    this.signals.set(sig, n - 1);
-                } else {
-                    this.signals.delete(sig);
-                }
+                const nChild = Math.floor(n / 4);
+                applyDelta(this.signals, sig, -nChild);
+                applyDelta(childSigs, sig, nChild);
             }
 
             // child-i -> self-o
@@ -839,6 +846,9 @@
 
                 if (soilIx !== null) {
                     const seedCell = this.indexToCell.get(cellIx);
+                    if (seedCell.parentCell !== null || seedCell.rooted) {
+                        continue;
+                    }
 
                     const q = new THREE.Quaternion();
                     seedCell.cellToWorld.decompose(new THREE.Vector3(), q, new THREE.Vector3());
