@@ -11,8 +11,8 @@
         });
     }
 
-    function getPlantStatFromRootCell(root) {
-        const cells = root.allCells;
+    function getPlantStatFromCells(cells) {
+        const root = cells[0].getRootCell();
 
         const stat = {};
         stat["#cell"] = cells.length;
@@ -78,8 +78,6 @@
             this.photons = 0;
             this.energy = 0;
             this.energyPrev = 0;
-
-            this.allCells = []; // root only
 
             // in-sim (phys + bio)
             this.sx = INITIAL_CELL_SIZE;
@@ -307,7 +305,6 @@
             c2w.premultiply(s2w);
 
             const newCell = new Cell(this.unsafeChunk, this.genome, childSigs, c2w, rotQ, this);
-            this.getRootCell().allCells.push(newCell);
             this.unsafeChunk.liveCells.add(newCell);
         }
     }
@@ -519,7 +516,6 @@
                 new THREE.Vector3(1, 1, 1));
             const seedCell = new Cell(this, genome, new Map(), seedInnodeToWorld, new THREE.Quaternion(), null);
             seedCell.energy = energy ?? DEFAULT_SEED_ENERGY;
-            seedCell.allCells = [seedCell];
             this.liveCells.add(seedCell);
             return seedCell;
         }
@@ -530,12 +526,17 @@
          * @returns {Object | null}
          */
         getPlantStat(plantId) {
+            const cells = [];
             for (const cell of this.liveCells) {
-                if (cell.id === plantId) {
-                    return getPlantStatFromRootCell(cell);
+                if (cell.getRootCell().id === plantId) {
+                    cells.push(cell);
                 }
             }
-            return null;
+            if (cells.length === 0) {
+                return null;
+            } else {
+                return getPlantStatFromCells(cells);
+            }
         }
 
         /**
@@ -552,17 +553,17 @@
             for (const cell of this.liveCells) {
                 cell.step();
             }
-            const deadRootIds = new Set();
+            const totalEnergyPerPlant = new Map();
             for (const cell of this.liveCells) {
-                if (cell.parentCell !== null) {
-                    continue;
-                }
-                const totalEnergy = sum(cell.allCells.map(c => c.energy));
+                const rootId = cell.getRootCell().id;
+                totalEnergyPerPlant.set(rootId, (totalEnergyPerPlant.get(rootId) ?? 0) + cell.energy);
+            }
+            for (const [id, totalEnergy] of totalEnergyPerPlant) {
                 if (totalEnergy <= 0) {
-                    deadRootIds.add(cell.id);
+                    this.removePlantById(id);
                 }
             }
-            deadRootIds.forEach(id => this.removePlantById(id));
+            
             simStats['bio/ms'] = performance.now() - t0;
 
             t0 = performance.now();
@@ -851,8 +852,10 @@
         }
 
         _removeRootCells(rootsToDestroy) {
-            for (const root of rootsToDestroy) {
-                root.allCells.forEach(c => this.liveCells.delete(c));
+            for (const cell of this.liveCells) {
+                if (rootsToDestroy.has(cell.getRootCell())) {
+                    this.liveCells.delete(cell);
+                }
             }
         }
 
