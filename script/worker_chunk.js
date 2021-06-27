@@ -44,12 +44,6 @@
         }
     }
 
-    class Plant {
-        constructor(seedCell) {
-            this.rootCell = seedCell;
-        }
-    }
-
     function removeRandom(signals) {
         let ixToRemove = Math.floor(Math.random() * sum(signals.values()));
         let sigToRemove = null;
@@ -486,7 +480,7 @@
             this.age = 0;
 
             // Entities.
-            this.plants = [];  // w/ internal "bio" aspect
+            this.rootCells = [];  // w/ internal "bio" aspect
 
             // chunk <-> ammo object mappings
             this.userIndex = 1;
@@ -550,7 +544,7 @@
          * @param {THREE.Vector3} pos 
          * @param {Genome} genome 
          * @param {number} energy 
-         * @returns {Plant} added plant
+         * @returns {Cell} added cell
          */
         addPlant(pos, genome, energy) {
             const DEFAULT_SEED_ENERGY = 100;
@@ -562,11 +556,8 @@
             const seedCell = new Cell(null, this, genome, new Map(), seedInnodeToWorld, new THREE.Quaternion(), null);
             seedCell.energy = energy ?? DEFAULT_SEED_ENERGY;
             seedCell.allCells = [seedCell];
-
-            const seedPlant = new Plant(seedCell);
-            seedCell.plant = seedPlant;
-            this.plants.push(seedPlant);
-            return seedPlant;
+            this.rootCells.push(seedCell);
+            return seedCell;
         }
 
         /**
@@ -576,9 +567,9 @@
          */
         getPlantStat(plantId) {
             let stat = null;
-            this.plants.forEach(plant => {
-                if (plant.rootCell.id === plantId) {
-                    stat = getPlantStatFromRootCell(plant.rootCell);
+            this.rootCells.forEach(root => {
+                if (root.id === plantId) {
+                    stat = getPlantStatFromRootCell(root);
                 }
             });
             return stat;
@@ -594,7 +585,7 @@
             const simStats = {};
 
             t0 = performance.now();
-            this.plants.forEach(plant => stepPlantCells(plant.rootCell));
+            this.rootCells.forEach(root => stepPlantCells(root));
             simStats['bio/ms'] = performance.now() - t0;
 
             t0 = performance.now();
@@ -628,8 +619,8 @@
 
             // Add/Update cells.
             const liveCells = new Set();
-            for (const plant of this.plants) {
-                for (const cell of plant.rootCell.allCells) {
+            for (const root of this.rootCells) {
+                for (const cell of root.allCells) {
                     liveCells.add(cell);
                 }
             }
@@ -878,15 +869,15 @@
             const despawnHeight = -50;
             const p = new THREE.Vector3();
 
-            const plantToDestroy = new Set();
+            const rootsToDestroy = new Set();
             for (const cell of this.cellToIndex.keys()) {
                 p.set(0, 0, 0);
                 p.applyMatrix4(cell.cellToWorld);
                 if (p.z < despawnHeight) {
-                    plantToDestroy.add(cell.plant);
+                    rootsToDestroy.add(cell.getRootCell());
                 }               
             }
-            this.plants = this.plants.filter(plant => !plantToDestroy.has(plant));
+            this.rootCells = this.rootCells.filter(root => !rootsToDestroy.has(root));
         }
 
         serialize() {
@@ -929,8 +920,8 @@
             let numCells = 0;
             let storedEnergy = 0;
 
-            for (let plant of this.plants) {
-                for (let cell of plant.rootCell.allCells) {
+            for (let root of this.rootCells) {
+                for (let cell of root.allCells) {
                     numCells++;
                     if (cell.parentCell === null) {
                         numPlants++;
@@ -951,8 +942,8 @@
          * @param {number} plantId 
          */
         removePlantById(plantId) {
-            this.plants = this.plants.filter(plant => {
-                return (plant.rootCell.id !== plantId);
+            this.rootCells = this.rootCells.filter(root => {
+                return (root.id !== plantId);
             });
         }
     }
