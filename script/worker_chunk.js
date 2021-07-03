@@ -568,6 +568,10 @@
 
             t0 = performance.now();
 
+            if (Math.random() < 0.01) {
+                this._randomGenomeTransfer();
+            }
+
             for (const cell of this.liveCells) {
                 cell.step();
             }
@@ -870,6 +874,13 @@
                     this.cellIndexToSoilIndex.set(cellIx, soilIx);
                 }
             }
+        }
+
+        _randomGenomeTransfer() {
+            const cs = Array.from(this.liveCells);
+            const c0 = cs[Math.floor(Math.random() * cs.length)];
+            const c1 = cs[Math.floor(Math.random() * cs.length)];
+            c0.genome = Genome.crossover(c0.genome, c1.genome);
         }
 
         _despawnPlants() {

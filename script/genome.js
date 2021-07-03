@@ -54,6 +54,17 @@
             return new Genome(e);
         }
 
+        static crossover(g0, g1) {
+            if (Math.random() > 0.5) {
+                [g0, g1] = [g1, g0];
+            }
+
+            const n = Math.min(g0.genome.length, g1.genome.length);
+            const k = Math.floor(Math.random() * n);
+
+            return new Genome(g0.genome.slice(0, k) + g1.genome.slice(k));
+        }
+
         // Clone "naturally" with mutations.
         // Since real bio is too complex, use a simple rule that can
         // diffuse into all states.
