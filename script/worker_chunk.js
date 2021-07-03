@@ -47,6 +47,7 @@
     }
 
     const INITIAL_CELL_SIZE = 0.5;
+    const MAX_CONC = 255;
     //  Power Generation (<- Light):
     //    sum of photosynthesis (LEAF)
     //  Power Consumption:
@@ -108,7 +109,7 @@
         }
 
         getMass() {
-            return 1e-3 * this.sx * this.sy * this.sz;  // kg
+            return 1e-2 * this.sx * this.sy * this.sz;
         }
 
         getNumAct() {
@@ -150,13 +151,12 @@
 
         _getPhotoSynthesisEfficiency() {
             const numChlr = this.signals.get(Signal.CHLOROPLAST) ?? 0;
-            return numChlr / 500.0;
+            return numChlr / MAX_CONC;
         }
 
         // return :: ()
         step() {
-            const MAX_CONC = 500;
-
+            
             // update tracer
             this.prevNumAct = this.getNumAct();
             this.age += 1;
@@ -183,7 +183,7 @@
                 } else if (s === Signal.MODE_PRODUCE) {
                     modeLookup = false;
                 } else if (modeLookup) {
-                    val *= (this.signals.get(s) ?? 0) / 500.0;
+                    val *= (this.signals.get(s) ?? 0) / MAX_CONC;
                 } else {
                     if (val > Math.random()) {
                         // some signals cannot be produced directly.
@@ -279,9 +279,9 @@
 
         getCellColor() {
             // Create cell object [-sx/2,sx/2] * [-sy/2,sy/2] * [0, sz]
-            const ratioA = (this.signals.get(Signal.M_ACTIVE) ?? 0) / 500.0; // magenta (absortbs green)
-            const ratioB = (this.signals.get(Signal.M_BASE) ?? 0) / 500.0; // cyan (absorbs red)
-            const ratioC = (this.signals.get(Signal.CHLOROPLAST) ?? 0) / 500.0; // green (absorbs red, blue)
+            const ratioA = (this.signals.get(Signal.M_ACTIVE) ?? 0) / MAX_CONC; // magenta (absortbs green)
+            const ratioB = (this.signals.get(Signal.M_BASE) ?? 0) / MAX_CONC; // cyan (absorbs red)
+            const ratioC = (this.signals.get(Signal.CHLOROPLAST) ?? 0) / MAX_CONC; // green (absorbs red, blue)
 
             const col = new THREE.Color(1, 1, 1);
             col.multiply(new THREE.Color(1, 1 - ratioA * 0.3, 1));
@@ -527,7 +527,7 @@
          * @returns {Cell} added cell
          */
         addPlant(pos, genome, energy) {
-            const DEFAULT_SEED_ENERGY = 500;
+            const DEFAULT_SEED_ENERGY = MAX_CONC;
 
             const seedInnodeToWorld = new THREE.Matrix4().compose(
                 pos,
@@ -706,10 +706,17 @@
                         constraint.setLinearUpperLimit(ctUpper);
                         Ammo.destroy(ctLower);
                         Ammo.destroy(ctUpper);
-                        [0, 1, 2, 3, 4, 5].forEach(ix => {
+                        // translation
+                        [0, 1, 2].forEach(ix => {
                             constraint.enableSpring(ix, true);
                             constraint.setStiffness(ix, 100);
                             constraint.setDamping(ix, 0.03);
+                        });
+                        // rotation
+                        [3, 4, 5].forEach(ix => {
+                            constraint.enableSpring(ix, true);
+                            constraint.setStiffness(ix, 100);
+                            constraint.setDamping(ix, 0.2);
                         });
                         constraint.setBreakingImpulseThreshold(100);
     
