@@ -212,16 +212,6 @@
             this.sz = Math.min(5, this.sz + 0.1 * (this.signals.get(Signal.G_DZ) ?? 0));
             this.signals.delete(Signal.G_DZ);
 
-            if ((this.signals.get(Signal.FLOWER) ?? 0) > 0) {
-                // Disperse seed once in a while.
-                // Maybe dead cells with stored energy survives when fallen off.
-                if (Math.random() < 0.01) {
-                    const seedEnergy = this._withdrawVariableEnergy(250);
-                    const seedPosWorld = new THREE.Vector3().applyMatrix4(this.cellToWorld);
-                    this.unsafeChunk.addPlant(seedPosWorld, this.genome.naturalClone(), seedEnergy);
-                }
-            }
-
             // signal transporter
             const numTrAUp = (this.signals.get(Signal.TR_A_UP) ?? 0);
             if (numTrAUp > 0 && this.parentCell !== null) {
@@ -337,7 +327,7 @@
             c2w.premultiply(so2s);
             c2w.premultiply(s2w);
 
-            const newCell = new Cell(this.unsafeChunk, this.genome, childSigs, c2w, rotQ, this);
+            const newCell = new Cell(this.unsafeChunk, this.genome.naturalClone(), childSigs, c2w, rotQ, this);
             this.unsafeChunk.liveCells.add(newCell);
         }
     }

@@ -8,24 +8,21 @@
         M_BASE: 'b', // base material (water), blue
         CHLOROPLAST: 'c', // photon receiver, green
 
-        // Transcription modifiers.
+        // Transcription modifiers
         INVERT: 'i',
-
-        // Intrisinc functionals.
-        FLOWER: 'w',
-        
-        DIFF: 'd', // replicate cell
         REMOVER: 'r',  // remove a signal
 
-        // transporters
+        // Signal transporters
         TR_A_UP: 'f',
         TR_A_DOWN: 'g',
         TR_B_DOWN: 'h',
 
-        // Sell replication modifiers.
+        // Cell replication modifiers
         CR_X: 's',
         CR_Z: 't',
+        DIFF: 'd', // replicate cell
 
+        // Cell growth modifiers
         G_DX: 'x',
         G_DY: 'y',
         G_DZ: 'z',
