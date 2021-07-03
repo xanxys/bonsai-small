@@ -654,7 +654,7 @@
             }
             Ammo.destroy(cellBoxSize);
 
-            // Add/Update constraints. (assumes each cell has exactly 1 constraint)
+            // Add/Update constraints. (assumes each cell has exactly 0 or 1 constraint)
             const tfCell = new Ammo.btTransform();
             const tfParent = new Ammo.btTransform();
             for (const cell of this.liveCells) {
@@ -665,7 +665,7 @@
                 tfCell.getOrigin().setValue(0, 0, -cell.sz / 2); // innode
 
                 if (constraint === undefined) {
-                    if (cell.rooted) {
+                    if (cell.rooted || cell.parentCell !== null) {
                         const rb = this.indexToRigidBody.get(cellIndex);
 
                         let parentRb = null;
@@ -709,7 +709,7 @@
                         [0, 1, 2, 3, 4, 5].forEach(ix => {
                             constraint.enableSpring(ix, true);
                             constraint.setStiffness(ix, 100);
-                            constraint.setDamping(ix, 0.1);
+                            constraint.setDamping(ix, 0.03);
                         });
                         constraint.setBreakingImpulseThreshold(100);
     
@@ -720,12 +720,12 @@
                     // Update constraint.
                     const constraint = this.indexToConstraint.get(cellIndex);
 
-                    if (cell.parentCell === null) {
+                    if (cell.rooted) {
                         // cell-soil link
                         const fb = constraint.getFrameOffsetB();
                         constraint.setFrames(tfCell, fb);
                         Ammo.destroy(fb);
-                    } else {
+                    } else if (cell.parentCell !== null) {
                         // cell-parent cell link
                         tfParent.setIdentity();
                         tfParent.getOrigin().setValue(0, 0, cell.parentCell.sz / 2);
@@ -733,6 +733,8 @@
                         tfParent.setRotation(q);
                         Ammo.destroy(q);
                         constraint.setFrames(tfCell, tfParent);
+                    } else {
+                        this.removeConstraint(cellIndex);
                     }
                 }
             }
