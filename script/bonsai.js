@@ -56,7 +56,7 @@ class GenomeTracker {
     }
 }
 
-const DEFAULT_GENOME = ">ccchhhxz|c>dwdd|a>cx|a>cx";
+const DEFAULT_GENOME = "a>ccchhhxzo|cq>dwddj|aa>cxq|am>cxa|>s";
 
 class Bonsai {
     constructor() {
