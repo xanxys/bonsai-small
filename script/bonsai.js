@@ -58,14 +58,6 @@ class GenomeTracker {
 
 const DEFAULT_GENOME = "apccchhhxzolkkkicqpdwddjlkkkiaapcxqlkkkiampcxalkkkips";
 
-// l: switch mode := lookup
-// p: switch mode := produce
-// i: v := 1 - v
-//
-// others(x):
-//  lookup mode: v *= conc(x)
-//  produce mode: emit(x) with probability v
-
 class Bonsai {
     constructor() {
         this.scene = new THREE.Scene();
