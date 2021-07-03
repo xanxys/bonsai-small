@@ -48,7 +48,7 @@ class GenomeTracker {
         return {
             encoded: encodedGenome,
             genomeSize: encodedGenome.length,
-            geneCount: Genome.decode(encodedGenome).genes.length,
+            geneCount: 1,
 
             popCurrent: (this.latest.get(encodedGenome) ?? new Set()).size,
             popTotal: (this.accum.get(encodedGenome) ?? new Set()).size,
@@ -56,7 +56,15 @@ class GenomeTracker {
     }
 }
 
-const DEFAULT_GENOME = "a>ccchhhxzo|cq>dwddj|aa>cxq|am>cxa|>s";
+const DEFAULT_GENOME = "apccchhhxzolkkkicqpdwddjlkkkiaapcxqlkkkiampcxalkkkips";
+
+// l: switch mode := lookup
+// p: switch mode := produce
+// i: v := 1 - v
+//
+// others(x):
+//  lookup mode: v *= conc(x)
+//  produce mode: emit(x) with probability v
 
 class Bonsai {
     constructor() {
@@ -291,7 +299,7 @@ class Bonsai {
                         storedEnergy: stat['energy:stored'],
                         deltaEnergy: stat['energy:delta'],
                         genomeSize: stat.genome.length,
-                        numGenes: genome.genes.length,
+                        numGenes: 1,
                         cells: stat['cells'],
                         genome: genome,
                     };
@@ -353,12 +361,10 @@ class Bonsai {
                     if (this.selectedPlant.genome === undefined) {
                         return [];
                     }
-                    return this.selectedPlant.genome.genes.map(gene => {
-                        return {
-                            when: convertSignals(gene.when),
-                            emit: convertSignals(gene.emit),
-                        };
-                    });
+                    return [{
+                        when: convertSignals(Array.from(this.selectedPlant.genome.genome)),
+                        emit: [],
+                    }];
                 },
                 isInspectMode: function() {
                     return this.cursorMode === CURSOR_MODE_INSPECT;

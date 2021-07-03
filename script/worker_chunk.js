@@ -172,23 +172,31 @@
             applyDelta(this.signals, Signal.M_ACTIVE, numConversion);
 
             // Gene expression and transcription.
-            for (const gene of this.genome.genes) {
-                if (this._geneExpressionProbability(gene['when']) > Math.random()) {
-                    let numAct = this.signals.get(Signal.M_ACTIVE) ?? 0;
-                    gene['emit'].forEach(sig => {
+            let modeLookup = true;
+            let val = 1;
+            let numAct = this.signals.get(Signal.M_ACTIVE) ?? 0;            
+            for (const s of this.genome.genome) {
+                if (s === Signal.INVERT) {
+                    val = 1 - val;
+                } else if (s === Signal.MODE_LOOKUP) {
+                    modeLookup = true;
+                } else if (s === Signal.MODE_PRODUCE) {
+                    modeLookup = false;
+                } else if (modeLookup) {
+                    val *= (this.signals.get(s) ?? 0) / 500.0;
+                } else {
+                    if (val > Math.random()) {
                         // some signals cannot be produced directly.
-                        if (sig === Signal.M_ACTIVE || sig === Signal.M_BASE) {
-                            return;
-                        }
-
-                        if (numAct > 0) {
-                            applyDelta(this.signals, sig, 1);
+                        if (s === Signal.M_ACTIVE || s === Signal.M_BASE) {
+                            continue;
+                        } else if (numAct > 0) {
+                            applyDelta(this.signals, s, 1);
                             numAct--;
                         }
-                    });
-                    this.signals.set(Signal.M_ACTIVE, numAct);
+                    }
                 }
             }
+            this.signals.set(Signal.M_ACTIVE, numAct);
 
             // Bio-physics.
             while (this.signals.get(Signal.REMOVER) ?? 0 > 0) {
@@ -243,18 +251,6 @@
                     this.signals.set(sig, MAX_CONC);
                 }
             }
-        }
-
-        _geneExpressionProbability(when) {
-            let prob = 1;
-            when.forEach(signal => {
-                if (signal === Signal.INVERT) {
-                    prob = 1 - prob;
-                } else {
-                    prob *= (this.signals.get(signal) ?? 0) / 500.0;
-                }
-            });
-            return prob;
         }
 
         computeBtTransform(tf) {

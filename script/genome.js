@@ -9,8 +9,18 @@
         CHLOROPLAST: 'c', // photon receiver, green
 
         // Transcription modifiers
+        // starts in lookup mode
+        // l: switch mode := lookup
+        // p: switch mode := produce
+        // i: v := 1 - v
+        //
+        // others(x):
+        //  lookup mode: v *= conc(x)
+        //  produce mode: emit(x) with probability v
         INVERT: 'i',
         REMOVER: 'r',  // remove a signal
+        MODE_LOOKUP: 'l',
+        MODE_PRODUCE: 'p',
 
         // Signal transporters
         TR_A_UP: 'f',
@@ -29,30 +39,19 @@
     };
 
     class Genome {
-        constructor(genes) {
-            this.genes = genes;
+        constructor(genome) {
+            this.genome = genome;
         }
 
         encode() {
-            return this.genes.map(gene => gene.when.join('') + '>' + gene.emit.join('')).join('|');
+            return this.genome;
         }
 
         static decode(e) {
             if (typeof e !== 'string') {
                 throw 'GenomeFormatError:' + e;
             }
-            const geneListE = e.split('|');
-            if (e.length === 0) {
-                throw 'GenomeFormatError: no gene: ' + e;
-            }
-            return new Genome(geneListE.map(geneEnc => {
-                const geneElemList = geneEnc.split('>');
-                const [whenEnc, emitEnc] = geneElemList;
-                return {
-                    'when': new Array(...whenEnc),
-                    'emit': new Array(...emitEnc),
-                };
-            }));
+            return new Genome(e);
         }
 
         // Clone "naturally" with mutations.
@@ -60,31 +59,12 @@
         // diffuse into all states.
         // return :: Genome
         naturalClone() {
-            const genes = this._shuffle(
-                this.genes,
-                gene => this._naturalCloneGene(gene),
-                gene => this._naturalCloneGene(gene),
-                () => this._randomGene());
-            return new Genome(genes);
-        }
-
-        /**
-         * @param {Gene} geneOld 
-         * @returns {Gene}
-         */
-        _naturalCloneGene(geneOld) {
-            const gene = {};
-            gene["when"] = this._shuffle(
-                geneOld["when"],
+            const genome = this._shuffle(
+                Array.from(this.genome),
                 sig => this._naturalCloneSignal(sig),
                 sig => this._naturalCloneSignal(sig),
                 () => this._randomSig());
-            gene["emit"] = this._shuffle(
-                geneOld["emit"],
-                sig => this._naturalCloneSignal(sig),
-                sig => this._naturalCloneSignal(sig),
-                () => this._randomSig());
-            return gene;
+            return new Genome(genome.join(''));
         }
 
         _naturalCloneSignal(sig) {
@@ -93,13 +73,6 @@
             } else {
                 return sig;
             }
-        }
-
-        _randomGene() {
-            return {
-                'when': [],
-                'emit': [this._randomSig()],
-            };
         }
 
         _randomSig() {
