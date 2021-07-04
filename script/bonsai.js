@@ -1,17 +1,7 @@
 "use strict";
 
-Vue.component('line-plot', Vue.extend({
-    extends: VueChartJs.Line,
-    mixins: [VueChartJs.mixins.reactiveProp],
-    props: ['options'],
-    mounted: function() {
-        this.renderChart(this.chartData, this.options);
-    },
-}));
-
 const CURSOR_MODE_INSPECT = 'inspect';
 const CURSOR_MODE_ADD = 'add';
-
 
 /** Tracks stats for each genome for entire history. */
 class GenomeTracker {
@@ -124,45 +114,6 @@ class Bonsai {
                 storedEnergy: 0,
 
                 showingChart: false,
-                historydata: {},
-                historyoption: {
-                    color: '#fff',
-                    backgroundColor: '#eee',
-                    borderColor: '#ccc',
-                    responsive: false,
-                    maintainAspectRatio: false,
-                    animation: false, // line drawing can't catch up dynamic update with animation on
-                    elements: {
-                        point:{
-                            radius: 1,
-                        }
-                    },
-                    scales: {
-                        y: {
-                            type: 'linear',
-                            display: true,
-                            position: 'left',
-
-                            ticks: {
-                                color: '#fff',
-                            },
-                            
-                        },
-                        y1: {
-                            type: 'linear',
-                            display: true,
-                            position: 'right',
-                            ticks: {
-                                color: '#fff',
-                            },
-
-                            // grid line settings
-                            grid: {
-                                drawOnChartArea: false, // only want the grid lines for one axis to show up
-                            },
-                        },
-                    },
-                },
                 showingEnvControl: false,
                 lightMultiplier: 4,
                 lightIntensity: 0,
@@ -183,6 +134,56 @@ class Bonsai {
             created: function() {
                 this.genomeList.push(DEFAULT_GENOME);
                 this.currentGenome = DEFAULT_GENOME;
+            },
+            mounted: function() {
+                let opts = {
+                    width: 504,
+                    height: 288,
+                    cursor: {
+                        drag: {x: false, y: false},
+                    },
+                    scales: {
+                        x: {time: false},
+                    },
+                    series: [
+                        {},
+                        {
+                            scale: 'count',
+                            show: true,
+                            label: "plants",
+                            value: (self, rawValue) => "$" + rawValue.toFixed(0),
+                            stroke: "#BC004F",
+                            width: 1,
+                        },
+                        {
+                            scale: 'energy',
+                            show: true,
+                            label: "stored",
+                            value: (self, rawValue) => "$" + rawValue.toFixed(0),
+                            stroke: "white",
+                            width: 1,
+                        }
+                    ],
+                    axes: [
+                        {
+                            stroke: 'white',
+                            grid: {stroke: '#5A5165', width: 1},
+                        },
+                        {
+                            side: 1,
+                            scale: 'energy',
+                            stroke: 'white',
+                            grid: {show: false},
+                        },
+                        {
+                            scale: 'count',
+                            stroke: '#BC004F',
+                            grid: {show: false},
+                        },
+                    ],
+                  };
+                  
+                  app.uplot = new uPlot(opts, [], this.$refs.chart);
             },
             watch: {
                 lightIntensity: function(newV, oldV) {
@@ -257,23 +258,7 @@ class Bonsai {
                     for (let i = 0; i < this.age; i++) {
                         timestamps.push(i + 1);
                     }
-                    
-                    this.historydata = {
-                        labels: timestamps,
-                        datasets: [
-                            {
-                                label: '#plants',
-                                data: app.num_plant_history
-                            },
-                            {
-                                label: 'stored energy',
-                                data: app.energy_history,
-                                backgroundColor: '#afa',
-                                borderColor: '#afa',
-                                yAxisID: 'y1',
-                            }
-                        ]
-                    };
+                    app.uplot.setData([timestamps, app.num_plant_history, app.energy_history]);
                 },
 
                 onClickInspect: function() {
@@ -433,6 +418,27 @@ class Bonsai {
                 console.warn('unknown message type', msgType);
             }
         }, false);
+
+        /*
+
+        let n = 0;
+        for (let i = 0; i < 5000; i++) {
+            this.num_plant_history.push(Math.sin(i/100) * (3 + Math.random()));
+            this.energy_history.push(Math.sin(i/100) * (3 + Math.random()));
+            n++;
+        }
+        this.vm.age = n;
+        this.vm.updateGraph();
+        setInterval(() => {
+            this.num_plant_history.push(100 * (3 + Math.random()));
+            this.energy_history.push(1000 * (3 + Math.random()));
+            n++;
+            this.vm.age = n;
+            this.vm.updateGraph();
+        }, 100);
+        */
+
+
 
         this.requestSetLightMultiplier(this.vm.lightMultiplier);
     }

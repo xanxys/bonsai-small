@@ -8,6 +8,7 @@
 
 	<link href="./ui_asset/common.css" rel="stylesheet" type="text/css" />
 	<link href="./ui_asset/special.css" rel="stylesheet" type="text/css" />
+	<link rel="stylesheet" href="./ui_asset/uPlot.min.css">
 	<link rel="icon" href="./favicon.png" type="image/png" />
 </head>
 
@@ -46,7 +47,7 @@
 			</button>
 		</div>
 		<div class="panel panel-v subpanel-simdetail" v-show="showingChart">
-			<line-plot :chart-data="historydata" :options="historyoption" height="200"></line-plot>
+			<div ref="chart"></div>
 		</div>
 		<div class="panel panel-h subpanel-envcontrol" v-show="showingEnvControl">
 			<section class="w-module module-size-2x">
@@ -182,10 +183,7 @@
 	<script src="script/genome.js"></script>
 	<script src="https://cdnjs.cloudflare.com/ajax/libs/vue/2.6.12/vue.min.js"
 		integrity="sha512-BKbSR+cfyxLdMAsE0naLReFSLg8/pjbgfxHh/k/kUC82Hy7r6HtR5hLhobaln2gcTvzkyyehrdREdjpsQwy2Jw==" crossorigin="anonymous"></script>
-	<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.0.2/chart.min.js"
-		integrity="sha512-dnUg2JxjlVoXHVdSMWDYm2Y5xcIrJg1N+juOuRi0yLVkku/g26rwHwysJDAMwahaDfRpr1AxFz43ktuMPr/l1A==" crossorigin="anonymous"></script>
-	<script src="https://cdnjs.cloudflare.com/ajax/libs/vue-chartjs/3.5.1/vue-chartjs.min.js"
-		integrity="sha512-HIA1ey+BHvsI1zt1i4IC52HvVClIQ6pOUbuZ/YN0ko2DPgkJp50ADnA7XXiKU0k1TyLUrW4VCdB/n82Et9NGxA==" crossorigin="anonymous"></script>
+	<script src="script/uPlot.iife.min.js"></script>
 	<script src="script/bonsai.js"></script>
 </body>
 
